@@ -439,12 +439,12 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .explore-map-wrap{display:flex;flex-direction:column;flex:1;min-height:0;height:100%}
 @media(min-width:768px){.explore-map-wrap{flex-direction:row;overflow:hidden}}
 
-/* MOBILE: map fixed at top, list scrolls independently below */
-/* position:fixed is required for reliable iOS Safari behavior */
+/* MOBILE: map fixed at top via flex — no pixel math needed */
+/* scroll-body is overflow:hidden in explore-mode, so only map-list-panel scrolls */
 @media(max-width:767px){
-  .explore-map-wrap{display:block;position:relative}
-  .map-panel{position:fixed;top:88px;left:0;right:0;height:220px;z-index:10;width:100%}
-  .map-list-panel{margin-top:220px;height:calc(100vh - 308px);overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:0}
+  .explore-map-wrap{display:flex;flex-direction:column;height:100%;overflow:hidden}
+  .map-panel{height:220px;flex-shrink:0;width:100%;position:relative;z-index:2}
+  .map-list-panel{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0}
 }
 
 /* DESKTOP: map sticky left, list scrolls independently right */
@@ -737,7 +737,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 
 <script>
 /* ============================================================
-   WINDMILL v1.17 — Complete Application Script
+   WINDMILL v1.18 — Complete Application Script
    18 Lee County markets · 60+ vendors · 4 role views
    Vendor profile template · Market detail template
    Admin build/publish tools · Expansion request flow
@@ -1237,17 +1237,18 @@ function adUnit() {
   return `<div class="ad-unit"><div><div class="ad-label">${t('ad_label')}</div><div class="ad-text">${t('ad_text')}</div></div><div class="ad-placeholder"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div></div>`;
 }
 
-/* ── SPONSORED MAP CARD (amber-lt, every 5th result in explore) ── */
-function sponsoredMapCard() {
-  const ads = [
-    {name:"First Florida Credit Union",sub:"Free checking for market vendors & shoppers",icon:"🏦"},
-    {name:"Lee County Electric Co-op",sub:"Power your home with local energy",icon:"⚡"},
-    {name:"Gulf Coast Toyota",sub:"New & used — family-owned since 1978",icon:"🚗"},
-    {name:"Sanibel Captiva Conservation",sub:"Protect the islands we all love",icon:"🌿"},
-    {name:"Florida Blue",sub:"Health coverage for local business owners",icon:"💙"}
-  ];
-  const ad = ads[Math.floor(Math.random()*ads.length)];
-  return `<div class="map-market-card" style="background:var(--amber-lt);border-left:3px solid var(--amber)">
+/* ── SPONSORED MAP CARD — fixed slots at positions 5,10,15... ── */
+const MAP_ADS = [
+  {name:"First Florida Credit Union",sub:"Free checking for market vendors & shoppers",icon:"🏦"},
+  {name:"Lee County Electric Co-op",sub:"Power your home with local energy",icon:"⚡"},
+  {name:"Gulf Coast Toyota",sub:"New & used — family-owned since 1978",icon:"🚗"},
+  {name:"Sanibel Captiva Conservation",sub:"Protect the islands we all love",icon:"🌿"},
+  {name:"Florida Blue",sub:"Health coverage for local business owners",icon:"💙"}
+];
+
+function sponsoredMapCard(slotIndex) {
+  const ad = MAP_ADS[slotIndex % MAP_ADS.length];
+  return `<div class="map-market-card map-sponsored-card" data-slot="${slotIndex}" style="background:var(--amber-lt);border-left:3px solid var(--amber)">
     <div style="width:38px;height:38px;border-radius:9px;background:#FDF3DC;border:0.5px solid #F0D090;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${ad.icon}</div>
     <div style="flex:1;min-width:0">
       <div style="display:flex;align-items:center;gap:5px;margin-bottom:2px">
@@ -1258,6 +1259,40 @@ function sponsoredMapCard() {
     </div>
     <button style="font-size:10px;padding:4px 9px;border:0.5px solid var(--amber);border-radius:var(--r-pill);color:#7A4E08;background:transparent;cursor:pointer;white-space:nowrap;font-family:var(--font-sans)">Learn more</button>
   </div>`;
+}
+
+/* Build a list interleaving real cards with fixed ad slots at 5,10,15...
+   Rule: never show two ads back to back — if a real card doesn't
+   separate two ad slots, hide the second ad */
+function buildMapCardList(realCards) {
+  const AD_EVERY = 5;
+  const result = [];
+  let realIdx = 0;
+  let slotNum = 0; // overall position counter
+  let adCount = 0;
+  let lastWasAd = false;
+
+  while(realIdx < realCards.length || (slotNum % AD_EVERY === 0 && slotNum > 0 && realIdx >= realCards.length && adCount < Math.floor(realCards.length / AD_EVERY) + 1)) {
+    slotNum++;
+    if(slotNum % AD_EVERY === 0) {
+      // This is an ad slot — only show if last item was NOT an ad
+      if(!lastWasAd) {
+        result.push({type:'ad', slotIndex: adCount});
+        adCount++;
+        lastWasAd = true;
+      }
+      // If last was ad, skip this ad slot (back-to-back prevention)
+    } else {
+      if(realIdx < realCards.length) {
+        result.push({type:'card', card: realCards[realIdx]});
+        realIdx++;
+        lastWasAd = false;
+      }
+    }
+    // Safety exit
+    if(slotNum > realCards.length + 20) break;
+  }
+  return result;
 }
 
 function sponsoredCard() {
@@ -2083,7 +2118,7 @@ function renderMapModeContent() {
         ${vendors.slice(0, 40).map((v,i) => {
           const c = vc(i);
           const vendorMarkets = v.markets.map(id => getMarket(id)).filter(Boolean);
-          const sponsoredHtml = (i > 0 && i % 5 === 0) ? sponsoredMapCard() : '';
+          const sponsoredHtml = (i > 0 && i % 5 === 0) ? sponsoredMapCard(Math.floor(i/5)-1) : '';
           return sponsoredHtml + `<div class="map-market-card" onclick="selectVendorOnMap('${v.id}')">
             <div class="map-pin-badge" style="background:${c.bg};color:${c.c};font-family:var(--font-serif);font-size:10px;font-weight:600;border:0.5px solid var(--border)">${initials(v.name)}</div>
             <div style="flex:1;min-width:0">
@@ -2176,19 +2211,42 @@ function initWindmillMap() {
         countEl.innerHTML = `<span>${inView.length} market${inView.length===1?'':'s'}${moved?' in this area':' found'}</span>
           ${moved ? `<button class="map-search-area-btn" onclick="searchThisArea()">🔍 Search this area</button>` : ''}`;
       }
-      // Hide cards that are out of view, show those in view
-      // Sponsored cards (no mapcard- id) always stay visible
+      // Re-render card list with only in-bounds markets, using fixed-slot ad system
       const list = document.getElementById('mapCardList');
       if(list) {
-        list.querySelectorAll('.map-market-card').forEach(card => {
-          if(!card.id || !card.id.startsWith('mapcard-')) {
-            card.style.display = 'flex'; // always show sponsored
-            return;
-          }
-          const id = card.id.replace('mapcard-','');
-          const m = getMarket(id);
-          card.style.display = m && bounds.contains([m.lat, m.lng]) ? 'flex' : 'none';
+        const inBoundsMarkets = allMarkets.filter(m => bounds.contains([m.lat, m.lng]));
+        if(inBoundsMarkets.length === 0) {
+          list.innerHTML = sponsoredMapCard(0) + `<div style="padding:24px 16px;text-align:center">
+            <div style="font-size:28px;margin-bottom:6px">🗺</div>
+            <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:4px">No markets in this area</div>
+            <button class="map-search-area-btn" onclick="searchThisArea()" style="margin-top:8px">🔍 Search this area</button>
+          </div>`;
+          return;
+        }
+        const realCards = inBoundsMarkets.map((m, i) => {
+          const open = isOpen(m);
+          const photo = DATA.market_photos[m.id];
+          const selected = ST.mapSelectedId === m.id;
+          return {
+            id: m.id,
+            html: `<div class="map-market-card ${selected?'selected':''}" id="mapcard-${m.id}" onclick="selectMapMarket('${m.id}')">
+              <div class="map-pin-badge ${open?'':'seasonal'}">${i+1}</div>
+              ${photo ? `<img class="map-card-img" src="${photo}" alt="${m.name}" loading="lazy">` : `<div class="map-card-img" style="background:${mbg(i)};display:flex;align-items:center;justify-content:center;font-size:20px">🏪</div>`}
+              <div style="flex:1;min-width:0">
+                <div class="map-card-name">${m.name}</div>
+                <div class="map-card-sub">${m.city} · ${m.day_of_week}s ${m.start_time.replace(':00','')}–${m.end_time.replace(':00','')}</div>
+                <div class="map-card-pills">
+                  <span class="market-pill" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'Open now':m.season_start+'–'+m.season_end}</span>
+                  <span class="market-pill">${vendorCount(m.id)} vendors</span>
+                  ${m.pet_friendly?'<span class="market-pill">🐾</span>':''}
+                </div>
+              </div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" onclick="event.stopPropagation();navigate('market','${m.id}')"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>`
+          };
         });
+        const slots = buildMapCardList(realCards);
+        list.innerHTML = slots.map(s => s.type === 'ad' ? sponsoredMapCard(s.slotIndex) : s.card.html).join('');
       }
     }, 350);
   });
@@ -2412,7 +2470,7 @@ function renderMapCards(markets) {
   if(count) count.textContent = markets.length + ' market' + (markets.length===1?'':'s') + ' found';
 
   if(markets.length === 0) {
-    list.innerHTML = sponsoredMapCard() + `<div style="padding:32px 16px;text-align:center">
+    list.innerHTML = sponsoredMapCard(0) + `<div style="padding:32px 16px;text-align:center">
       <div style="font-size:32px;margin-bottom:8px">📅</div>
       <div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:4px">No markets match</div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:16px">Try clearing your filters</div>
@@ -2421,31 +2479,37 @@ function renderMapCards(markets) {
     return;
   }
 
-  let cardsHtml = '';
-  markets.forEach((m, i) => {
-    if(i > 0 && i % 5 === 0) cardsHtml += sponsoredMapCard();
+  // Build real card HTML objects then interleave with fixed ad slots
+  const realCards = markets.map((m, i) => {
     const open = isOpen(m);
     const photo = DATA.market_photos[m.id];
     const selected = ST.mapSelectedId === m.id;
-    cardsHtml += `<div class="map-market-card ${selected?'selected':''}" id="mapcard-${m.id}" onclick="selectMapMarket('${m.id}')">
-      <div class="map-pin-badge ${open?'':'seasonal'}">${i+1}</div>
-      ${photo
-        ? `<img class="map-card-img" src="${photo}" alt="${m.name}" loading="lazy">`
-        : `<div class="map-card-img" style="background:${mbg(i)};display:flex;align-items:center;justify-content:center;font-size:20px">🏪</div>`
-      }
-      <div style="flex:1;min-width:0">
-        <div class="map-card-name">${m.name}</div>
-        <div class="map-card-sub">${m.city} · ${m.day_of_week}s ${m.start_time.replace(':00','')}–${m.end_time.replace(':00','')}</div>
-        <div class="map-card-pills">
-          <span class="market-pill" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'Open now':m.season_start+'–'+m.season_end}</span>
-          <span class="market-pill">${vendorCount(m.id)} vendors</span>
-          ${m.pet_friendly?'<span class="market-pill">🐾</span>':''}
+    return {
+      id: m.id,
+      html: `<div class="map-market-card ${selected?'selected':''}" id="mapcard-${m.id}" onclick="selectMapMarket('${m.id}')">
+        <div class="map-pin-badge ${open?'':'seasonal'}">${i+1}</div>
+        ${photo
+          ? `<img class="map-card-img" src="${photo}" alt="${m.name}" loading="lazy">`
+          : `<div class="map-card-img" style="background:${mbg(i)};display:flex;align-items:center;justify-content:center;font-size:20px">🏪</div>`
+        }
+        <div style="flex:1;min-width:0">
+          <div class="map-card-name">${m.name}</div>
+          <div class="map-card-sub">${m.city} · ${m.day_of_week}s ${m.start_time.replace(':00','')}–${m.end_time.replace(':00','')}</div>
+          <div class="map-card-pills">
+            <span class="market-pill" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'Open now':m.season_start+'–'+m.season_end}</span>
+            <span class="market-pill">${vendorCount(m.id)} vendors</span>
+            ${m.pet_friendly?'<span class="market-pill">🐾</span>':''}
+          </div>
         </div>
-      </div>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" onclick="event.stopPropagation();navigate('market','${m.id}')"><polyline points="9 18 15 12 9 6"/></svg>
-    </div>`;
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" onclick="event.stopPropagation();navigate('market','${m.id}')"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>`
+    };
   });
-  list.innerHTML = cardsHtml;
+
+  const slots = buildMapCardList(realCards);
+  list.innerHTML = slots.map(s =>
+    s.type === 'ad' ? sponsoredMapCard(s.slotIndex) : s.card.html
+  ).join('');
 }
 
 function selectMapMarket(id) {
@@ -3080,7 +3144,7 @@ function renderMe() {
       </div>
     </div>
     <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text3)">
-      Windmill v1.17 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
+      Windmill v1.18 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
     </div>
   </div>`;
 }
@@ -3855,67 +3919,36 @@ function submitAreaReq() {
 
 /* ── MOBILE SCROLL COLLAPSE ── */
 (function initScrollCollapse() {
-  if(window.innerWidth >= 768) return; // desktop only skips
-  let lastY = 0;
-  let ticking = false;
-  const THRESHOLD = 40; // px before collapsing
+  if(window.innerWidth >= 768) return;
+  const THRESHOLD = 40;
 
-  document.addEventListener('scroll', function() {
-    if(ticking) return;
-    ticking = true;
-    requestAnimationFrame(() => {
-      const sb = document.getElementById('scrollBody');
-      if(!sb) { ticking=false; return; }
-      // use window scroll for non-overflow elements, or scrollBody
-      const currentY = sb.scrollTop || window.scrollY;
-      const topbar = document.getElementById('mobileTopbar');
-      const bottomNav = document.getElementById('bottomNav');
-      const scrollingDown = currentY > lastY && currentY > THRESHOLD;
-
-      if(topbar) {
-        if(scrollingDown) { topbar.classList.add('collapsed'); }
-        else { topbar.classList.remove('collapsed'); }
-      }
-      if(bottomNav) {
-        if(scrollingDown) { bottomNav.classList.add('hidden'); }
-        else { bottomNav.classList.remove('hidden'); }
-      }
-      lastY = currentY <= 0 ? 0 : currentY;
-      ticking = false;
-    });
-  }, { passive: true });
-
-  // Listen on scrollBody (main pages) and map-list-panel (explore page)
+  // Each scroll container tracks its OWN lastY independently
   function attachScrollListener(elId) {
-    const el = document.getElementById(elId);
-    if(!el) { setTimeout(() => attachScrollListener(elId), 300); return; }
-    el.addEventListener('scroll', function() {
-      if(ticking) return;
-      ticking = true;
-      requestAnimationFrame(() => {
-        const currentY = el.scrollTop;
-        const topbar = document.getElementById('mobileTopbar');
-        const bottomNav = document.getElementById('bottomNav');
-        const scrollingDown = currentY > lastY && currentY > THRESHOLD;
-        if(topbar) { topbar.classList.toggle('collapsed', scrollingDown); }
-        if(bottomNav) { bottomNav.classList.toggle('hidden', scrollingDown); }
-        // Adjust fixed map panel top when topbar collapses
-        const mapPanel = document.querySelector('.map-panel');
-        if(mapPanel && window.innerWidth < 768) {
-          mapPanel.style.top = scrollingDown ? '44px' : '88px';
-          const listPanel = document.getElementById('mapListPanel');
-          if(listPanel) {
-            listPanel.style.marginTop = scrollingDown ? '264px' : '308px';
-            listPanel.style.height = scrollingDown
-              ? 'calc(100vh - 308px)'
-              : 'calc(100vh - 352px)';
-          }
-        }
-        lastY = currentY <= 0 ? 0 : currentY;
-        ticking = false;
-      });
-    }, { passive: true });
+    let lastY = 0;
+    let ticking = false;
+
+    function tryAttach() {
+      const el = document.getElementById(elId);
+      if(!el) { setTimeout(tryAttach, 300); return; }
+
+      el.addEventListener('scroll', function() {
+        if(ticking) return;
+        ticking = true;
+        requestAnimationFrame(() => {
+          const currentY = el.scrollTop;
+          const scrollingDown = currentY > lastY && currentY > THRESHOLD;
+          const topbar = document.getElementById('mobileTopbar');
+          const bottomNav = document.getElementById('bottomNav');
+          if(topbar) topbar.classList.toggle('collapsed', scrollingDown);
+          if(bottomNav) bottomNav.classList.toggle('hidden', scrollingDown);
+          lastY = currentY <= 0 ? 0 : currentY;
+          ticking = false;
+        });
+      }, { passive: true });
+    }
+    tryAttach();
   }
+
   attachScrollListener('scrollBody');
   attachScrollListener('mapListPanel');
 })();
