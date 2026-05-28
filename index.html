@@ -685,8 +685,9 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
     <div class="modal-sub">Windmill shows markets and vendors near you.</div>
     <div class="form-field">
       <label class="form-label">City or ZIP code</label>
-      <input class="form-input" id="locationModalInput" placeholder="e.g. Fort Myers, FL or 33908" value="">
-      <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px" id="locationSuggestions"></div>
+      <input class="form-input" id="locationModalInput" placeholder="e.g. Fort Myers, Sarasota, Tampa..." value=""
+        oninput="locationModalPredict(this.value)" autocomplete="off">
+      <div id="locationModalSuggestions" style="margin-top:6px;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-md);overflow:hidden;display:none"></div>
     </div>
     <button class="btn-primary" onclick="applyLocationModal()">Set location</button>
     <div style="margin-top:16px">
@@ -799,7 +800,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 
 <script>
 /* ============================================================
-   WINDMILL v1.20 — Complete Application Script
+   WINDMILL v1.21 — Complete Application Script
    18 Lee County markets · 60+ vendors · 4 role views
    Vendor profile template · Market detail template
    Admin build/publish tools · Expansion request flow
@@ -1208,7 +1209,7 @@ const T = {
     this_weekend:"This Weekend",all_week:"All week",show_all_days:"Show all days",pick_date:"Or pick a specific date",
     /* area request */
     coming_soon_area:"Coming soon to your area",
-    coming_soon_sub:"Windmill is currently live in Lee County, Florida. We're expanding nationally — tell us about the markets near you.",
+    coming_soon_sub:"Windmill is live in Lee County, Sarasota/Bradenton, and Tampa Bay. We're expanding nationally — tell us about the markets near you.",
     request_area:"Request your area",your_city:"Your city & state",zip_code:"ZIP code",
     markets_in_area:"Farmers markets in your area",your_name:"Your name",your_email:"Your email",
     submit_request:"Submit request",back_to_lee:"← Back to Lee County",
@@ -1281,7 +1282,7 @@ const T = {
     this_weekend:"Este fin de semana",all_week:"Toda la semana",show_all_days:"Mostrar todos los días",
     pick_date:"O elige una fecha específica",
     coming_soon_area:"Próximamente en tu área",
-    coming_soon_sub:"Windmill está disponible en el condado de Lee, Florida. Estamos expandiéndonos — cuéntanos sobre los mercados cerca de ti.",
+    coming_soon_sub:"Windmill está disponible en el condado de Lee, Sarasota/Bradenton y Tampa Bay. Estamos expandiéndonos — cuéntanos sobre los mercados cerca de ti.",
     request_area:"Solicitar tu área",your_city:"Tu ciudad y estado",zip_code:"Código postal",
     markets_in_area:"Mercados en tu área",your_name:"Tu nombre",your_email:"Tu correo",
     submit_request:"Enviar solicitud",back_to_lee:"← Volver a Lee County",
@@ -1353,7 +1354,7 @@ const T = {
     this_weekend:"Fim de semana",all_week:"Semana toda",show_all_days:"Mostrar todos os dias",
     pick_date:"Ou escolha uma data específica",
     coming_soon_area:"Em breve na sua área",
-    coming_soon_sub:"O Windmill está disponível no condado de Lee, Flórida. Estamos expandindo — conte-nos sobre os mercados perto de você.",
+    coming_soon_sub:"O Windmill está disponível no condado de Lee, Sarasota/Bradenton e Tampa Bay. Estamos expandindo — conte-nos sobre os mercados perto de você.",
     request_area:"Solicitar sua área",your_city:"Sua cidade e estado",zip_code:"CEP",
     markets_in_area:"Mercados na sua área",your_name:"Seu nome",your_email:"Seu e-mail",
     submit_request:"Enviar solicitação",back_to_lee:"← Voltar para Lee County",
@@ -1501,21 +1502,35 @@ function buildGlobalSearchResults(val) {
   const q = val.toLowerCase().trim();
   const results = {markets:[], vendors:[], cities:[]};
 
-  // Markets — search name, city, venue
-  results.markets = DATA.markets.filter(m =>
+  // Markets — search within current region first, fall back to all if none found
+  const regionMarkets = DATA.markets.filter(m =>
+    (!ST.region || m.region === ST.region) && (
+      m.name.toLowerCase().includes(q) ||
+      m.city.toLowerCase().includes(q) ||
+      (m.venue && m.venue.toLowerCase().includes(q))
+    )
+  );
+  results.markets = (regionMarkets.length > 0 ? regionMarkets : DATA.markets.filter(m =>
     m.name.toLowerCase().includes(q) ||
     m.city.toLowerCase().includes(q) ||
     (m.venue && m.venue.toLowerCase().includes(q))
-  ).slice(0, 4);
+  )).slice(0, 4);
 
-  // Vendors — search name, category
-  results.vendors = DATA.vendors.filter(v =>
+  // Vendors — search within current region first
+  const regionVendors = DATA.vendors.filter(v =>
+    v.published && (!ST.region || v.region === ST.region) && (
+      v.name.toLowerCase().includes(q) ||
+      v.category.toLowerCase().includes(q) ||
+      v.slug.toLowerCase().includes(q)
+    )
+  );
+  results.vendors = (regionVendors.length > 0 ? regionVendors : DATA.vendors.filter(v =>
     v.published && (
       v.name.toLowerCase().includes(q) ||
       v.category.toLowerCase().includes(q) ||
       v.slug.toLowerCase().includes(q)
     )
-  ).slice(0, 5);
+  )).slice(0, 5);
 
   // Cities
   results.cities = CITY_SUGGESTIONS.filter(c =>
@@ -1646,19 +1661,9 @@ function globalSearchPick(type, payload) {
     navigate('vendor', payload);
   } else if(type === 'city') {
     const [city, state, lat, lng, covered] = payload.split(',');
-    if(covered === 'true') {
-      ST.location = city + ', ' + state;
-      renderFilterStrip();
-      ST.tab = 'explore';
-      ST.mapSearchQuery = city;
-      renderBottom();
-      renderExplore();
-    } else {
-      ST.location = city + ', ' + state;
-      ST.currentPage = 'area-request';
-      renderFilterStrip();
-      renderAreaRequest();
-    }
+    const fullLoc = city + ', ' + state;
+    // Always use updateLocation so ST.region gets set correctly
+    updateLocation(fullLoc);
   }
 }
 
@@ -2312,7 +2317,7 @@ function renderMapModeContent() {
 }
 
 function getMapFilteredMarkets() {
-  let markets = DATA.markets.filter(m => m.published && m.lat && m.lng);
+  let markets = DATA.markets.filter(m => m.published && m.lat && m.lng && (!ST.region || m.region === ST.region));
   if(ST.mapSearchQuery) {
     const q = ST.mapSearchQuery.toLowerCase();
     markets = markets.filter(m =>
@@ -2740,15 +2745,21 @@ const CITY_SUGGESTIONS = [
   {city:'Fort Myers Beach', state:'FL', lat:26.4522, lng:-81.9479, covered:true},
   {city:'Babcock Ranch', state:'FL', lat:26.7838, lng:-81.7473, covered:true},
   {city:'Boca Grande', state:'FL', lat:26.7506, lng:-82.2577, covered:true},
-  // Florida
-  {city:'Naples', state:'FL', lat:26.1420, lng:-81.7948, covered:false},
-  {city:'Miami', state:'FL', lat:25.7617, lng:-80.1918, covered:false},
-  {city:'Tampa', state:'FL', lat:27.9506, lng:-82.4572, covered:false},
-  {city:'Orlando', state:'FL', lat:28.5383, lng:-81.3792, covered:false},
-  {city:'Jacksonville', state:'FL', lat:30.3322, lng:-81.6557, covered:false},
-  {city:'Sarasota', state:'FL', lat:27.3364, lng:-82.5307, covered:false},
-  {city:'St. Petersburg', state:'FL', lat:27.7676, lng:-82.6403, covered:false},
-  {city:'Clearwater', state:'FL', lat:27.9659, lng:-82.8001, covered:false},
+  {city:'Sarasota', state:'FL', lat:27.3364, lng:-82.5307, covered:true},
+  {city:'Bradenton', state:'FL', lat:26.4825, lng:-82.5743, covered:true},
+  {city:'Siesta Key', state:'FL', lat:27.2660, lng:-82.5474, covered:true},
+  {city:'Venice', state:'FL', lat:27.0998, lng:-82.4543, covered:true},
+  {city:'Lakewood Ranch', state:'FL', lat:27.4103, lng:-82.3947, covered:true},
+  {city:'Anna Maria', state:'FL', lat:27.5313, lng:-82.7323, covered:true},
+  {city:'Englewood', state:'FL', lat:26.9623, lng:-82.3571, covered:true},
+  {city:'Bradenton Beach', state:'FL', lat:27.4674, lng:-82.7098, covered:true},
+  {city:'Tampa', state:'FL', lat:27.9506, lng:-82.4572, covered:true},
+  {city:'St. Petersburg', state:'FL', lat:27.7676, lng:-82.6403, covered:true},
+  {city:'Clearwater', state:'FL', lat:27.9659, lng:-82.8001, covered:true},
+  {city:'Dunedin', state:'FL', lat:28.0194, lng:-82.7846, covered:true},
+  {city:'Safety Harbor', state:'FL', lat:27.9936, lng:-82.6921, covered:true},
+  {city:'Tarpon Springs', state:'FL', lat:28.1458, lng:-82.7578, covered:true},
+  {city:'St. Pete Beach', state:'FL', lat:27.7245, lng:-82.7423, covered:true},
   // Major US cities
   {city:'New York', state:'NY', lat:40.7128, lng:-74.0060, covered:false},
   {city:'Los Angeles', state:'CA', lat:34.0522, lng:-118.2437, covered:false},
@@ -3320,7 +3331,7 @@ function renderMe() {
       </div>
     </div>
     <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text3)">
-      Windmill v1.20 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
+      Windmill v1.21 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
     </div>
   </div>`;
 }
@@ -4678,8 +4689,43 @@ function expandTopbar() {
 /* ── LOCATION MODAL ── */
 function openLocationModal() {
   const inp = document.getElementById('locationModalInput');
-  if(inp) inp.value = ST.location;
+  if(inp) { inp.value = ST.location; }
+  const sug = document.getElementById('locationModalSuggestions');
+  if(sug) sug.style.display = 'none';
   openModal('locationModal');
+}
+
+function locationModalPredict(val) {
+  const sug = document.getElementById('locationModalSuggestions');
+  if(!sug) return;
+  if(!val || val.length < 2) { sug.style.display = 'none'; return; }
+  const q = val.toLowerCase();
+  const matches = CITY_SUGGESTIONS.filter(c =>
+    c.city.toLowerCase().startsWith(q) ||
+    (c.city + ', ' + c.state).toLowerCase().startsWith(q) ||
+    c.city.toLowerCase().includes(q)
+  ).slice(0, 6);
+  if(matches.length === 0) { sug.style.display = 'none'; return; }
+  sug.innerHTML = matches.map(c => `
+    <div onclick="locationModalPickCity('${c.city}, ${c.state}')"
+      style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:0.5px solid var(--border);cursor:pointer;transition:background .1s"
+      onmouseover="this.style.background='var(--green-lt)'" onmouseout="this.style.background=''">
+      <span style="font-size:15px">${c.covered ? '📍' : '🗺'}</span>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:500;color:var(--text)">${c.city}, ${c.state}</div>
+        <div style="font-size:11px;color:${c.covered ? 'var(--green-dk)' : 'var(--text3)'}">${c.covered ? '✓ Live on Windmill' : 'Coming soon'}</div>
+      </div>
+    </div>`).join('');
+  sug.style.display = 'block';
+}
+
+function locationModalPickCity(cityStr) {
+  const inp = document.getElementById('locationModalInput');
+  if(inp) inp.value = cityStr;
+  const sug = document.getElementById('locationModalSuggestions');
+  if(sug) sug.style.display = 'none';
+  closeModal('locationModal');
+  updateLocation(cityStr);
 }
 
 function applyLocationModal() {
