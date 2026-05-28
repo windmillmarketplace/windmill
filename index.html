@@ -440,9 +440,11 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 @media(min-width:768px){.explore-map-wrap{flex-direction:row;overflow:hidden}}
 
 /* MOBILE: map fixed at top, list scrolls independently below */
+/* position:fixed is required for reliable iOS Safari behavior */
 @media(max-width:767px){
-  .map-panel{position:sticky;top:0;z-index:10;width:100%;height:220px;flex-shrink:0}
-  .map-list-panel{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:80px;min-height:0}
+  .explore-map-wrap{display:block;position:relative}
+  .map-panel{position:fixed;top:88px;left:0;right:0;height:220px;z-index:10;width:100%}
+  .map-list-panel{margin-top:220px;height:calc(100vh - 308px);overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:0}
 }
 
 /* DESKTOP: map sticky left, list scrolls independently right */
@@ -735,7 +737,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 
 <script>
 /* ============================================================
-   WINDMILL v1.16 — Complete Application Script
+   WINDMILL v1.17 — Complete Application Script
    18 Lee County markets · 60+ vendors · 4 role views
    Vendor profile template · Market detail template
    Admin build/publish tools · Expansion request flow
@@ -2175,9 +2177,14 @@ function initWindmillMap() {
           ${moved ? `<button class="map-search-area-btn" onclick="searchThisArea()">🔍 Search this area</button>` : ''}`;
       }
       // Hide cards that are out of view, show those in view
+      // Sponsored cards (no mapcard- id) always stay visible
       const list = document.getElementById('mapCardList');
       if(list) {
         list.querySelectorAll('.map-market-card').forEach(card => {
+          if(!card.id || !card.id.startsWith('mapcard-')) {
+            card.style.display = 'flex'; // always show sponsored
+            return;
+          }
           const id = card.id.replace('mapcard-','');
           const m = getMarket(id);
           card.style.display = m && bounds.contains([m.lat, m.lng]) ? 'flex' : 'none';
@@ -2405,7 +2412,7 @@ function renderMapCards(markets) {
   if(count) count.textContent = markets.length + ' market' + (markets.length===1?'':'s') + ' found';
 
   if(markets.length === 0) {
-    list.innerHTML = `<div style="padding:32px 16px;text-align:center">
+    list.innerHTML = sponsoredMapCard() + `<div style="padding:32px 16px;text-align:center">
       <div style="font-size:32px;margin-bottom:8px">📅</div>
       <div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:4px">No markets match</div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:16px">Try clearing your filters</div>
@@ -2940,21 +2947,24 @@ function renderMarketDetail(id) {
       ${m.special_notes?`<div style="background:var(--amber-lt);border-radius:var(--r-sm);padding:10px 12px;font-size:12px;color:#7A4E08">📌 ${m.special_notes}</div>`:''}
     </div>
 
-    <!-- SOCIAL & LINKS -->
+    <!-- SOCIAL & LINKS — matches vendor profile pattern exactly -->
     <div class="profile-section">
-      <div class="profile-section-title">Links & Social</div>
-      ${op?`<div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><div><div class="info-row-label">${t('operator_label')}</div><a class="info-row-link" href="${op.website||'#'}" target="_blank">${op.name}</a></div></div>`:''}
-      ${m.website?`<div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><div><div class="info-row-label">${t('website_label')}</div><a class="info-row-link" href="${m.website}" target="_blank">${m.website.replace(/https?:\/\//,'')}</a></div></div>`:``}
-      <div class="social-row" style="margin-top:10px">
-        ${m.facebook
+      <div class="profile-section-title">${t('contact_links')}</div>
+      ${op?`<div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><div><div class="info-row-label">${t('operator_label')}</div><div class="info-row-value">${op.name}</div></div></div>`:''}
+      <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><div><div class="info-row-label">${t('website_label')}</div>${m.website?`<a class="info-row-link" href="${m.website}" target="_blank">${m.website.replace('https://','').replace('http://','')}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
+    </div>
+
+    <!-- SOCIAL MEDIA — greyed out unless market is Pro AND has the link -->
+    <div class="profile-section">
+      <div class="profile-section-title">${t('social_media')}</div>
+      <div class="social-row">
+        ${m.pro && m.facebook
           ? `<a href="${m.facebook}" target="_blank" class="social-chip">👍 Facebook</a>`
-          : `<span class="social-chip empty">👍 Facebook <span style="font-size:10px;color:var(--text3)">(claim to add)</span></span>`}
-        <span class="social-chip empty">📸 Instagram <span style="font-size:10px;color:var(--text3)">(claim to add)</span></span>
+          : `<span class="social-chip empty">👍 Facebook ${!m.claimed?'('+t('claim_to_add')+')':''}</span>`}
+        ${m.pro && m.instagram
+          ? `<a href="${m.instagram}" target="_blank" class="social-chip">📸 Instagram</a>`
+          : `<span class="social-chip empty">📸 Instagram ${!m.claimed?'('+t('claim_to_add')+')':''}</span>`}
       </div>
-      ${m.facebook?`<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-        <button onclick="window.open('https://www.facebook.com/sharer/sharer.php?u=https://shopwindmill.com/markets/${m.slug||m.id}','_blank')" style="display:flex;align-items:center;gap:6px;padding:7px 12px;border:0.5px solid #1877F2;border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:#EBF1FB;color:#1877F2">👍 Share to Facebook</button>
-        <button onclick="navigator.clipboard.writeText('Come visit us at ${m.name}! 🌿 shopwindmill.com/markets/${m.slug||m.id}').then(()=>alert('Link copied!'))" style="display:flex;align-items:center;gap:6px;padding:7px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">📤 Copy link</button>
-      </div>`:''}
     </div>
 
     <!-- PRACTICAL INFO -->
@@ -3070,7 +3080,7 @@ function renderMe() {
       </div>
     </div>
     <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text3)">
-      Windmill v1.16 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
+      Windmill v1.17 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
     </div>
   </div>`;
 }
@@ -3875,26 +3885,39 @@ function submitAreaReq() {
     });
   }, { passive: true });
 
-  // Also listen on scrollBody since that's what actually scrolls
-  function attachScrollBodyListener() {
-    const sb = document.getElementById('scrollBody');
-    if(!sb) { setTimeout(attachScrollBodyListener, 200); return; }
-    sb.addEventListener('scroll', function() {
+  // Listen on scrollBody (main pages) and map-list-panel (explore page)
+  function attachScrollListener(elId) {
+    const el = document.getElementById(elId);
+    if(!el) { setTimeout(() => attachScrollListener(elId), 300); return; }
+    el.addEventListener('scroll', function() {
       if(ticking) return;
       ticking = true;
       requestAnimationFrame(() => {
-        const currentY = sb.scrollTop;
+        const currentY = el.scrollTop;
         const topbar = document.getElementById('mobileTopbar');
         const bottomNav = document.getElementById('bottomNav');
         const scrollingDown = currentY > lastY && currentY > THRESHOLD;
         if(topbar) { topbar.classList.toggle('collapsed', scrollingDown); }
         if(bottomNav) { bottomNav.classList.toggle('hidden', scrollingDown); }
+        // Adjust fixed map panel top when topbar collapses
+        const mapPanel = document.querySelector('.map-panel');
+        if(mapPanel && window.innerWidth < 768) {
+          mapPanel.style.top = scrollingDown ? '44px' : '88px';
+          const listPanel = document.getElementById('mapListPanel');
+          if(listPanel) {
+            listPanel.style.marginTop = scrollingDown ? '264px' : '308px';
+            listPanel.style.height = scrollingDown
+              ? 'calc(100vh - 308px)'
+              : 'calc(100vh - 352px)';
+          }
+        }
         lastY = currentY <= 0 ? 0 : currentY;
         ticking = false;
       });
     }, { passive: true });
   }
-  attachScrollBodyListener();
+  attachScrollListener('scrollBody');
+  attachScrollListener('mapListPanel');
 })();
 
 /* ── SEARCH BAR EXPAND/COLLAPSE ── */
