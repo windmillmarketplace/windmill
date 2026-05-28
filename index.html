@@ -405,6 +405,33 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .request-contact{font-size:11px;color:var(--text3)}
 .request-info{flex:1;min-width:0}
 .request-actions{display:flex;gap:5px;flex-shrink:0}
+/* ADMIN FORM MODAL */
+.admin-modal{position:fixed;inset:0;background:rgba(44,32,22,.5);z-index:600;display:flex;align-items:flex-end;justify-content:center}
+.admin-modal.hidden{display:none}
+.admin-modal-sheet{background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-width:600px;max-height:92vh;overflow-y:auto;padding:20px 20px 40px}
+@media(min-width:768px){.admin-modal-sheet{border-radius:16px;align-self:center;margin:20px;max-height:85vh}}
+.admin-modal-title{font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:4px}
+.admin-modal-sub{font-size:12px;color:var(--text2);margin-bottom:20px}
+.admin-modal-handle{width:36px;height:4px;background:var(--border-med);border-radius:2px;margin:0 auto 16px}
+/* ADMIN MSG INBOX */
+.msg-row{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-bottom:0.5px solid var(--border);cursor:pointer;transition:background .15s}
+.msg-row:hover,.msg-row.selected{background:var(--green-lt)}
+.msg-row.unread .msg-subject{font-weight:600;color:var(--text)}
+.msg-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0}
+.msg-body-wrap{flex:1;min-width:0}
+.msg-subject{font-size:13px;color:var(--text);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msg-preview{font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msg-meta{font-size:10px;color:var(--text3);white-space:nowrap;flex-shrink:0;margin-top:2px}
+.msg-unread-dot{width:8px;height:8px;background:var(--terra);border-radius:50%;flex-shrink:0;margin-top:4px}
+.msg-thread{padding:16px}
+.msg-bubble{background:var(--surface2);border-radius:12px;padding:10px 14px;margin-bottom:10px;font-size:13px;color:var(--text);line-height:1.5}
+.msg-bubble.admin{background:var(--green-lt);border-bottom-right-radius:3px}
+.msg-bubble.sender{border-bottom-left-radius:3px}
+.msg-bubble-meta{font-size:10px;color:var(--text3);margin-bottom:4px}
+/* ADMIN SUB-TABS */
+.admin-subtabs{display:flex;gap:0;border:0.5px solid var(--border-med);border-radius:var(--r-pill);overflow:hidden;margin-bottom:16px;width:fit-content}
+.admin-subtab{padding:6px 14px;font-size:12px;font-family:var(--font-sans);color:var(--text2);cursor:pointer;background:var(--surface);border:none;transition:all .15s}
+.admin-subtab.active{background:var(--green);color:#fff;font-weight:500}
 
 /* VENDOR DASHBOARD */
 .vendor-dash,.operator-dash{padding:16px}
@@ -634,6 +661,21 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
   </div>
 </div>
 
+<!-- ADMIN EDIT MODAL -->
+<div class="admin-modal hidden" id="adminEditModal">
+  <div class="admin-modal-sheet">
+    <div class="admin-modal-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div class="admin-modal-title" id="adminModalTitle">Edit Vendor</div>
+        <div class="admin-modal-sub" id="adminModalSub">Make changes below</div>
+      </div>
+      <button onclick="closeAdminModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3);padding:4px">×</button>
+    </div>
+    <div id="adminModalBody"></div>
+  </div>
+</div>
+
 <!-- LOCATION MODAL -->
 <div class="modal-overlay hidden" id="locationModal" onclick="closeModalOnOverlay(event,'locationModal')">
   <div class="modal" style="max-height:80vh;overflow-y:auto">
@@ -737,7 +779,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 
 <script>
 /* ============================================================
-   WINDMILL v1.18 — Complete Application Script
+   WINDMILL v1.19 — Complete Application Script
    18 Lee County markets · 60+ vendors · 4 role views
    Vendor profile template · Market detail template
    Admin build/publish tools · Expansion request flow
@@ -976,7 +1018,20 @@ let ST = {
     {city:'Tampa, FL',zip:'33602',markets:'Tampa Armature Works Market, Sunday Morning Market',contact:'Sarah Johnson · sarah@email.com',date:'May 24, 2026'},
     {city:'Naples, FL',zip:'34102',markets:'Third Street South Farmers Market, Cambier Park Market',contact:'Mike Chen · mike@email.com',date:'May 23, 2026'},
     {city:'Sarasota, FL',zip:'34236',markets:'Sarasota Farmers Market, Downtown Saturday Market',contact:'Lisa Park · lisa@email.com',date:'May 22, 2026'}
-  ]
+  ],
+  adminMessages:[
+    {id:'m1',from:'Maria Gonzalez',role:'Vendor',subject:'Question about my profile',body:'Hi! I just claimed my listing but I cannot figure out how to add my Instagram link. Can you help?',date:'May 28, 2026 9:14am',read:false,resolved:false,replies:[]},
+    {id:'m2',from:'Gulf Coast Markets',role:'Operator',subject:'Adding a new market location',body:'We are opening a second location in Bonita Springs starting in October. How do I add it to our listing?',date:'May 27, 2026 3:42pm',read:false,resolved:false,replies:[]},
+    {id:'m3',from:'Bob Hendricks',role:'Vendor',subject:'Pro upgrade question',body:'What is included in the Pro tier exactly? Is the $9/mo rate locked in forever if I sign up now?',date:'May 27, 2026 11:05am',read:true,resolved:false,replies:[{from:'Windmill Admin',body:'Hi Bob! Yes — the $9/mo founding rate is locked forever for early members. Pro includes photo gallery, Instagram feed, product catalog, analytics, and no ads on your profile. Let me know if you have more questions!',date:'May 27, 2026 11:30am'}]}
+  ],
+  adminClaims:[
+    {id:'c1',vendorId:'the-empanada-queen',vendorName:'The Empanada Queen',claimant:'Maria Gonzalez',email:'maria@empanadaqueen.com',phone:'239-555-0182',message:'This is my business — I have been selling at Lakes Park for 3 years.',date:'May 28, 2026',status:'pending'},
+    {id:'c2',vendorId:'suncoast-honey-co',vendorName:'Suncoast Honey Co.',claimant:'David Park',email:'david@suncoasthoney.com',phone:'239-555-0247',message:'I am the owner of Suncoast Honey and want to manage my listing.',date:'May 27, 2026',status:'pending'},
+    {id:'c3',vendorId:'gulf-coast-nursery',vendorName:'Gulf Coast Nursery',claimant:'Tom Williams',email:'tom@gulfcoastnursery.com',phone:'239-555-0391',message:'Claiming my vendor page.',date:'May 26, 2026',status:'approved'},
+    {id:'c4',vendorId:'island-jams',vendorName:'Island Jams & Jellies',claimant:'Susan Lee',email:'susan@islandjams.com',phone:'239-555-0128',message:'This is my small business.',date:'May 25, 2026',status:'denied',denyReason:'Could not verify ownership'}
+  ],
+  adminMsgThread: null,
+  adminMsgTab: 'inbox'
 };
 
 /* ── TRANSLATIONS ── */
@@ -1267,31 +1322,30 @@ function sponsoredMapCard(slotIndex) {
 function buildMapCardList(realCards) {
   const AD_EVERY = 5;
   const result = [];
-  let realIdx = 0;
-  let slotNum = 0; // overall position counter
   let adCount = 0;
-  let lastWasAd = false;
 
-  while(realIdx < realCards.length || (slotNum % AD_EVERY === 0 && slotNum > 0 && realIdx >= realCards.length && adCount < Math.floor(realCards.length / AD_EVERY) + 1)) {
-    slotNum++;
-    if(slotNum % AD_EVERY === 0) {
-      // This is an ad slot — only show if last item was NOT an ad
-      if(!lastWasAd) {
+  // Always show at least 1 ad even with 0 results
+  if(realCards.length === 0) {
+    return [{type:'ad', slotIndex:0}];
+  }
+
+  for(let i = 0; i < realCards.length; i++) {
+    result.push({type:'card', card: realCards[i]});
+    // Insert ad after every 5th real card, never back to back
+    if((i + 1) % AD_EVERY === 0) {
+      const lastItem = result[result.length - 1];
+      if(lastItem && lastItem.type !== 'ad') {
         result.push({type:'ad', slotIndex: adCount});
         adCount++;
-        lastWasAd = true;
-      }
-      // If last was ad, skip this ad slot (back-to-back prevention)
-    } else {
-      if(realIdx < realCards.length) {
-        result.push({type:'card', card: realCards[realIdx]});
-        realIdx++;
-        lastWasAd = false;
       }
     }
-    // Safety exit
-    if(slotNum > realCards.length + 20) break;
   }
+
+  // If we never hit a multiple of 5, still show 1 ad at the end
+  if(adCount === 0) {
+    result.push({type:'ad', slotIndex:0});
+  }
+
   return result;
 }
 
@@ -3144,7 +3198,7 @@ function renderMe() {
       </div>
     </div>
     <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text3)">
-      Windmill v1.18 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
+      Windmill v1.19 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
     </div>
   </div>`;
 }
@@ -3209,45 +3263,67 @@ function renderOperatorDash() {
 function renderAdminPanel() {
   hideFilterUI();
   const claimed = DATA.vendors.filter(v=>v.claimed).length;
+  const unreadMsgs = ST.adminMessages.filter(m=>!m.read).length;
+  const pendingClaims = ST.adminClaims.filter(c=>c.status==='pending').length;
+
+  const tabs = ['vendors','markets','claims','messages','areas','ads'];
+  const tabLabels = {
+    vendors:`Vendors`,
+    markets:`Markets`,
+    claims:`Claims${pendingClaims>0?` <span style="background:var(--terra);color:#fff;border-radius:99px;padding:0 5px;font-size:9px;margin-left:3px">${pendingClaims}</span>`:''}`,
+    messages:`Messages${unreadMsgs>0?` <span style="background:var(--terra);color:#fff;border-radius:99px;padding:0 5px;font-size:9px;margin-left:3px">${unreadMsgs}</span>`:''}`,
+    areas:'Areas',
+    ads:'Ads'
+  };
+
   let h = `<div class="admin-panel">
     <div class="admin-title">Windmill Admin</div>
-    <div class="admin-sub">Manage markets, vendors, claims and expansion</div>
+    <div class="admin-sub">Platform management dashboard</div>
+
+    <!-- DEMO PROFILES QUICK ACCESS -->
     <div style="background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-md);padding:14px;margin-bottom:16px">
-      <div style="font-size:13px;font-weight:500;color:var(--green-dk);margin-bottom:10px">🎯 Demo Profiles — Sales Tool</div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Preview what vendor and operator pages look like at each tier. Use these at market booths to show vendors what they're signing up for.</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <button onclick="navigate('demo-vendor-free')" style="padding:10px;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:12px;cursor:pointer;font-family:var(--font-sans);text-align:left"><div style="font-weight:500;margin-bottom:2px">👤 Vendor — Free</div><div style="color:var(--text2);font-size:10px">Suncoast Honey Co.</div></button>
-        <button onclick="navigate('demo-vendor-pro')" style="padding:10px;background:var(--green);border:none;border-radius:var(--r-md);font-size:12px;cursor:pointer;font-family:var(--font-sans);text-align:left;color:#fff"><div style="font-weight:500;margin-bottom:2px">⭐ Vendor — Pro</div><div style="opacity:.8;font-size:10px">The Empanada Queen</div></button>
-        <button onclick="navigate('demo-operator-free')" style="padding:10px;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:12px;cursor:pointer;font-family:var(--font-sans);text-align:left"><div style="font-weight:500;margin-bottom:2px">🏪 Operator — Free</div><div style="color:var(--text2);font-size:10px">Gulf Coast Markets</div></button>
-        <button onclick="navigate('demo-operator-pro')" style="padding:10px;background:var(--green);border:none;border-radius:var(--r-md);font-size:12px;cursor:pointer;font-family:var(--font-sans);text-align:left;color:#fff"><div style="font-weight:500;margin-bottom:2px">⭐ Operator — Pro</div><div style="opacity:.8;font-size:10px">Suncoast Collective</div></button>
+      <div style="font-size:12px;font-weight:500;color:var(--green-dk);margin-bottom:8px">🎯 Demo Profiles — Sales Tool</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <button onclick="navigate('demo-vendor-free')" style="padding:8px;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left"><div style="font-weight:500">👤 Vendor Free</div><div style="color:var(--text2);font-size:10px">Suncoast Honey Co.</div></button>
+        <button onclick="navigate('demo-vendor-pro')" style="padding:8px;background:var(--green);border:none;border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left;color:#fff"><div style="font-weight:500">⭐ Vendor Pro</div><div style="opacity:.8;font-size:10px">The Empanada Queen</div></button>
+        <button onclick="navigate('demo-operator-free')" style="padding:8px;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left"><div style="font-weight:500">🏪 Operator Free</div><div style="color:var(--text2);font-size:10px">Gulf Coast Markets</div></button>
+        <button onclick="navigate('demo-operator-pro')" style="padding:8px;background:var(--green);border:none;border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left;color:#fff"><div style="font-weight:500">⭐ Operator Pro</div><div style="opacity:.8;font-size:10px">Suncoast Collective</div></button>
       </div>
     </div>
-    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-      <button onclick="downloadData()" style="padding:7px 14px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;color:var(--text2);font-family:var(--font-sans);display:flex;align-items:center;gap:6px">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Download data backup
-      </button>
-    </div>
-    <div class="admin-stats">
-      <div class="stat-card"><div class="stat-number">${DATA.markets.length}</div><div class="stat-label">Total markets</div></div>
-      <div class="stat-card"><div class="stat-number">${DATA.vendors.length}</div><div class="stat-label">Total vendors</div></div>
-      <div class="stat-card"><div class="stat-number">${claimed}</div><div class="stat-label">Claimed profiles</div></div>
-      <div class="stat-card"><div class="stat-number">${ST.areaRequests.length}</div><div class="stat-label">Area requests</div></div>
-    </div>
-    <div class="admin-tabs">${['vendors','markets','claims','expansion','ads'].map(tab=>`<div class="admin-tab ${ST.adminTab===tab?'active':''}" onclick="setAdminTab('${tab}')">${tab.charAt(0).toUpperCase()+tab.slice(1)}</div>`).join('')}</div>`;
 
+    <!-- STATS -->
+    <div class="admin-stats">
+      <div class="stat-card"><div class="stat-number">${DATA.vendors.length}</div><div class="stat-label">Total vendors</div></div>
+      <div class="stat-card"><div class="stat-number">${claimed}</div><div class="stat-label">Claimed</div></div>
+      <div class="stat-card"><div class="stat-number">${DATA.markets.length}</div><div class="stat-label">Markets</div></div>
+      <div class="stat-card"><div class="stat-number">${pendingClaims}</div><div class="stat-label">Pending claims</div></div>
+    </div>
+
+    <!-- TABS -->
+    <div class="admin-tabs">${tabs.map(tab=>`<div class="admin-tab ${ST.adminTab===tab?'active':''}" onclick="setAdminTab('${tab}')">${tabLabels[tab]}</div>`).join('')}</div>`;
+
+  /* ── VENDORS TAB ── */
   if(ST.adminTab==='vendors') {
     h += `<div style="display:flex;gap:8px;margin-bottom:12px">
-      <input style="flex:1;padding:8px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);outline:none" placeholder="Search vendors..." oninput="adminSearch(this.value,'vendorTable')" id="adminVSearch">
-      <button onclick="alert('Add vendor form — full build in v1.0.2')" style="padding:8px 14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:12px;cursor:pointer;font-weight:500">+ Add vendor</button>
+      <div style="flex:1;display:flex;align-items:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);padding:8px 12px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input placeholder="Search vendors..." style="border:none;background:transparent;outline:none;font-size:13px;font-family:var(--font-sans);color:var(--text);width:100%" oninput="adminFilterVendors(this.value)" id="vendorSearchInput">
+      </div>
+      <button onclick="openAdminAddVendor()" style="padding:8px 14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500;white-space:nowrap">+ Add</button>
     </div>
-    <div class="admin-table" id="vendorTable">`;
-    DATA.vendors.forEach(v=>{
+    <div class="admin-table" id="adminVendorTable">`;
+    DATA.vendors.forEach(v => {
       h += `<div class="admin-row" data-name="${v.name.toLowerCase()}">
-        <div class="admin-row-info"><div class="admin-row-name">${v.name}</div><div class="admin-row-meta">${v.category} · ${v.markets.length} market${v.markets.length===1?'':'s'} · ${v.email||'no email'}</div></div>
-        <span class="status-pill ${v.claimed?'claimed':'unclaimed'}">${v.claimed?'Claimed':'Unclaimed'}</span>
+        <div class="admin-row-info">
+          <div class="admin-row-name">${v.name}</div>
+          <div class="admin-row-meta">${v.category} · ${v.markets.length} market${v.markets.length===1?'':'s'} · ${v.email||'no email'}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;align-items:flex-end">
+          <span class="status-pill ${v.claimed?'claimed':'unclaimed'}" style="cursor:pointer" onclick="adminToggleVendorClaimed('${v.id}',this)">${v.claimed?'Claimed':'Unclaimed'}</span>
+          <span class="status-pill ${v.pro?'live':'draft'}" style="cursor:pointer" onclick="adminToggleVendorPro('${v.id}',this)">${v.pro?'Pro':'Free'}</span>
+        </div>
         <div class="admin-row-actions">
-          <button class="action-btn ${v.published?'published':'publish'}" onclick="togglePublish(this,'${v.id}','vendor')">${v.published?'Live':'Publish'}</button>
+          <button class="action-btn edit" onclick="openAdminEditVendor('${v.id}')">Edit</button>
           <button class="action-btn preview" onclick="navigate('vendor','${v.id}')">View</button>
         </div>
       </div>`;
@@ -3255,19 +3331,26 @@ function renderAdminPanel() {
     h += `</div>`;
   }
 
+  /* ── MARKETS TAB ── */
   if(ST.adminTab==='markets') {
     h += `<div style="display:flex;gap:8px;margin-bottom:12px">
-      <input style="flex:1;padding:8px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);outline:none" placeholder="Search markets...">
-      <button style="padding:8px 14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:12px;cursor:pointer;font-weight:500">+ Add market</button>
+      <div style="flex:1;display:flex;align-items:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);padding:8px 12px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input placeholder="Search markets..." style="border:none;background:transparent;outline:none;font-size:13px;font-family:var(--font-sans);color:var(--text);width:100%" oninput="adminFilterMarkets(this.value)">
+      </div>
+      <button onclick="openAdminAddMarket()" style="padding:8px 14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500;white-space:nowrap">+ Add</button>
     </div>
-    <div class="admin-table">`;
-    DATA.markets.forEach(m=>{
+    <div class="admin-table" id="adminMarketTable">`;
+    DATA.markets.forEach(m => {
       const op = getOperator(m.operator_id);
-      h += `<div class="admin-row">
-        <div class="admin-row-info"><div class="admin-row-name">${m.name}</div><div class="admin-row-meta">${m.day_of_week}s · ${m.city} · ${vendorCount(m.id)} vendors · ${op?.name||'Unknown'}</div></div>
-        <span class="status-pill ${m.published?'live':'draft'}">${m.published?'Live':'Draft'}</span>
+      h += `<div class="admin-row" data-name="${m.name.toLowerCase()}">
+        <div class="admin-row-info">
+          <div class="admin-row-name">${m.name}</div>
+          <div class="admin-row-meta">${m.day_of_week}s · ${m.city} · ${vendorCount(m.id)} vendors · ${op?.name||'No operator'}</div>
+        </div>
+        <span class="status-pill ${m.published?'live':'draft'}" style="cursor:pointer" onclick="adminToggleMarketPublished('${m.id}',this)">${m.published?'Live':'Draft'}</span>
         <div class="admin-row-actions">
-          <button class="action-btn ${m.published?'published':'publish'}" onclick="togglePublish(this,'${m.id}','market')">${m.published?'Live':'Publish'}</button>
+          <button class="action-btn edit" onclick="openAdminEditMarket('${m.id}')">Edit</button>
           <button class="action-btn preview" onclick="navigate('market','${m.id}')">View</button>
         </div>
       </div>`;
@@ -3275,41 +3358,520 @@ function renderAdminPanel() {
     h += `</div>`;
   }
 
+  /* ── CLAIMS TAB ── */
   if(ST.adminTab==='claims') {
-    h += `<div class="admin-table">`;
-    DATA.vendors.slice(0,15).forEach(v=>{
-      h += `<div class="request-row"><div class="request-info"><div class="request-city">${v.name}</div><div class="request-markets">${v.category} · ${v.markets.length} market${v.markets.length===1?'':'s'}</div><div class="request-contact">${v.email||'No email on file'}</div></div><span class="status-pill unclaimed">Awaiting</span><div class="request-actions"><button class="action-btn preview" onclick="navigate('vendor','${v.id}')">View</button></div></div>`;
-    });
-    h += `</div>`;
+    const pending = ST.adminClaims.filter(c=>c.status==='pending');
+    const history = ST.adminClaims.filter(c=>c.status!=='pending');
+    h += `<div class="admin-subtabs">
+      <button class="admin-subtab ${ST.adminClaimsTab!=='history'?'active':''}" onclick="ST.adminClaimsTab='pending';renderAdminPanel()">Pending (${pending.length})</button>
+      <button class="admin-subtab ${ST.adminClaimsTab==='history'?'active':''}" onclick="ST.adminClaimsTab='history';renderAdminPanel()">History (${history.length})</button>
+    </div>`;
+    const showList = ST.adminClaimsTab==='history' ? history : pending;
+    if(showList.length===0) {
+      h += `<div style="text-align:center;padding:32px;color:var(--text2);font-size:13px">${ST.adminClaimsTab==='history'?'No claim history yet':'No pending claims 🎉'}</div>`;
+    } else {
+      h += `<div class="admin-table">`;
+      showList.forEach(c => {
+        h += `<div class="request-row">
+          <div class="request-info">
+            <div class="request-city">${c.vendorName}</div>
+            <div class="request-markets">Claimed by: ${c.claimant} · ${c.email}</div>
+            <div class="request-contact">${c.phone} · ${c.date}</div>
+            ${c.message?`<div style="font-size:11px;color:var(--text);margin-top:4px;font-style:italic">"${c.message}"</div>`:''}
+            ${c.status==='denied'&&c.denyReason?`<div style="font-size:11px;color:var(--terra);margin-top:2px">Denied: ${c.denyReason}</div>`:''}
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0">
+            ${c.status==='pending' ? `
+              <button class="action-btn publish" onclick="adminApproveClaim('${c.id}')">✓ Approve</button>
+              <button class="action-btn edit" style="color:var(--terra);border-color:var(--terra)" onclick="adminDenyClaim('${c.id}')">✗ Deny</button>
+              <button class="action-btn preview" onclick="navigate('vendor','${c.vendorId}')">View</button>
+            ` : `<span class="status-pill ${c.status==='approved'?'claimed':'draft'}">${c.status==='approved'?'Approved':'Denied'}</span>`}
+          </div>
+        </div>`;
+      });
+      h += `</div>`;
+    }
   }
 
-  if(ST.adminTab==='expansion') {
+  /* ── MESSAGES TAB ── */
+  if(ST.adminTab==='messages') {
+    h += `<div class="admin-subtabs">
+      <button class="admin-subtab ${ST.adminMsgTab==='inbox'?'active':''}" onclick="ST.adminMsgTab='inbox';ST.adminMsgThread=null;renderAdminPanel()">Inbox${unreadMsgs>0?` (${unreadMsgs} new)`:''}</button>
+      <button class="admin-subtab ${ST.adminMsgTab==='announce'?'active':''}" onclick="ST.adminMsgTab='announce';ST.adminMsgThread=null;renderAdminPanel()">Announcements</button>
+    </div>`;
+
+    if(ST.adminMsgTab==='inbox') {
+      if(ST.adminMsgThread) {
+        // Thread view
+        const msg = ST.adminMessages.find(m=>m.id===ST.adminMsgThread);
+        if(msg) {
+          h += `<div style="margin-bottom:12px">
+            <button onclick="ST.adminMsgThread=null;renderAdminPanel()" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--terra);padding:0;font-family:var(--font-sans)">← Back to inbox</button>
+          </div>
+          <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px;margin-bottom:12px">
+            <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:2px">${msg.subject}</div>
+            <div style="font-size:11px;color:var(--text2)">${msg.from} · ${msg.role} · ${msg.date}</div>
+          </div>
+          <div class="msg-thread">
+            <div class="msg-bubble sender">
+              <div class="msg-bubble-meta">${msg.from} · ${msg.date}</div>
+              ${msg.body}
+            </div>
+            ${msg.replies.map(r=>`<div class="msg-bubble admin">
+              <div class="msg-bubble-meta">You (Admin) · ${r.date}</div>
+              ${r.body}
+            </div>`).join('')}
+          </div>
+          <div style="margin-top:12px">
+            <textarea id="adminReplyText" class="form-textarea" placeholder="Type your reply..." style="margin-bottom:8px"></textarea>
+            <div style="display:flex;gap:8px">
+              <button onclick="adminSendReply('${msg.id}')" style="flex:1;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500">Send Reply</button>
+              <button onclick="adminResolveMsg('${msg.id}')" style="padding:10px 14px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:12px;cursor:pointer;color:var(--text2)">✓ Resolve</button>
+            </div>
+          </div>`;
+        }
+      } else {
+        // Inbox list
+        if(ST.adminMessages.length===0) {
+          h += `<div style="text-align:center;padding:32px;color:var(--text2);font-size:13px">No messages yet</div>`;
+        } else {
+          h += `<div class="admin-table">`;
+          ST.adminMessages.forEach(msg => {
+            const colors = [{bg:'#EEF2EB',c:'#3D6B35'},{bg:'#FDF3DC',c:'#7A4E08'},{bg:'#FAEDE6',c:'#7A2E10'}];
+            const col = colors[msg.id.charCodeAt(1)%3];
+            h += `<div class="msg-row ${msg.read?'':'unread'}" onclick="adminOpenMsg('${msg.id}')">
+              <div class="msg-avatar" style="background:${col.bg};color:${col.c}">${msg.from.charAt(0)}</div>
+              <div class="msg-body-wrap">
+                <div class="msg-subject">${msg.subject}</div>
+                <div class="msg-preview">${msg.from} · ${msg.role} · ${msg.body.slice(0,60)}...</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+                <div class="msg-meta">${msg.date.split(' ').slice(-1)[0]}</div>
+                ${!msg.read?'<div class="msg-unread-dot"></div>':''}
+                ${msg.resolved?'<span class="status-pill live" style="font-size:8px">Resolved</span>':''}
+              </div>
+            </div>`;
+          });
+          h += `</div>`;
+        }
+      }
+    }
+
+    if(ST.adminMsgTab==='announce') {
+      h += `<div class="admin-table" style="padding:16px;margin-bottom:16px">
+        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:12px">Send Announcement</div>
+        <div style="margin-bottom:10px">
+          <label style="font-size:11px;font-weight:500;color:var(--text2);display:block;margin-bottom:4px">Send to</label>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${['All users','All vendors','All operators'].map((opt,i)=>`<div onclick="this.classList.toggle('selected');this.style.background=this.classList.contains('selected')?'var(--green)':'var(--surface2)';this.style.color=this.classList.contains('selected')?'#fff':'var(--text2)'" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">${opt}</div>`).join('')}
+          </div>
+        </div>
+        <input id="announceSubject" class="form-input" placeholder="Subject line" style="margin-bottom:8px">
+        <textarea id="announceBody" class="form-textarea" placeholder="Write your announcement..." style="margin-bottom:10px"></textarea>
+        <button onclick="adminSendAnnouncement()" style="width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500">Send Announcement</button>
+      </div>
+      ${ST.adminAnnouncements&&ST.adminAnnouncements.length>0?`
+        <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:8px">Sent announcements</div>
+        <div class="admin-table">
+          ${ST.adminAnnouncements.map(a=>`<div class="admin-row"><div class="admin-row-info"><div class="admin-row-name">${a.subject}</div><div class="admin-row-meta">${a.to} · ${a.date}</div></div></div>`).join('')}
+        </div>`:''}`;
+    }
+  }
+
+  /* ── AREAS TAB (renamed from Expansion) ── */
+  if(ST.adminTab==='areas') {
     h += `<div class="expansion-tool">
-      <div class="expansion-title">🔍 Search for new areas to add</div>
+      <div class="expansion-title">🔍 Search for new areas to expand to</div>
       <div class="expansion-search">
-        <input class="expansion-input" id="expInput" placeholder="City, state or region (e.g. Tampa, FL)">
+        <input class="expansion-input" id="expInput" placeholder="City, state (e.g. Tampa, FL)">
         <button class="expansion-btn" onclick="runExpansionSearch()">Search</button>
       </div>
       <div id="expResults" style="margin-top:12px;font-size:12px;color:var(--text3)">Enter a city to search for farmers markets in that area. In production this connects to the USDA Farmers Market Directory API.</div>
     </div>
-    <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:10px">Incoming Area Requests</div>
+    <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:10px">Incoming Area Requests (${ST.areaRequests.length})</div>
     <div class="admin-table">`;
-    ST.areaRequests.forEach(r=>{
-      h += `<div class="request-row"><div class="request-info"><div class="request-city">${r.city} · ${r.zip}</div><div class="request-markets">${r.markets}</div><div class="request-contact">${r.contact} · ${r.date}</div></div><div class="request-actions"><button class="action-btn publish" onclick="approveArea('${r.city}')">Add</button><button class="action-btn edit">Hold</button></div></div>`;
-    });
+    if(ST.areaRequests.length===0) {
+      h += `<div style="padding:24px;text-align:center;color:var(--text2);font-size:13px">No area requests</div>`;
+    } else {
+      ST.areaRequests.forEach(r=>{
+        h += `<div class="request-row"><div class="request-info"><div class="request-city">${r.city} · ${r.zip}</div><div class="request-markets">${r.markets}</div><div class="request-contact">${r.contact} · ${r.date}</div></div><div class="request-actions"><button class="action-btn publish" onclick="approveArea('${r.city}')">Add</button><button class="action-btn edit">Hold</button></div></div>`;
+      });
+    }
     h += `</div>`;
   }
 
+  /* ── ADS TAB ── */
   if(ST.adminTab==='ads') {
-    h += `<div class="admin-table">${['Homepage — Below Markets','Homepage — Below Vendor Feed','Homepage — Below Categories','Vendor Dashboard (Free Tier)'].map(slot=>`<div class="admin-row"><div class="admin-row-info"><div class="admin-row-name">${slot}</div><div class="admin-row-meta">Google AdSense · Auto-filled when no sponsor</div></div><span class="status-pill live">Live</span><div class="admin-row-actions"><button class="action-btn edit">Configure</button></div></div>`).join('')}</div>`;
+    h += `<div style="font-size:12px;color:var(--text2);margin-bottom:12px">Manage sponsored ad copy shown throughout the app. These rotate randomly in ad slots.</div>
+    <div class="admin-table">`;
+    DATA.ads.forEach((ad,i) => {
+      h += `<div class="admin-row">
+        <div style="font-size:22px;flex-shrink:0;width:36px;text-align:center">${ad.icon}</div>
+        <div class="admin-row-info">
+          <div class="admin-row-name">${ad.name}</div>
+          <div class="admin-row-meta">${ad.tagline}</div>
+        </div>
+        <div class="admin-row-actions">
+          <button class="action-btn edit" onclick="openAdminEditAd(${i})">Edit</button>
+        </div>
+      </div>`;
+    });
+    h += `</div>
+    <button onclick="openAdminAddAd()" style="width:100%;padding:10px;background:var(--surface2);border:0.5px dashed var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;color:var(--text2);font-family:var(--font-sans)">+ Add new ad</button>`;
   }
 
   h += `</div>`;
   document.getElementById('scrollBody').innerHTML = h;
 }
-
 /* ── ADMIN ACTIONS ── */
-function setAdminTab(tab) { ST.adminTab=tab; renderAdminPanel(); }
+function setAdminTab(tab) {
+  ST.adminTab = tab;
+  ST.adminMsgThread = null;
+  if(!ST.adminClaimsTab) ST.adminClaimsTab = 'pending';
+  if(!ST.adminAnnouncements) ST.adminAnnouncements = [];
+  renderAdminPanel();
+}
+
+/* Search filters */
+function adminFilterVendors(q) {
+  document.querySelectorAll('#adminVendorTable .admin-row').forEach(row=>{
+    row.style.display = (row.dataset.name||'').includes(q.toLowerCase()) || !q ? '' : 'none';
+  });
+}
+function adminFilterMarkets(q) {
+  document.querySelectorAll('#adminMarketTable .admin-row').forEach(row=>{
+    row.style.display = (row.dataset.name||'').includes(q.toLowerCase()) || !q ? '' : 'none';
+  });
+}
+
+/* Toggle vendor claimed/pro */
+function adminToggleVendorClaimed(id, el) {
+  const v = DATA.vendors.find(x=>x.id===id);
+  if(!v) return;
+  v.claimed = !v.claimed;
+  el.textContent = v.claimed ? 'Claimed' : 'Unclaimed';
+  el.className = 'status-pill ' + (v.claimed ? 'claimed' : 'unclaimed');
+}
+function adminToggleVendorPro(id, el) {
+  const v = DATA.vendors.find(x=>x.id===id);
+  if(!v) return;
+  v.pro = !v.pro;
+  el.textContent = v.pro ? 'Pro' : 'Free';
+  el.className = 'status-pill ' + (v.pro ? 'live' : 'draft');
+}
+function adminToggleMarketPublished(id, el) {
+  const m = DATA.markets.find(x=>x.id===id);
+  if(!m) return;
+  m.published = !m.published;
+  el.textContent = m.published ? 'Live' : 'Draft';
+  el.className = 'status-pill ' + (m.published ? 'live' : 'draft');
+}
+
+/* Claims */
+function adminApproveClaim(claimId) {
+  const c = ST.adminClaims.find(x=>x.id===claimId);
+  if(!c) return;
+  c.status = 'approved';
+  const v = DATA.vendors.find(x=>x.id===c.vendorId);
+  if(v) v.claimed = true;
+  // Add confirmation message to inbox
+  ST.adminMessages.unshift({
+    id:'auto_'+Date.now(),
+    from:c.claimant, role:'Vendor',
+    subject:'Claim approved: '+c.vendorName,
+    body:`Your claim for "${c.vendorName}" has been approved. You can now manage your listing.`,
+    date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
+    read:true, resolved:true, replies:[], isSystem:true
+  });
+  renderAdminPanel();
+}
+function adminDenyClaim(claimId) {
+  const reason = prompt('Reason for denial (optional):') ?? '';
+  const c = ST.adminClaims.find(x=>x.id===claimId);
+  if(!c) return;
+  c.status = 'denied';
+  c.denyReason = reason || 'No reason provided';
+  renderAdminPanel();
+}
+
+/* Messages */
+function adminOpenMsg(msgId) {
+  const msg = ST.adminMessages.find(m=>m.id===msgId);
+  if(msg) msg.read = true;
+  ST.adminMsgThread = msgId;
+  renderAdminPanel();
+}
+function adminSendReply(msgId) {
+  const text = document.getElementById('adminReplyText')?.value?.trim();
+  if(!text) return;
+  const msg = ST.adminMessages.find(m=>m.id===msgId);
+  if(!msg) return;
+  msg.replies.push({
+    from:'Windmill Admin',
+    body: text,
+    date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})
+  });
+  renderAdminPanel();
+}
+function adminResolveMsg(msgId) {
+  const msg = ST.adminMessages.find(m=>m.id===msgId);
+  if(msg) { msg.resolved = true; msg.read = true; }
+  ST.adminMsgThread = null;
+  renderAdminPanel();
+}
+function adminSendAnnouncement() {
+  const subject = document.getElementById('announceSubject')?.value?.trim();
+  const body = document.getElementById('announceBody')?.value?.trim();
+  if(!subject||!body) { alert('Please fill in both subject and message.'); return; }
+  if(!ST.adminAnnouncements) ST.adminAnnouncements = [];
+  ST.adminAnnouncements.unshift({
+    subject, body,
+    to: 'All users',
+    date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+  });
+  alert('Announcement sent! (In production this pushes to all user inboxes.)');
+  renderAdminPanel();
+}
+
+/* Edit modal */
+function closeAdminModal() {
+  document.getElementById('adminEditModal').classList.add('hidden');
+}
+function openAdminModal(title, sub, bodyHtml) {
+  document.getElementById('adminModalTitle').textContent = title;
+  document.getElementById('adminModalSub').textContent = sub;
+  document.getElementById('adminModalBody').innerHTML = bodyHtml;
+  document.getElementById('adminEditModal').classList.remove('hidden');
+}
+
+/* Edit vendor */
+function openAdminEditVendor(id) {
+  const v = DATA.vendors.find(x=>x.id===id);
+  if(!v) return;
+  const marketOptions = DATA.markets.map(m=>`<option value="${m.id}" ${v.markets.includes(m.id)?'selected':''}>${m.name}</option>`).join('');
+  openAdminModal('Edit Vendor', v.name, `
+    <div class="form-field"><label class="form-label">Name</label><input class="form-input" id="ef_name" value="${v.name}"></div>
+    <div class="form-field"><label class="form-label">Category</label><input class="form-input" id="ef_cat" value="${v.category}"></div>
+    <div class="form-field"><label class="form-label">Email</label><input class="form-input" id="ef_email" value="${v.email||''}"></div>
+    <div class="form-field"><label class="form-label">Website</label><input class="form-input" id="ef_website" value="${v.website||''}"></div>
+    <div class="form-field"><label class="form-label">Description</label><textarea class="form-textarea" id="ef_desc">${v.description||''}</textarea></div>
+    <div class="form-field"><label class="form-label">Markets (hold Ctrl/Cmd to select multiple)</label>
+      <select multiple class="form-input" id="ef_markets" style="height:100px">${marketOptions}</select>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:16px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="ef_claimed" ${v.claimed?'checked':''} style="width:16px;height:16px"> Claimed
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="ef_pro" ${v.pro?'checked':''} style="width:16px;height:16px"> Pro
+      </label>
+    </div>
+    <button onclick="adminSaveVendor('${id}')" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:500;margin-bottom:8px">Save changes</button>
+    <button onclick="adminDeleteVendor('${id}')" style="width:100%;padding:10px;background:transparent;color:var(--terra);border:0.5px solid var(--terra);border-radius:var(--r-md);font-size:13px;cursor:pointer">Delete vendor</button>
+  `);
+}
+function adminSaveVendor(id) {
+  const v = DATA.vendors.find(x=>x.id===id);
+  if(!v) return;
+  v.name = document.getElementById('ef_name').value.trim() || v.name;
+  v.category = document.getElementById('ef_cat').value.trim() || v.category;
+  v.email = document.getElementById('ef_email').value.trim();
+  v.website = document.getElementById('ef_website').value.trim();
+  v.description = document.getElementById('ef_desc').value.trim();
+  v.claimed = document.getElementById('ef_claimed').checked;
+  v.pro = document.getElementById('ef_pro').checked;
+  const sel = document.getElementById('ef_markets');
+  v.markets = Array.from(sel.selectedOptions).map(o=>o.value);
+  closeAdminModal();
+  renderAdminPanel();
+}
+function adminDeleteVendor(id) {
+  if(!confirm('Delete this vendor? This cannot be undone.')) return;
+  DATA.vendors = DATA.vendors.filter(v=>v.id!==id);
+  closeAdminModal();
+  renderAdminPanel();
+}
+function openAdminAddVendor() {
+  openAdminModal('Add Vendor', 'Create a new vendor listing', `
+    <div class="form-field"><label class="form-label">Name *</label><input class="form-input" id="nv_name" placeholder="Vendor name"></div>
+    <div class="form-field"><label class="form-label">Category *</label><input class="form-input" id="nv_cat" placeholder="e.g. Honey & Preserves"></div>
+    <div class="form-field"><label class="form-label">Email</label><input class="form-input" id="nv_email" placeholder="vendor@email.com"></div>
+    <div class="form-field"><label class="form-label">Website</label><input class="form-input" id="nv_website" placeholder="https://"></div>
+    <button onclick="adminCreateVendor()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:500">Create vendor</button>
+  `);
+}
+function adminCreateVendor() {
+  const name = document.getElementById('nv_name').value.trim();
+  const cat = document.getElementById('nv_cat').value.trim();
+  if(!name||!cat) { alert('Name and category are required.'); return; }
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+  DATA.vendors.push({
+    id, name, category:cat,
+    email:document.getElementById('nv_email').value.trim(),
+    website:document.getElementById('nv_website').value.trim(),
+    markets:[], claimed:false, pro:false, published:true,
+    description:'', tagline:''
+  });
+  closeAdminModal();
+  renderAdminPanel();
+}
+
+/* Edit market */
+function openAdminEditMarket(id) {
+  const m = DATA.markets.find(x=>x.id===id);
+  if(!m) return;
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  openAdminModal('Edit Market', m.name, `
+    <div class="form-field"><label class="form-label">Name</label><input class="form-input" id="em_name" value="${m.name}"></div>
+    <div class="form-field"><label class="form-label">Venue</label><input class="form-input" id="em_venue" value="${m.venue||''}"></div>
+    <div class="form-field"><label class="form-label">Address</label><input class="form-input" id="em_address" value="${m.address||''}"></div>
+    <div class="form-field"><label class="form-label">City</label><input class="form-input" id="em_city" value="${m.city||''}"></div>
+    <div class="form-field"><label class="form-label">Day of week</label>
+      <select class="form-input" id="em_day">${days.map(d=>`<option value="${d}" ${m.day_of_week===d?'selected':''}>${d}</option>`).join('')}</select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="form-field"><label class="form-label">Start time</label><input class="form-input" id="em_start" value="${m.start_time||''}"></div>
+      <div class="form-field"><label class="form-label">End time</label><input class="form-input" id="em_end" value="${m.end_time||''}"></div>
+    </div>
+    <div class="form-field"><label class="form-label">Season dates</label><input class="form-input" id="em_season" value="${m.season_dates||m.season_start+' – '+m.season_end||''}"></div>
+    <div class="form-field"><label class="form-label">Description</label><textarea class="form-textarea" id="em_desc">${m.description||''}</textarea></div>
+    <div class="form-field"><label class="form-label">Parking notes</label><input class="form-input" id="em_parking" value="${m.parking_notes||''}"></div>
+    <div class="form-field"><label class="form-label">Special notes</label><input class="form-input" id="em_notes" value="${m.special_notes||''}"></div>
+    <div class="form-field"><label class="form-label">Facebook URL</label><input class="form-input" id="em_fb" value="${m.facebook||''}"></div>
+    <div style="display:flex;gap:10px;margin-bottom:16px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="em_pet" ${m.pet_friendly?'checked':''} style="width:16px;height:16px"> Pet friendly
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="em_pub" ${m.published?'checked':''} style="width:16px;height:16px"> Published/Live
+      </label>
+    </div>
+    <button onclick="adminSaveMarket('${id}')" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:500;margin-bottom:8px">Save changes</button>
+    <button onclick="adminDeleteMarket('${id}')" style="width:100%;padding:10px;background:transparent;color:var(--terra);border:0.5px solid var(--terra);border-radius:var(--r-md);font-size:13px;cursor:pointer">Delete market</button>
+  `);
+}
+function adminSaveMarket(id) {
+  const m = DATA.markets.find(x=>x.id===id);
+  if(!m) return;
+  m.name = document.getElementById('em_name').value.trim() || m.name;
+  m.venue = document.getElementById('em_venue').value.trim();
+  m.address = document.getElementById('em_address').value.trim();
+  m.city = document.getElementById('em_city').value.trim();
+  m.day_of_week = document.getElementById('em_day').value;
+  m.start_time = document.getElementById('em_start').value.trim();
+  m.end_time = document.getElementById('em_end').value.trim();
+  m.season_dates = document.getElementById('em_season').value.trim();
+  m.description = document.getElementById('em_desc').value.trim();
+  m.parking_notes = document.getElementById('em_parking').value.trim();
+  m.special_notes = document.getElementById('em_notes').value.trim();
+  m.facebook = document.getElementById('em_fb').value.trim();
+  m.pet_friendly = document.getElementById('em_pet').checked;
+  m.published = document.getElementById('em_pub').checked;
+  closeAdminModal();
+  renderAdminPanel();
+}
+function adminDeleteMarket(id) {
+  if(!confirm('Delete this market? This cannot be undone.')) return;
+  DATA.markets = DATA.markets.filter(m=>m.id!==id);
+  closeAdminModal();
+  renderAdminPanel();
+}
+function openAdminAddMarket() {
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  openAdminModal('Add Market', 'Create a new market listing', `
+    <div class="form-field"><label class="form-label">Name *</label><input class="form-input" id="nm_name" placeholder="Market name"></div>
+    <div class="form-field"><label class="form-label">City *</label><input class="form-input" id="nm_city" placeholder="Fort Myers"></div>
+    <div class="form-field"><label class="form-label">Venue</label><input class="form-input" id="nm_venue" placeholder="Lakes Regional Park"></div>
+    <div class="form-field"><label class="form-label">Address</label><input class="form-input" id="nm_address" placeholder="7330 Gladiolus Dr"></div>
+    <div class="form-field"><label class="form-label">Day of week</label>
+      <select class="form-input" id="nm_day">${days.map(d=>`<option value="${d}">${d}</option>`).join('')}</select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="form-field"><label class="form-label">Start</label><input class="form-input" id="nm_start" placeholder="09:00"></div>
+      <div class="form-field"><label class="form-label">End</label><input class="form-input" id="nm_end" placeholder="13:00"></div>
+    </div>
+    <button onclick="adminCreateMarket()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:500">Create market</button>
+  `);
+}
+function adminCreateMarket() {
+  const name = document.getElementById('nm_name').value.trim();
+  const city = document.getElementById('nm_city').value.trim();
+  if(!name||!city) { alert('Name and city are required.'); return; }
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+  DATA.markets.push({
+    id, name, city, state:'FL',
+    venue: document.getElementById('nm_venue').value.trim(),
+    address: document.getElementById('nm_address').value.trim(),
+    day_of_week: document.getElementById('nm_day').value,
+    start_time: document.getElementById('nm_start').value.trim() || '09:00',
+    end_time: document.getElementById('nm_end').value.trim() || '13:00',
+    season_start:'Jan', season_end:'Dec',
+    published:true, pet_friendly:false,
+    lat:26.5629, lng:-81.8723, operator_id:''
+  });
+  closeAdminModal();
+  renderAdminPanel();
+}
+
+/* Edit ad */
+function openAdminEditAd(i) {
+  const ad = DATA.ads[i];
+  openAdminModal('Edit Ad', ad.name, `
+    <div class="form-field"><label class="form-label">Company name</label><input class="form-input" id="ea_name" value="${ad.name}"></div>
+    <div class="form-field"><label class="form-label">Tagline</label><input class="form-input" id="ea_tag" value="${ad.tagline}"></div>
+    <div class="form-field"><label class="form-label">Icon (emoji)</label><input class="form-input" id="ea_icon" value="${ad.icon}"></div>
+    <div class="form-field"><label class="form-label">Link URL</label><input class="form-input" id="ea_link" value="${ad.link||'#'}"></div>
+    <button onclick="adminSaveAd(${i})" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:500;margin-bottom:8px">Save</button>
+    <button onclick="adminDeleteAd(${i})" style="width:100%;padding:10px;background:transparent;color:var(--terra);border:0.5px solid var(--terra);border-radius:var(--r-md);font-size:13px;cursor:pointer">Remove ad</button>
+  `);
+}
+function adminSaveAd(i) {
+  DATA.ads[i].name = document.getElementById('ea_name').value.trim();
+  DATA.ads[i].tagline = document.getElementById('ea_tag').value.trim();
+  DATA.ads[i].icon = document.getElementById('ea_icon').value.trim();
+  DATA.ads[i].link = document.getElementById('ea_link').value.trim();
+  closeAdminModal(); renderAdminPanel();
+}
+function adminDeleteAd(i) {
+  if(!confirm('Remove this ad?')) return;
+  DATA.ads.splice(i,1);
+  closeAdminModal(); renderAdminPanel();
+}
+function openAdminAddAd() {
+  openAdminModal('Add Ad', 'New sponsored ad unit', `
+    <div class="form-field"><label class="form-label">Company name *</label><input class="form-input" id="na_name" placeholder="Company name"></div>
+    <div class="form-field"><label class="form-label">Tagline *</label><input class="form-input" id="na_tag" placeholder="Short description"></div>
+    <div class="form-field"><label class="form-label">Icon (emoji)</label><input class="form-input" id="na_icon" placeholder="🏦"></div>
+    <div class="form-field"><label class="form-label">Link URL</label><input class="form-input" id="na_link" placeholder="https://"></div>
+    <button onclick="adminCreateAd()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:500">Add ad</button>
+  `);
+}
+function adminCreateAd() {
+  const name = document.getElementById('na_name').value.trim();
+  const tagline = document.getElementById('na_tag').value.trim();
+  if(!name||!tagline) { alert('Name and tagline required.'); return; }
+  DATA.ads.push({name, tagline, icon:document.getElementById('na_icon').value.trim()||'📢', link:document.getElementById('na_link').value.trim()||'#', color:'var(--surface)'});
+  closeAdminModal(); renderAdminPanel();
+}
+
+/* Contact support → admin inbox */
+function submitContactSupport(role, senderName) {
+  const textarea = document.querySelector('.form-textarea');
+  const text = textarea?.value?.trim();
+  if(!text) { alert('Please write a message first.'); return; }
+  if(!ST.adminMessages) ST.adminMessages = [];
+  ST.adminMessages.unshift({
+    id:'msg_'+Date.now(),
+    from: senderName || role+' User',
+    role: role.charAt(0).toUpperCase()+role.slice(1),
+    subject: 'Support request from '+role,
+    body: text,
+    date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}),
+    read:false, resolved:false, replies:[]
+  });
+  if(textarea) textarea.value = '';
+  alert('Message sent! Our team will respond within 24 hours.');
+}
 
 function togglePublish(btn, id, type) {
   if(type==='vendor') {
@@ -3321,17 +3883,11 @@ function togglePublish(btn, id, type) {
   }
 }
 
-function adminSearch(q, tableId) {
-  const rows = document.getElementById(tableId)?.querySelectorAll('.admin-row');
-  if(!rows) return;
-  rows.forEach(row=>{ row.style.display = (row.dataset.name||'').includes(q.toLowerCase()) || q==='' ? 'flex' : 'none'; });
-}
-
 function runExpansionSearch() {
   const q = document.getElementById('expInput')?.value;
   const res = document.getElementById('expResults');
   if(!res||!q) return;
-  res.innerHTML = `<div style="padding:8px 0;color:var(--text2)">Searching for farmers markets near <strong>${q}</strong>…</div><div style="font-size:12px;color:var(--text3);margin-top:4px">In production: pulls from USDA Farmers Market Directory + Google Places API. Results appear here for one-click import.</div>`;
+  res.innerHTML = `<div style="padding:8px 0;color:var(--text2)">Searching for farmers markets near <strong>${q}</strong>…</div><div style="font-size:12px;color:var(--text3);margin-top:4px">In production: pulls from USDA Farmers Market Directory + Google Places API.</div>`;
 }
 
 function approveArea(city) {
@@ -3436,7 +3992,7 @@ function renderVendorSettings() {
       <div class="dash-section-title">Contact Support</div>
       <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Have a question? We respond within 24 hours.</p>
       <textarea class="form-textarea" placeholder="How can we help?"></textarea>
-      <button style="width:100%;margin-top:10px;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500">Send message</button>
+      <button onclick="submitContactSupport('vendor','Vendor')" style="width:100%;margin-top:10px;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500">Send message</button>
     </div>
     <div class="dash-section">
       <div class="dash-section-title">Your plan</div>
@@ -3478,7 +4034,7 @@ function renderOperatorAnnouncements() {
     ${freePageHeader()}
     <div class="dash-title">Announcements</div><div class="dash-sub">Post updates to your market followers</div>
     ${proLockedSection('Post Announcements','Send notifications to all followers of your markets. Great for closures, events, and seasonal news.')}
-    <div class="dash-section"><div class="dash-section-title">Contact Support</div><textarea class="form-textarea" placeholder="How can we help?"></textarea><button style="width:100%;margin-top:10px;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500">Send message</button></div>
+    <div class="dash-section"><div class="dash-section-title">Contact Support</div><textarea class="form-textarea" placeholder="How can we help?"></textarea><button onclick="submitContactSupport('vendor','Vendor')" style="width:100%;margin-top:10px;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500">Send message</button></div>
   </div>`;
 }
 
