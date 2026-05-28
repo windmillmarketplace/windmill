@@ -800,7 +800,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 
 <script>
 /* ============================================================
-   WINDMILL v1.21 — Complete Application Script
+   WINDMILL v1.22 — Complete Application Script
    18 Lee County markets · 60+ vendors · 4 role views
    Vendor profile template · Market detail template
    Admin build/publish tools · Expansion request flow
@@ -1085,13 +1085,29 @@ const DATA = {
     {name:"Sanibel Captiva Conservation",tagline:"Protecting the islands we love — donate today",icon:"🌿",color:"#EEF2EB",link:"#"},
     {name:"Florida Blue",tagline:"Health coverage for local business owners",icon:"💙",color:"#EBF1FB",link:"#"}
   ],
-  spotlight:[
-    {type:'vendor',id:'demo-vendor-pro',name:'The Empanada Queen',tagline:'Handmade empanadas — 12 flavors, made fresh every morning',photo:'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=400&q=80',route:'demo-vendor-pro'},
-    {type:'operator',id:'demo-operator-pro',name:'Suncoast Market Collective',tagline:"SW Florida's premier network of artisan farmers markets",photo:'https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=400&q=80',route:'demo-operator-pro'},
-    {type:'vendor',id:'heritage-honey',name:'Heritage Honey',tagline:'Raw Florida wildflower honey — straight from our hives',photo:'https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=400&q=80',route:'vendor'},
-    {type:'vendor',id:'stamper-cheese',name:'Stamper Cheese',tagline:'Artisan cheeses made in Southwest Florida',photo:'https://images.unsplash.com/photo-1486297678162-eb2a19b0a32d?w=400&q=80',route:'vendor'},
-    {type:'vendor',id:'jimmy-java',name:"Jimmy's Java",tagline:'Specialty coffee roasted local — find us at 6 markets',photo:'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&q=80',route:'vendor'}
-  ],
+  spotlight:{
+    'lee-county':[
+      {type:'vendor',id:'demo-vendor-pro',name:'The Empanada Queen',tagline:'Handmade empanadas — 12 flavors, made fresh every morning',photo:'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=400&q=80',route:'demo-vendor-pro'},
+      {type:'operator',id:'demo-operator-pro',name:'Suncoast Market Collective',tagline:"SW Florida's premier network of artisan farmers markets",photo:'https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=400&q=80',route:'demo-operator-pro'},
+      {type:'vendor',id:'heritage-honey',name:'Heritage Honey',tagline:'Raw Florida wildflower honey — straight from our hives',photo:'https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=400&q=80',route:'vendor'},
+      {type:'vendor',id:'stamper-cheese',name:'Stamper Cheese',tagline:'Artisan cheeses made in Southwest Florida',photo:'https://images.unsplash.com/photo-1486297678162-eb2a19b0a32d?w=400&q=80',route:'vendor'},
+      {type:'vendor',id:'jimmys-java',name:"Jimmy's Java",tagline:'Specialty coffee roasted local — find us at 6 markets',photo:'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&q=80',route:'vendor'}
+    ],
+    'sarasota-bradenton':[
+      {type:'market',id:'lakewood-ranch-waterside',name:"Farmers' Market at Lakewood Ranch",tagline:"Voted #1 farmers market in the US — 100+ vendors every Sunday",photo:'https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=400&q=80',route:'market'},
+      {type:'vendor',id:'myakka-gold-honey',name:"Myakka's Pure Gold Honey",tagline:'Pure Florida wildflower honey from Myakka City hives',photo:'https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=400&q=80',route:'vendor'},
+      {type:'market',id:'sarasota-downtown',name:'Sarasota Farmers Market',tagline:'Rain or shine since 1979 — the heart of downtown Sarasota',photo:'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&q=80',route:'market'},
+      {type:'vendor',id:'gulf-honey-company',name:'Gulf Honey Company',tagline:'Small-batch honey harvested on the Gulf Coast',photo:'https://images.unsplash.com/photo-1471943038054-fd7ee6bfa986?w=400&q=80',route:'vendor'},
+      {type:'vendor',id:'morning-tide-coffee',name:'Morning Tide Coffee',tagline:'Locally roasted specialty coffee — find us at 4 Sarasota markets',photo:'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&q=80',route:'vendor'}
+    ],
+    'tampa-bay':[
+      {type:'market',id:'st-pete-saturday-morning',name:'St. Pete Saturday Morning Market',tagline:'One of the top farmers markets in the US — 130+ vendors',photo:'https://images.unsplash.com/photo-1475924156734-496f6cac6ec1?w=400&q=80',route:'market'},
+      {type:'vendor',id:'st-pete-honey',name:'St. Pete Honey Co.',tagline:'Pure Tampa Bay area wildflower honey',photo:'https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=400&q=80',route:'vendor'},
+      {type:'market',id:'ybor-city-market',name:'Ybor City Saturday Market',tagline:"Tampa's most colorful market — roosters included",photo:'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&q=80',route:'market'},
+      {type:'vendor',id:'ybor-roasters',name:'Ybor City Roasters',tagline:'Historic Ybor City coffee roasted fresh every week',photo:'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&q=80',route:'vendor'},
+      {type:'vendor',id:'gulf-coast-artisan-cheese',name:'Gulf Coast Artisan Cheese',tagline:'Handcrafted cheeses from Tampa Bay dairies',photo:'https://images.unsplash.com/photo-1486297678162-eb2a19b0a32d?w=400&q=80',route:'vendor'}
+    ]
+  },
   sponsored_row:[
     {name:'First Florida Credit Union',tagline:'Free checking for market vendors & shoppers',icon:'🏦',color:'#E8F0FB',link:'#'},
     {name:'Lee Health',tagline:'Your community health partner — Lee County',icon:'❤️',color:'#FBECEC',link:'#'},
@@ -2019,8 +2035,9 @@ function renderHome() {
     <span style="font-size:10px;color:var(--text3);font-style:italic">Featured vendors & markets</span>
   </div></div>
   <div class="hscroll" style="padding-left:16px;padding-right:16px">`;
-  DATA.spotlight.forEach(s => {
-    h += `<div class="spotlight-card" onclick="${s.route==='demo-vendor-pro'||s.route==='demo-operator-pro'?`navigate('${s.route}')`:`navigate('${s.type}','${s.id}')`}">
+  const spotlightItems = DATA.spotlight[ST.region] || DATA.spotlight['lee-county'];
+  spotlightItems.forEach(s => {
+    h += `<div class="spotlight-card" onclick="navigate('${s.route==='demo-vendor-pro'||s.route==='demo-operator-pro'?s.route:s.type}','${s.id}')">
       <span class="spotlight-badge">⭐ Pro</span>
       <div class="spotlight-img">
         <img src="${s.photo}" alt="${s.name}" style="width:100%;height:100%;object-fit:cover" loading="lazy">
@@ -2069,11 +2086,16 @@ function renderHome() {
   h += `${adUnit()}
   <div class="section"><div class="section-header"><span class="section-title">${t('explore_cat')}</span><span class="section-more" onclick="navigate('vendors-list')">${t('see_all')}</span></div></div>
   <div class="hscroll" style="padding-left:16px;padding-right:16px">`;
-  const catbg=['#EEF2EB','#FDF3DC','#FAEDE6','#EEF2EB','#F5F0EA','#FDF3DC','#E8EFF6','#FAEDE6','#FDF3DC','#EEF2EB','#EEF2EB','#F5F0EA','#FDF3DC'];
   DATA.categories.forEach((cat,i)=>{
     const label = ST.lang==='es'?cat.es:ST.lang==='pt'?cat.pt:cat.label;
     h += `<div onclick="filterByCat('${cat.id}')" style="min-width:80px;max-width:80px;flex-shrink:0;cursor:pointer;text-align:center">
-      <div style="width:64px;height:64px;border-radius:14px;background:${catbg[i]};display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 6px;border:0.5px solid var(--border)">${cat.emoji}</div>
+      <div style="width:64px;height:64px;border-radius:14px;overflow:hidden;margin:0 auto 6px;border:0.5px solid var(--border);position:relative;background:var(--surface2)">
+        ${cat.photo
+          ? `<img src="${cat.photo}" alt="${label}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+             <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-size:26px;position:absolute;inset:0">${cat.emoji}</div>`
+          : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:26px">${cat.emoji}</div>`
+        }
+      </div>
       <div style="font-size:10px;font-weight:500;color:var(--text);line-height:1.2">${label}</div>
     </div>`;
   });
@@ -3084,7 +3106,7 @@ function renderVendorProfile(id) {
       <div class="profile-section-title">${t('contact_links')}</div>
       <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg><div><div class="info-row-label">${t('email_label')}</div><div class="info-row-value">${v.email||t('not_provided')}</div></div></div>
       <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><div><div class="info-row-label">${t('website_label')}</div>${v.website?`<a class="info-row-link" href="${v.website}" target="_blank">${v.website.replace(/https?:\/\//,'')}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
-      ${v.phone?`<div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.44 2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.95a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21.73 16.92z"/></svg><div><div class="info-row-label">Phone</div><a class="info-row-link" href="tel:${v.phone}">${v.phone}</a></div></div>`:''}
+      <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.44 2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.95a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21.73 16.92z"/></svg><div><div class="info-row-label">Phone</div>${v.phone?`<a class="info-row-link" href="tel:${v.phone}">${v.phone}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
     </div>
 
     <div class="profile-section">
@@ -3203,6 +3225,7 @@ function renderMarketDetail(id) {
       <div class="profile-section-title">${t('contact_links')}</div>
       ${op?`<div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><div><div class="info-row-label">${t('operator_label')}</div><div class="info-row-value">${op.name}</div></div></div>`:''}
       <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><div><div class="info-row-label">${t('website_label')}</div>${m.website?`<a class="info-row-link" href="${m.website}" target="_blank">${m.website.replace('https://','').replace('http://','')}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
+      <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.44 2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.95a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21.73 16.92z"/></svg><div><div class="info-row-label">Phone</div>${op&&op.phone?`<a class="info-row-link" href="tel:${op.phone}">${op.phone}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
     </div>
 
     <!-- SOCIAL MEDIA — greyed out unless market is Pro AND has the link -->
@@ -3331,7 +3354,7 @@ function renderMe() {
       </div>
     </div>
     <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text3)">
-      Windmill v1.21 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
+      Windmill v1.22 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
     </div>
   </div>`;
 }
