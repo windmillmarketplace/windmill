@@ -4478,32 +4478,45 @@ function submitAreaReq() {
   if(window.innerWidth >= 768) return;
   const THRESHOLD = 40;
 
-  // Each scroll container tracks its OWN lastY independently
-  function attachScrollListener(elId) {
-    let lastY = 0;
-    let ticking = false;
+  function handleScroll(currentY, lastYRef) {
+    const topbar = document.getElementById('mobileTopbar');
+    const bottomNav = document.getElementById('bottomNav');
+    const scrollingDown = currentY > lastYRef.val && currentY > THRESHOLD;
+    if(topbar) topbar.classList.toggle('collapsed', scrollingDown);
+    if(bottomNav) bottomNav.classList.toggle('hidden', scrollingDown);
+    lastYRef.val = currentY <= 0 ? 0 : currentY;
+  }
 
+  // Per-container listeners (reliable on most browsers)
+  function attachScrollListener(elId) {
+    const lastYRef = {val: 0};
+    let ticking = false;
     function tryAttach() {
       const el = document.getElementById(elId);
       if(!el) { setTimeout(tryAttach, 300); return; }
-
       el.addEventListener('scroll', function() {
         if(ticking) return;
         ticking = true;
         requestAnimationFrame(() => {
-          const currentY = el.scrollTop;
-          const scrollingDown = currentY > lastY && currentY > THRESHOLD;
-          const topbar = document.getElementById('mobileTopbar');
-          const bottomNav = document.getElementById('bottomNav');
-          if(topbar) topbar.classList.toggle('collapsed', scrollingDown);
-          if(bottomNav) bottomNav.classList.toggle('hidden', scrollingDown);
-          lastY = currentY <= 0 ? 0 : currentY;
+          handleScroll(el.scrollTop, lastYRef);
           ticking = false;
         });
       }, { passive: true });
     }
     tryAttach();
   }
+
+  // Window scroll fallback — catches iOS Safari cases where div scroll events miss
+  const winLastY = {val: 0};
+  let winTicking = false;
+  window.addEventListener('scroll', function() {
+    if(winTicking) return;
+    winTicking = true;
+    requestAnimationFrame(() => {
+      handleScroll(window.scrollY || document.documentElement.scrollTop, winLastY);
+      winTicking = false;
+    });
+  }, { passive: true });
 
   attachScrollListener('scrollBody');
   attachScrollListener('mapListPanel');
