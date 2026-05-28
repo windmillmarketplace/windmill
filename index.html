@@ -24,13 +24,17 @@
 body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
 
 /* ROLE BAR */
-.role-bar{position:fixed;top:0;left:0;right:0;z-index:9999;background:#2C2016;display:flex;align-items:center;height:32px}
+.role-bar{background:#2C2016;display:flex;align-items:center;height:32px}
+/* Mobile: role bar scrolls away naturally (not fixed) */
+@media(max-width:767px){.role-bar{position:relative;z-index:1}}
+/* Desktop: role bar stays fixed */
+@media(min-width:768px){.role-bar{position:fixed;top:0;left:0;right:0;z-index:9999}}
 .role-bar-label{font-size:10px;color:#B0A89F;padding:0 10px;white-space:nowrap;font-family:var(--font-sans)}
 .role-btn{flex:1;height:100%;font-size:10px;font-family:var(--font-sans);border:none;background:transparent;color:#B0A89F;cursor:pointer;transition:all .15s;border-left:0.5px solid #3d3330}
 .role-btn.active{background:var(--terra);color:#fff;font-weight:500}
 
 /* SHELL */
-.shell{margin-top:32px;min-height:calc(100vh - 32px);background:var(--bg);display:flex;flex-direction:column;position:relative}
+.shell{min-height:100vh;background:var(--bg);display:flex;flex-direction:column;position:relative}
 @media(max-width:767px){
   .shell{max-width:100%;width:100%}
   .desktop-sidebar{display:none}
@@ -67,14 +71,36 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .desktop-actions{margin-left:auto;display:flex;align-items:center;gap:12px}
 
 /* MOBILE TOPBAR */
-.topbar{background:#EEF2EB;padding:12px 16px 10px;border-bottom:0.5px solid #C8D8BE;position:sticky;top:32px;z-index:100}
-.topbar-row1{display:flex;align-items:center;margin-bottom:10px}
-.brand{display:flex;align-items:center;gap:7px;cursor:pointer;text-decoration:none}
+.topbar{background:#EEF2EB;border-bottom:0.5px solid #C8D8BE;position:sticky;top:0;z-index:100;transition:all .25s ease}
+/* Row 1: logo + location + bell */
+.topbar-row1{display:flex;align-items:center;padding:10px 16px 0;gap:0}
+.brand{display:flex;align-items:center;gap:7px;cursor:pointer;text-decoration:none;flex-shrink:0}
 .brand-name{font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);letter-spacing:-.3px}
 .brand-name span{color:var(--green)}
-.topbar-actions{margin-left:auto;display:flex;align-items:center;gap:14px}
+/* Location pill in row 1 */
+.topbar-location{display:flex;align-items:center;gap:5px;margin-left:10px;padding:4px 10px;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-pill);cursor:pointer;flex:1;min-width:0;overflow:hidden}
+.topbar-location svg{width:12px;height:12px;color:var(--green);flex-shrink:0}
+.topbar-location-text{font-size:11px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar-actions{margin-left:8px;display:flex;align-items:center;gap:10px;flex-shrink:0}
 .icon-btn{background:none;border:none;cursor:pointer;padding:2px;position:relative;color:var(--text2);display:flex;align-items:center}
 .notif-dot{width:7px;height:7px;background:var(--terra);border-radius:50%;position:absolute;top:0;right:0;border:1.5px solid var(--surface)}
+/* Row 2: search + filter pills on one scrollable line */
+.topbar-row2{display:flex;align-items:center;gap:7px;padding:8px 16px 10px;overflow-x:auto;scrollbar-width:none;transition:max-height .25s ease,padding .25s ease;max-height:60px}
+.topbar-row2::-webkit-scrollbar{display:none}
+/* Search input — narrow by default, expands on focus */
+.topbar-search-wrap{display:flex;align-items:center;gap:7px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);padding:7px 12px;flex-shrink:0;width:44%;transition:width .2s ease}
+.topbar-search-wrap.expanded{width:100%}
+.topbar-search-wrap input{border:none;background:transparent;outline:none;font-size:13px;color:var(--text);font-family:var(--font-sans);width:100%;min-width:0}
+.topbar-search-wrap input::placeholder{color:var(--text3)}
+.search-cancel-btn{font-size:12px;color:var(--terra);cursor:pointer;white-space:nowrap;flex-shrink:0;display:none;padding-left:2px;background:none;border:none;font-family:var(--font-sans)}
+.topbar-search-wrap.expanded + .search-cancel-btn,.topbar-search-wrap.expanded ~ .search-cancel-btn{display:block}
+/* Collapsed state — mobile only */
+@media(max-width:767px){
+  .topbar.collapsed .topbar-row2{max-height:0;padding-top:0;padding-bottom:0;overflow:hidden}
+  .topbar.collapsed .topbar-row1{padding-bottom:10px}
+  .topbar-collapsed-search{display:none;background:none;border:none;cursor:pointer;padding:2px;color:var(--text2);align-items:center}
+  .topbar.collapsed .topbar-collapsed-search{display:flex}
+}
 .search-bar{display:flex;align-items:center;gap:9px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);padding:9px 14px}
 .search-bar input{border:none;background:transparent;outline:none;width:100%;font-size:13px;color:var(--text);font-family:var(--font-sans)}
 .search-bar input::placeholder{color:var(--text3)}
@@ -94,7 +120,8 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .gs-no-results{padding:24px 14px;text-align:center;font-size:13px;color:var(--text2)}
 
 /* FILTER STRIP */
-.filter-strip{background:var(--surface);padding:8px 16px;display:flex;gap:7px;border-bottom:0.5px solid var(--border);overflow-x:auto;scrollbar-width:none;position:sticky;top:calc(32px + 110px);z-index:90}
+/* filter-strip now part of topbar row2 on mobile; kept for desktop */
+.filter-strip{background:var(--surface);padding:8px 16px;display:flex;gap:7px;border-bottom:0.5px solid var(--border);overflow-x:auto;scrollbar-width:none;position:sticky;top:0;z-index:90}
 @media(min-width:768px){.filter-strip{top:calc(32px + 57px)}}
 .filter-strip::-webkit-scrollbar{display:none}
 .fpill{display:flex;align-items:center;gap:5px;padding:6px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;font-family:var(--font-sans);color:var(--text2);background:var(--surface);white-space:nowrap;cursor:pointer;transition:all .15s;flex-shrink:0}
@@ -201,7 +228,8 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .cs-btn{font-size:12px;padding:8px 14px;border-radius:var(--r-sm);background:var(--terra);color:#fff;border:none;cursor:pointer;font-weight:500;white-space:nowrap}
 
 /* BOTTOM NAV */
-.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:#FDF0EB;border-top:1px solid #ECC4B0;display:flex;padding:8px 0 max(12px,env(safe-area-inset-bottom));z-index:100}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:#FDF0EB;border-top:1px solid #ECC4B0;display:flex;padding:8px 0 max(12px,env(safe-area-inset-bottom));z-index:100;transition:transform .25s ease}
+.bottom-nav.hidden{transform:translateY(100%)}
 .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:2px 0;background:none;border:none}
 .nav-item svg{color:var(--text3);transition:color .15s}
 .nav-item.active svg{color:var(--green)}
@@ -233,8 +261,8 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .divider-text::before{left:0}.divider-text::after{right:0}
 
 /* NOTIFICATION PANEL */
-.notif-panel{position:fixed;top:calc(32px + 110px);right:0;width:300px;background:var(--surface);border:0.5px solid var(--border);border-radius:0 0 0 var(--r-lg);box-shadow:0 8px 24px rgba(44,32,22,.12);z-index:200;max-height:400px;overflow-y:auto}
-@media(min-width:768px){.notif-panel{top:calc(32px + 57px)}}
+.notif-panel{position:fixed;top:calc(90px);right:0;width:300px;background:var(--surface);border:0.5px solid var(--border);border-radius:0 0 0 var(--r-lg);box-shadow:0 8px 24px rgba(44,32,22,.12);z-index:200;max-height:400px;overflow-y:auto}
+@media(min-width:768px){.notif-panel{top:calc(32px + 57px);right:12px}}
 .notif-panel.hidden{display:none}
 .notif-header{padding:14px 16px;border-bottom:0.5px solid var(--border);font-size:13px;font-weight:500;color:var(--text)}
 .notif-item{padding:12px 16px;border-bottom:0.5px solid var(--border);display:flex;gap:10px;align-items:flex-start}
@@ -522,31 +550,39 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
     </div>
 
     <!-- MOBILE TOPBAR -->
-    <div class="topbar">
+    <div class="topbar" id="mobileTopbar">
+      <!-- Row 1: Logo + Location + Bell -->
       <div class="topbar-row1">
         <div class="brand" onclick="navigate('home')">
           <svg width="24" height="24" viewBox="0 0 26 26" fill="none"><circle cx="13" cy="13" r="2.8" fill="#5C7A4E"/><line x1="13" y1="9.8" x2="13" y2="2" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="13" y1="16.2" x2="13" y2="24" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="9.8" y1="13" x2="2" y2="13" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="16.2" y1="13" x2="24" y2="13" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="11.4" y1="11.4" x2="5.5" y2="5.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><line x1="14.6" y1="14.6" x2="20.5" y2="20.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><line x1="14.6" y1="11.4" x2="20.5" y2="5.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><line x1="11.4" y1="14.6" x2="5.5" y2="20.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/></svg>
           <span class="brand-name">wind<span>mill</span></span>
         </div>
+        <!-- Location pill (always visible, even collapsed) -->
+        <div class="topbar-location" id="topbarLocation" onclick="openLocationModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <span class="topbar-location-text" id="topbarLocationText">Fort Myers, FL</span>
+        </div>
         <div class="topbar-actions">
-          <button class="icon-btn" onclick="cycleLang()" style="padding:2px 7px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);background:var(--surface2)">
-            <span id="mobileLangBadge" style="font-size:11px;font-weight:600;color:var(--green-dk);font-family:var(--font-sans)">EN</span>
+          <!-- Search icon — only visible when collapsed -->
+          <button class="icon-btn topbar-collapsed-search" onclick="expandTopbar()" title="Search">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           </button>
           <button class="icon-btn" onclick="toggleNotif()">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             <span class="notif-dot"></span>
           </button>
-          <button class="icon-btn" onclick="openModal('signinModal')">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          </button>
         </div>
       </div>
-      <div class="search-bar">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <div class="global-search-wrap">
-          <input placeholder="Search markets, vendors, cities..." oninput="globalSearch(this.value)" onkeydown="globalSearchKeydown(event)" id="mobileSearch" autocomplete="off">
-          <div id="mobileSearchDropdown" class="global-search-dropdown" style="display:none"></div>
+      <!-- Row 2: Search + filter pills (scrollable, collapses on scroll-down) -->
+      <div class="topbar-row2" id="topbarRow2">
+        <div class="topbar-search-wrap" id="topbarSearchWrap">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;color:var(--text3)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <div class="global-search-wrap">
+            <input placeholder="Search markets, vendors..." oninput="globalSearch(this.value)" onkeydown="globalSearchKeydown(event)" id="mobileSearch" autocomplete="off" onfocus="expandSearchBar()" onblur="collapseSearchBar(this)">
+            <div id="mobileSearchDropdown" class="global-search-dropdown" style="display:none"></div>
+          </div>
         </div>
+        <div id="topbarFilterPills" style="display:flex;gap:6px;flex-shrink:0"></div>
       </div>
     </div>
 
@@ -587,6 +623,35 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
     <div style="margin-top:20px;display:flex;gap:8px">
       <button onclick="clearFilters()" class="btn-secondary" style="flex:1">Clear all</button>
       <button onclick="applyFilters()" class="btn-primary" style="flex:1">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOCATION MODAL -->
+<div class="modal-overlay hidden" id="locationModal" onclick="closeModalOnOverlay(event,'locationModal')">
+  <div class="modal" style="max-height:80vh;overflow-y:auto">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('locationModal')">×</button>
+    <div class="modal-title">Choose your location</div>
+    <div class="modal-sub">Windmill shows markets and vendors near you.</div>
+    <div class="form-field">
+      <label class="form-label">City or ZIP code</label>
+      <input class="form-input" id="locationModalInput" placeholder="e.g. Fort Myers, FL or 33908" value="">
+      <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px" id="locationSuggestions"></div>
+    </div>
+    <button class="btn-primary" onclick="applyLocationModal()">Set location</button>
+    <div style="margin-top:16px">
+      <div style="font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Lee County Markets</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        <div onclick="quickSetLocation('Fort Myers, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Fort Myers, FL</div>
+        <div onclick="quickSetLocation('Cape Coral, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Cape Coral, FL</div>
+        <div onclick="quickSetLocation('Bonita Springs, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Bonita Springs, FL</div>
+        <div onclick="quickSetLocation('Estero, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Estero, FL</div>
+        <div onclick="quickSetLocation('Sanibel, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Sanibel, FL</div>
+        <div onclick="quickSetLocation('Captiva, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Captiva, FL</div>
+        <div onclick="quickSetLocation('Babcock Ranch, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Babcock Ranch, FL</div>
+        <div onclick="quickSetLocation('Boca Grande, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Boca Grande, FL</div>
+      </div>
     </div>
   </div>
 </div>
@@ -658,14 +723,14 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
   </div>
 </div>
 
-<!-- VIEW TOGGLE BAR (positioned by JS) -->
-<div id="viewToggleBar" style="position:fixed;bottom:64px;left:0;right:0;text-align:center;padding:5px 0;background:rgba(250,248,244,0.92);border-top:0.5px solid var(--border);z-index:97;backdrop-filter:blur(4px);display:none">
-  <span id="viewToggleLink" onclick="toggleForcedView()" style="font-size:11px;color:var(--terra);cursor:pointer;text-decoration:underline;text-underline-offset:2px"></span>
+<!-- VIEW TOGGLE BAR — now inline in content, not floating -->
+<div id="viewToggleBar" style="display:none">
+  <span id="viewToggleLink" onclick="toggleForcedView()"></span>
 </div>
 
 <script>
 /* ============================================================
-   WINDMILL v1.0.1 — Complete Application Script
+   WINDMILL v1.14 — Complete Application Script
    18 Lee County markets · 60+ vendors · 4 role views
    Vendor profile template · Market detail template
    Admin build/publish tools · Expansion request flow
@@ -1344,8 +1409,20 @@ function globalSearchPick(type, payload) {
   ST.globalSearchQuery = '';
 
   if(type === 'market') {
+    // If on explore page, highlight on map instead of navigating away
+    if(ST.tab === 'explore' && !ST.currentPage) {
+      const m = getMarket(payload);
+      if(m) { ST.mapSearchQuery = m.name; renderMapModeContent(); return; }
+    }
     navigate('market', payload);
   } else if(type === 'vendor') {
+    // If on explore vendors tab, highlight on map
+    if(ST.tab === 'explore' && !ST.currentPage) {
+      ST.mapMode = 'vendors';
+      ST.mapVendorSearch = payload;
+      renderMapModeContent();
+      return;
+    }
     navigate('vendor', payload);
   } else if(type === 'city') {
     const [city, state, lat, lng, covered] = payload.split(',');
@@ -1461,28 +1538,54 @@ function renderSidebar() {
     </div>`).join('');
 }
 
-/* ── FILTER STRIP ── */
-function renderFilterStrip() {
-  const el = document.getElementById('filterStrip');
-  if(!el) return;
-  const hide = ST.role!=='customer' || ST.currentPage==='vendor' || ST.currentPage==='market' || ST.currentPage==='area-request';
-  el.style.display = hide ? 'none' : 'flex';
-  if(hide) return;
+/* ── FILTER PILLS HTML (shared between topbar row2 and desktop filter strip) ── */
+function filterPillsHTML(includeMapToggle) {
   const fc = ST.filters.days.length + ST.filters.cats.length;
-  el.innerHTML = `
-    <div class="fpill active">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-      <input class="location-input" value="${ST.location}" placeholder="City or ZIP" onchange="updateLocation(this.value)" onclick="this.select()">
+  const mapPills = includeMapToggle ? `
+    <div class="fpill ${ST.mapView==='map'?'active':''}" onclick="setMapView('map')">🗺 Map</div>
+    <div class="fpill ${ST.mapView==='list'?'active':''}" onclick="setMapView('list')">☰ List</div>` : '';
+  return mapPills + `
+    <div class="fpill ${ST.dateFilter?'active':''}" onclick="${ST.dateFilter?'openDatePicker()':'openDatePicker()'}">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <span>${ST.dateFilter ? ST.dateFilterLabel : t('date')}</span>
+      ${ST.dateFilter ? `<span onclick="event.stopPropagation();clearDateFilter()" style="margin-left:2px;font-size:13px;color:var(--green-dk);cursor:pointer;line-height:1">×</span>` : ''}
     </div>
-    <div class="fpill ${ST.dateFilter?'active':''}" onclick="${ST.dateFilter?'':' openDatePicker()'}" style="${ST.dateFilter?'cursor:default':''}">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" onclick="openDatePicker()" style="cursor:pointer"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      <span onclick="openDatePicker()" style="cursor:pointer">${ST.dateFilter ? ST.dateFilterLabel : t('date')}</span>
-      ${ST.dateFilter ? `<span onclick="event.stopPropagation();clearDateFilter()" style="margin-left:3px;font-size:13px;color:var(--green-dk);cursor:pointer;line-height:1">×</span>` : ''}
-    </div>
-    <div class="fpill" onclick="openFilters()">
+    <div class="fpill${fc>0?' active':''}" onclick="openFilters()">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
       ${t('filters')}${fc>0?` <span style="background:var(--terra);color:#fff;border-radius:99px;padding:0 5px;font-size:9px">${fc}</span>`:''}
     </div>`;
+}
+
+/* ── FILTER STRIP (desktop) / topbar pills (mobile) ── */
+function renderFilterStrip() {
+  const isCustomer = ST.role==='customer';
+  const hide = !isCustomer || ST.currentPage==='vendor' || ST.currentPage==='market' || ST.currentPage==='area-request';
+  const onExplore = ST.tab==='explore' && !ST.currentPage;
+
+  // Desktop filter strip
+  const el = document.getElementById('filterStrip');
+  if(el) {
+    el.style.display = hide ? 'none' : 'flex';
+    if(!hide) {
+      const fc = ST.filters.days.length + ST.filters.cats.length;
+      el.innerHTML = `
+        <div class="fpill active">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <input class="location-input" value="${ST.location}" placeholder="City or ZIP" onchange="updateLocation(this.value)" onclick="this.select()">
+        </div>` + filterPillsHTML(false);
+    }
+  }
+
+  // Mobile topbar filter pills (row 2)
+  const pillsEl = document.getElementById('topbarFilterPills');
+  if(pillsEl) {
+    if(hide) { pillsEl.innerHTML=''; }
+    else { pillsEl.innerHTML = filterPillsHTML(onExplore); }
+  }
+
+  // Update location text in topbar
+  const locEl = document.getElementById('topbarLocationText');
+  if(locEl) locEl.textContent = ST.location;
 }
 
 function updateLocation(val) {
@@ -1901,14 +2004,6 @@ function renderMapModeContent() {
     const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     const dayKeys = ['day_sunday','day_monday','day_tuesday','day_wednesday','day_thursday','day_friday','day_saturday'];
     content.innerHTML = `
-      <div class="map-search-bar">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <div class="map-suggest-wrap" style="flex:1;position:relative">
-          <input id="mapSearchInput" value="${ST.mapSearchQuery}" placeholder="Search markets by name or city..." oninput="mapSearch(this.value)" onkeydown="mapSearchKeydown(event)" autocomplete="off">
-          <div id="mapSuggestDropdown" class="map-suggest-dropdown" style="display:none"></div>
-        </div>
-        ${ST.mapSearchQuery ? `<button onclick="clearMapSearch()" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px;padding:0 2px">×</button>` : ''}
-      </div>
       <div class="map-filter-bar" id="mapFilterBar">
         <div class="mfpill ${!ST.mapFilterDay&&!ST.mapFilterOpen&&!ST.mapFilterPet?'active':''}" onclick="clearMapFilters()">All markets</div>
         ${days.map((d,i)=>`<div class="mfpill ${ST.mapFilterDay===d?'active':''}" onclick="setMapDayFilter('${d}')">${t(dayKeys[i])}</div>`).join('')}
@@ -1936,11 +2031,6 @@ function renderMapModeContent() {
     }
 
     content.innerHTML = `
-      <div class="map-search-bar">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input id="mapVendorSearchInput" value="${ST.mapVendorSearch}" placeholder="Search vendors, categories..." style="flex:1;border:none;background:transparent;outline:none;font-size:13px;font-family:var(--font-sans);color:var(--text)" oninput="ST.mapVendorSearch=this.value;renderMapModeContent()">
-        ${ST.mapVendorSearch ? `<button onclick="ST.mapVendorSearch='';renderMapModeContent()" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px">×</button>` : ''}
-      </div>
       <div class="map-count">${vendors.length} vendors</div>
       <div id="mapVendorList">
         ${vendors.slice(0, 40).map((v,i) => {
@@ -2804,6 +2894,13 @@ function renderMarketDetail(id) {
         <div style="font-size:12px;color:var(--terra-mid);margin-bottom:12px">${t('claim_vendor_sub')}</div>
         <button onclick="openModal('claimModal')" style="padding:8px 20px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500">${t('claim_cta')}</button>
       </div>
+      ${window.innerWidth < 768 ? `<div style="text-align:center;margin-top:16px;padding:10px;background:var(--surface2);border:0.5px solid var(--border);border-radius:var(--r-md)">
+        <span style="font-size:12px;color:var(--text2)">Viewing on mobile · </span>
+        <span onclick="toggleForcedView()" style="font-size:12px;color:var(--terra);cursor:pointer;text-decoration:underline;text-underline-offset:2px">Switch to desktop view</span>
+      </div>` : `<div style="text-align:center;margin-top:16px;padding:10px;background:var(--surface2);border:0.5px solid var(--border);border-radius:var(--r-md)">
+        <span style="font-size:12px;color:var(--text2)">Viewing on desktop · </span>
+        <span onclick="toggleForcedView()" style="font-size:12px;color:var(--terra);cursor:pointer;text-decoration:underline;text-underline-offset:2px">Switch to mobile view</span>
+      </div>`}
     </div>
   </div>`;
   document.getElementById('scrollBody').innerHTML = h;
@@ -2876,7 +2973,7 @@ function renderMe() {
       </div>
     </div>
     <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text3)">
-      Windmill v1.0.4 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
+      Windmill v1.14 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
     </div>
   </div>`;
 }
@@ -3647,6 +3744,112 @@ function submitAreaReq() {
     <div style="font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px">We'll review your area and reach out when Windmill expands to <strong>${city}</strong>. Thank you for helping us grow!</div>
     <button onclick="ST.location='Fort Myers, FL';ST.currentPage=null;renderFilterStrip();renderHome()" style="padding:10px 28px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:500">← Back to Windmill</button>
   </div>`;
+}
+
+/* ── MOBILE SCROLL COLLAPSE ── */
+(function initScrollCollapse() {
+  if(window.innerWidth >= 768) return; // desktop only skips
+  let lastY = 0;
+  let ticking = false;
+  const THRESHOLD = 40; // px before collapsing
+
+  document.addEventListener('scroll', function() {
+    if(ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      const sb = document.getElementById('scrollBody');
+      if(!sb) { ticking=false; return; }
+      // use window scroll for non-overflow elements, or scrollBody
+      const currentY = sb.scrollTop || window.scrollY;
+      const topbar = document.getElementById('mobileTopbar');
+      const bottomNav = document.getElementById('bottomNav');
+      const scrollingDown = currentY > lastY && currentY > THRESHOLD;
+
+      if(topbar) {
+        if(scrollingDown) { topbar.classList.add('collapsed'); }
+        else { topbar.classList.remove('collapsed'); }
+      }
+      if(bottomNav) {
+        if(scrollingDown) { bottomNav.classList.add('hidden'); }
+        else { bottomNav.classList.remove('hidden'); }
+      }
+      lastY = currentY <= 0 ? 0 : currentY;
+      ticking = false;
+    });
+  }, { passive: true });
+
+  // Also listen on scrollBody since that's what actually scrolls
+  function attachScrollBodyListener() {
+    const sb = document.getElementById('scrollBody');
+    if(!sb) { setTimeout(attachScrollBodyListener, 200); return; }
+    sb.addEventListener('scroll', function() {
+      if(ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const currentY = sb.scrollTop;
+        const topbar = document.getElementById('mobileTopbar');
+        const bottomNav = document.getElementById('bottomNav');
+        const scrollingDown = currentY > lastY && currentY > THRESHOLD;
+        if(topbar) { topbar.classList.toggle('collapsed', scrollingDown); }
+        if(bottomNav) { bottomNav.classList.toggle('hidden', scrollingDown); }
+        lastY = currentY <= 0 ? 0 : currentY;
+        ticking = false;
+      });
+    }, { passive: true });
+  }
+  attachScrollBodyListener();
+})();
+
+/* ── SEARCH BAR EXPAND/COLLAPSE ── */
+function expandSearchBar() {
+  const wrap = document.getElementById('topbarSearchWrap');
+  const pills = document.getElementById('topbarFilterPills');
+  if(wrap) wrap.classList.add('expanded');
+  if(pills) { pills.style.opacity='0'; pills.style.pointerEvents='none'; }
+  // Expand topbar if collapsed
+  const topbar = document.getElementById('mobileTopbar');
+  if(topbar) topbar.classList.remove('collapsed');
+}
+
+function collapseSearchBar(input) {
+  // Only collapse if input is empty
+  setTimeout(() => {
+    if(document.activeElement === input) return;
+    const wrap = document.getElementById('topbarSearchWrap');
+    const pills = document.getElementById('topbarFilterPills');
+    if(wrap) wrap.classList.remove('expanded');
+    if(pills) { pills.style.opacity=''; pills.style.pointerEvents=''; }
+  }, 150);
+}
+
+function expandTopbar() {
+  const topbar = document.getElementById('mobileTopbar');
+  if(topbar) topbar.classList.remove('collapsed');
+  // Focus search
+  setTimeout(() => {
+    const inp = document.getElementById('mobileSearch');
+    if(inp) { inp.focus(); expandSearchBar(); }
+  }, 100);
+}
+
+/* ── LOCATION MODAL ── */
+function openLocationModal() {
+  const inp = document.getElementById('locationModalInput');
+  if(inp) inp.value = ST.location;
+  openModal('locationModal');
+}
+
+function applyLocationModal() {
+  const inp = document.getElementById('locationModalInput');
+  const val = inp ? inp.value.trim() : '';
+  if(!val) return;
+  closeModal('locationModal');
+  updateLocation(val);
+}
+
+function quickSetLocation(city) {
+  closeModal('locationModal');
+  updateLocation(city);
 }
 
 /* ── INIT ── */
