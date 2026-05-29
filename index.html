@@ -791,7 +791,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 
 <script>
 /* ============================================================
-   WINDMILL v1.29 — Complete Application Script
+   WINDMILL v1.30 — Complete Application Script
    18 Lee County markets · 60+ vendors · 4 role views
    Vendor profile template · Market detail template
    Admin build/publish tools · Expansion request flow
@@ -3458,7 +3458,7 @@ function renderMe() {
         </div>
       </div>
       <button onclick="authSignOut()" style="width:100%;padding:12px;background:transparent;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;color:var(--text2);font-family:var(--font-sans);margin-bottom:20px">Sign out</button>
-      <div style="text-align:center;font-size:10px;color:var(--text3)">Windmill v1.29 · shopwindmill.com</div>
+      <div style="text-align:center;font-size:10px;color:var(--text3)">Windmill v1.30 · shopwindmill.com</div>
     </div>`;
     return;
   }
@@ -3502,7 +3502,7 @@ function renderMe() {
       </div>
     </div>
     <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text3)">
-      Windmill v1.29 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
+      Windmill v1.30 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
     </div>
   </div>`;
 }
@@ -4078,11 +4078,13 @@ async function authSignOut() {
   if(supabaseClient) await supabaseClient.auth.signOut();
   ST.user = null;
   ST.follows = [];
-  if(ST.devMode) {
-    ST.role = 'customer';
-  }
+  if(ST.devMode) { ST.role = 'customer'; }
+  // Restore desktop sign-in button
+  const btn = document.getElementById('desktopSigninBtn');
+  if(btn) { btn.textContent = 'Sign in'; btn.onclick = () => openSignIn(); }
   renderBottom();
   renderFilterStrip();
+  renderSidebar();
   navigate('home');
 }
 
@@ -4105,6 +4107,13 @@ async function onAuthSuccess(user) {
   closeModal('signinModal');
   renderBottom();
   renderFilterStrip();
+  renderSidebar();
+  // Update desktop sign-in button
+  const btn = document.getElementById('desktopSigninBtn');
+  if(btn) {
+    btn.textContent = ST.user.name.split(' ')[0];
+    btn.onclick = () => { ST.tab='me'; renderCurrentPage(); renderBottom(); };
+  }
   renderMe();
 
   // Show welcome toast
