@@ -45,9 +45,11 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
   .shell{flex-direction:row;max-width:1200px;margin-left:auto;margin-right:auto;margin-top:0}
   .role-bar:not(.hidden) ~ .shell, body:has(.role-bar:not(.hidden)) .shell{margin-top:32px}
   .bottom-nav{display:none}
-  .desktop-sidebar{display:flex;flex-direction:column;width:220px;min-height:calc(100vh - 32px);background:var(--surface);border-right:0.5px solid var(--border);position:sticky;top:32px;height:calc(100vh - 32px);overflow-y:auto;padding:20px 0}
+  .desktop-sidebar{display:flex;flex-direction:column;width:220px;min-height:calc(100vh - 32px);background:var(--surface);border-right:0.5px solid var(--border);position:sticky;top:0;height:100vh;overflow-y:auto;padding:20px 0}
+  .role-bar:not(.hidden) ~ .shell .desktop-sidebar{top:32px;height:calc(100vh - 32px)}
   .desktop-main{flex:1;min-width:0;display:flex;flex-direction:column}
   .desktop-topnav{display:flex;align-items:center;background:#EEF2EB;border-bottom:0.5px solid #C8D8BE;padding:12px 24px;gap:16px;position:sticky;top:0;z-index:50}
+  .role-bar:not(.hidden) ~ .shell .desktop-topnav{top:32px}
   .topbar{display:none}
   .filter-strip{padding:10px 24px}
   .scroll-body{padding:0}
@@ -161,6 +163,10 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .spotlight-info{padding:9px 10px 10px}
 .spotlight-name{font-size:12px;font-weight:500;color:var(--text);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .spotlight-tagline{font-size:10px;color:var(--text2);line-height:1.3;margin-bottom:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+/* SPOTLIGHT CAROUSEL */
+.spotlight-carousel-wrap{position:relative;overflow:hidden}
+.spotlight-track{display:flex;transition:transform .5s cubic-bezier(.4,0,.2,1);will-change:transform}
+.spotlight-track .spotlight-card{flex:0 0 160px;margin-right:10px}
 /* Sponsored row cards — same size */
 .sponsored-card{min-width:160px;max-width:160px;background:var(--surface);border-radius:var(--r-lg);border:0.5px solid var(--border);overflow:hidden;flex-shrink:0;cursor:pointer;transition:transform .15s;position:relative}
 .sponsored-card:hover{transform:translateY(-2px)}
@@ -307,6 +313,13 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .claim-btn{font-size:11px;padding:5px 12px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);cursor:pointer;font-weight:500;white-space:nowrap}
 .profile-section{padding:16px;border-bottom:0.5px solid var(--border);background:var(--surface);margin-top:8px}
 @media(min-width:768px){.profile-section{padding:20px 24px}}
+/* STICKY SECTION NAV */
+.section-nav{position:relative;z-index:150;background:var(--surface);border-bottom:0.5px solid var(--border);display:flex;overflow-x:auto;scrollbar-width:none;padding:0 4px;box-shadow:0 1px 4px rgba(44,32,22,.06)}
+.section-nav::-webkit-scrollbar{display:none}
+.section-nav-btn{flex-shrink:0;padding:10px 14px;font-size:12px;font-weight:500;color:var(--text2);border:none;border-bottom:2px solid transparent;background:transparent;cursor:pointer;white-space:nowrap;font-family:var(--font-sans);transition:all .15s}
+.section-nav-btn.active{color:var(--green-dk);border-bottom-color:var(--green)}
+.section-nav-btn:hover{color:var(--text)}
+.section-nav.is-fixed{position:fixed;left:0;right:0;z-index:200}
 .profile-section-title{font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px}
 .info-row{display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:0.5px solid var(--border)}
 .info-row:last-child{border-bottom:none}
@@ -818,7 +831,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 
 <script>
 /* ============================================================
-   WINDMILL v1.35 — Complete Application Script
+   WINDMILL v1.42 — Complete Application Script
    18 Lee County markets · 60+ vendors · 4 role views
    Vendor profile template · Market detail template
    Admin build/publish tools · Expansion request flow
@@ -1843,8 +1856,11 @@ function navigate(page, id) {
   const tabs = ['home','explore','markets','following','me','admin-ads','admin-settings'];
   if(tabs.includes(page)) ST.tab = page;
   renderSidebar(); renderBottom(); renderCurrentPage();
-  const sb = document.getElementById('scrollBody');
-  if(sb) sb.scrollTop = 0;
+  // Reset scroll after render completes
+  requestAnimationFrame(() => {
+    const sb = document.getElementById('scrollBody');
+    if(sb) sb.scrollTop = 0;
+  });
 }
 
 function renderCurrentPage() {
@@ -2176,7 +2192,8 @@ function renderHome() {
     <span class="section-title">⭐ Spotlight</span>
     <span style="font-size:10px;color:var(--text3);font-style:italic">Featured vendors & markets</span>
   </div></div>
-  <div class="hscroll" style="padding-left:16px;padding-right:16px">`;
+  <div class="spotlight-carousel-wrap" id="spotlightCarousel" style="overflow:hidden;position:relative">
+    <div id="spotlightTrack" style="display:flex;gap:10px;padding:0 16px 16px;transition:transform .5s cubic-bezier(.4,0,.2,1);will-change:transform">`;
   const spotlightItems = DATA.spotlight[ST.region] || DATA.spotlight['lee-county'];
   spotlightItems.forEach(s => {
     h += `<div class="spotlight-card" onclick="navigate('${s.route==='demo-vendor-pro'||s.route==='demo-operator-pro'?s.route:s.type}','${s.id}')">
@@ -2190,7 +2207,7 @@ function renderHome() {
       </div>
     </div>`;
   });
-  h += `</div>`;
+  h += `</div></div>`;
 
   // ── SPONSORED PLACEHOLDER ──
   h += adUnit();
@@ -2293,6 +2310,7 @@ function renderHome() {
   </div>
   ${adUnit()}`;
   document.getElementById('scrollBody').innerHTML = h;
+  setTimeout(initSpotlightCarousel, 100);
 }
 
 /* ── VENDORS LIST PAGE ── */
@@ -3244,67 +3262,86 @@ function renderMarketsPage() {
 function renderVendorProfile(id) {
   hideFilterUI();
   const v = getVendor(id);
-  if(!v){ document.getElementById('scrollBody').innerHTML='<div style="padding:24px;text-align:center;color:var(--text2)">Vendor not found.</div>'; return; }
+  if(!v) { document.getElementById('scrollBody').innerHTML='<div style="padding:24px;text-align:center;color:var(--text2)">Vendor not found.</div>'; return; }
   const c = vc(DATA.vendors.indexOf(v));
-  const mCount = v.markets.length;
+  const mCount = v.markets ? v.markets.filter(mid => getMarket(mid)).length : 0;
+  const isPro = v.pro;
+  const isClaimed = v.claimed;
+
   let h = `<div class="profile-page">
-    <div class="profile-hero">
+    <!-- HERO -->
+    <div class="market-hero">
       <div class="profile-back" onclick="goBack()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> ${t('back')}</div>
-      <div class="profile-header">
-        <div class="profile-avatar" style="background:${c.bg};color:${c.c}">${initials(v.name)}</div>
-        <div class="profile-title">
-          <div class="profile-name">${v.name}</div>
-          <div class="profile-category">${v.category}</div>
-          <div class="profile-actions">
-            <div style="display:flex;gap:6px;flex-shrink:0;margin-top:2px">
-          <button class="btn-follow" onclick="handleFollow(event,'vendor','${v.id}',this)" style="${isFollowing('vendor','${v.id}')?'background:var(--green);color:#fff;border-color:var(--green)':''}">${isFollowing('vendor','${v.id}')?t('following'):t('follow')}</button>
-          <button onclick="openMessageModal('vendor','${v.id}','${v.name}')" style="padding:7px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);font-family:var(--font-sans);white-space:nowrap">💬</button>
-        </div>
+      <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:12px">
+        <div style="width:64px;height:64px;border-radius:14px;background:${c.bg};color:${c.c};display:flex;align-items:center;justify-content:center;font-family:var(--font-serif);font-size:22px;font-weight:600;flex-shrink:0">${initials(v.name)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px">
+            <div class="profile-name">${v.name}</div>
+            ${isPro?'<span style="font-size:10px;padding:2px 7px;background:var(--green);color:#fff;border-radius:var(--r-pill);font-weight:500">✓ Pro</span>':''}
+            ${isClaimed&&!isPro?'<span style="font-size:10px;padding:2px 7px;background:var(--surface2);color:var(--text3);border-radius:var(--r-pill);border:0.5px solid var(--border-med)">Claimed</span>':''}
           </div>
+          <div class="profile-category">${v.category}</div>
+          ${v.tagline?`<div style="font-size:12px;color:var(--text2);margin-top:2px;font-style:italic">${v.tagline}</div>`:''}
         </div>
       </div>
-      ${!v.claimed?`<div class="unclaimed-banner"><span style="font-size:16px">⚠️</span><div class="unclaimed-text">${t('unclaimed_text')}</div><button class="claim-btn" onclick="openModal('claimModal')">${t('claim_free')}</button></div>`:''}
+      <div class="profile-actions">
+        <button class="btn-follow" onclick="handleFollow(event,'vendor','${v.id}',this)" style="${isFollowing('vendor','${v.id}')?'background:var(--green);color:#fff;border-color:var(--green)':''}">${isFollowing('vendor','${v.id}')?t('following'):t('follow')}</button>
+        <button onclick="shareProfile('${v.name}','${v.id}','vendor')" style="padding:7px 14px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:transparent;color:var(--text2);font-family:var(--font-sans)">📤 ${t('share')}</button>
+      </div>
+      ${!isClaimed?`<div class="unclaimed-banner"><span style="font-size:16px">⚠️</span><div class="unclaimed-text">${t('unclaimed_text')}</div><button class="claim-btn" onclick="openModal('claimModal')">${t('claim_free')}</button></div>`:''}
     </div>
 
+    <!-- THIS WEEK'S UPDATE -->
+    ${isPro?`<div style="background:var(--surface);border-bottom:0.5px solid var(--border);padding:14px 16px">
+      <div style="font-size:10px;font-weight:600;color:var(--green-dk);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📣 ${t('this_week')}</div>
+      <p style="font-size:13px;color:var(--text);line-height:1.5">${t('weekly_placeholder')}</p>
+    </div>`:`<div style="background:var(--surface);border-bottom:0.5px solid var(--border);padding:12px 16px;opacity:.5">
+      <div style="font-size:11px;color:var(--text3);display:flex;align-items:center;gap:6px">🔒 ${t('weekly_pro_lock')}</div>
+    </div>`}
+
+    <!-- SECTION NAV -->
+    <div class="section-nav" id="vendorSectionNav">
+      <button class="section-nav-btn active" onclick="scrollToSection('vnd-about','vendorSectionNav',this)">About</button>
+      <button class="section-nav-btn" onclick="scrollToSection('vnd-contact','vendorSectionNav',this)">Contact</button>
+      <button class="section-nav-btn" onclick="scrollToSection('vnd-schedule','vendorSectionNav',this)">Schedule</button>
+      <button class="section-nav-btn" onclick="scrollToSection('vnd-photos','vendorSectionNav',this)">Photos</button>
+      <button class="section-nav-btn" onclick="scrollToSection('vnd-products','vendorSectionNav',this)">Products</button>
+      <button class="section-nav-btn" onclick="scrollToSection('vnd-reviews','vendorSectionNav',this)">Reviews</button>
+    </div>
+
+    <!-- ABOUT -->
+    <div style="height:0;overflow:hidden;visibility:hidden" id="vnd-about"></div>
+    <div class="profile-section">
+      <div class="profile-section-title">${t('about_vendor')}</div>
+      ${v.description ? '<p style="font-size:13px;color:var(--text);line-height:1.6">'+v.description+'</p>' : '<p style="font-size:13px;color:var(--text2);line-height:1.6;font-style:italic">'+t('no_description')+(isClaimed?'':' <span style="color:var(--terra);cursor:pointer" onclick="openModal(\'claimModal\')">'+t('claim_listing')+'</span>')+'</p>'}
+    </div>
+
+    <!-- CONTACT -->
+    <div style="height:0;overflow:hidden;visibility:hidden" id="vnd-contact"></div>
     <div class="profile-section">
       <div class="profile-section-title">${t('contact_links')}</div>
       <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg><div><div class="info-row-label">${t('email_label')}</div><div class="info-row-value">${v.email||t('not_provided')}</div></div></div>
-      <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><div><div class="info-row-label">${t('website_label')}</div>${v.website?`<a class="info-row-link" href="${v.website}" target="_blank">${v.website.replace(/https?:\/\//,'')}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
       <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.44 2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.95a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21.73 16.92z"/></svg><div><div class="info-row-label">Phone</div>${v.phone?`<a class="info-row-link" href="tel:${v.phone}">${v.phone}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
+      <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><div><div class="info-row-label">${t('website_label')}</div>${v.website?`<a class="info-row-link" href="${v.website}" target="_blank">${v.website.replace(/https?:\/\//,'')}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
+      ${isPro?`
+      <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg><div><div class="info-row-label">Instagram</div>${v.instagram?`<a class="info-row-link" href="${v.instagram}" target="_blank">${v.instagram.replace(/https?:\/\//,'')}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
+      <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg><div><div class="info-row-label">Facebook</div>${v.facebook?`<a class="info-row-link" href="${v.facebook}" target="_blank">${v.facebook.replace(/https?:\/\//,'')}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
+      <div style="margin-top:12px">
+        <button onclick="openMessageModal('vendor','${v.id}','${v.name}')" style="width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">💬 Message via Windmill</button>
+      </div>`:`
+      <div class="info-row" style="opacity:.45"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/></svg><div><div class="info-row-label">Instagram</div><div style="font-size:12px;color:var(--text3)">${isClaimed?t('claim_to_add'):t('not_provided')}</div></div></div>
+      <div class="info-row" style="opacity:.45"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg><div><div class="info-row-label">Facebook</div><div style="font-size:12px;color:var(--text3)">${isClaimed?t('claim_to_add'):t('not_provided')}</div></div></div>
+      <div style="margin-top:12px;background:var(--amber-lt);border:0.5px solid #F0D090;border-radius:var(--r-md);padding:10px 12px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:18px">💬</span>
+        <div style="flex:1"><div style="font-size:12px;font-weight:500;color:#7A4E08">${t('msg_not_setup')}</div><div style="font-size:11px;color:var(--amber)">${t('msg_reach_via')}</div></div>
+      </div>`}
     </div>
 
-    <div class="profile-section">
-      <div class="profile-section-title">${t('social_media')}</div>
-      <div class="social-row">
-        <span class="social-chip empty">📸 Instagram ${v.claimed?'':'('+t('claim_to_add')+')'}</span>
-        <span class="social-chip empty">👍 Facebook ${v.claimed?'':'('+t('claim_to_add')+')'}</span>
-      </div>
-    </div>
-
-    <div class="profile-section">
-      <div class="profile-section-title">${t('about')}</div>
-      ${v.claimed?`<p style="font-size:13px;color:var(--text);line-height:1.6">${t('no_photos')}</p>`:`<p style="font-size:13px;color:var(--text2);line-height:1.6;font-style:italic">${t('no_description')} <span style="color:var(--terra);cursor:pointer" onclick="openModal('claimModal')">${t('claim_listing')}</span></p>`}
-    </div>
-
-    <div class="profile-section">
-      <div class="profile-section-title">${t('photos')}</div>
-      ${!v.claimed ? `
-        <div style="display:flex;gap:10px;align-items:center;padding:8px 0 12px;border-bottom:0.5px solid var(--border);margin-bottom:12px">
-          <div style="width:56px;height:56px;background:${c.bg};color:${c.c};border-radius:12px;display:flex;align-items:center;justify-content:center;font-family:var(--font-serif);font-size:18px;font-weight:600;flex-shrink:0">${initials(v.name)}</div>
-          <div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--text);margin-bottom:2px">${t('profile_photo')}</div><div style="font-size:11px;color:var(--text2)">${t('profile_photo_sub')}</div></div>
-          <button onclick="openModal('claimModal')" style="font-size:11px;padding:5px 11px;border:0.5px solid var(--terra);border-radius:var(--r-pill);color:var(--terra);background:transparent;cursor:pointer">${t('claim_free')}</button>
-        </div>
-        <div style="background:var(--amber-lt);border:0.5px solid #F0D090;border-radius:var(--r-md);padding:10px 12px;display:flex;align-items:center;gap:10px">
-          <span style="font-size:18px">🔒</span>
-          <div style="flex:1"><div style="font-size:12px;font-weight:500;color:#7A4E08">${t('gallery_pro')}</div><div style="font-size:10px;color:var(--amber)">${t('gallery_pro_sub')}</div></div>
-        </div>` :
-        `<div class="photo-grid">${[1,2,3,4,5,6].map(()=>`<div class="photo-slot"><div class="photo-slot-text">${t('no_photos')}</div></div>`).join('')}</div>`
-      }
-    </div>
-
+    <!-- SCHEDULE -->
+    <div style="height:0;overflow:hidden;visibility:hidden" id="vnd-schedule"></div>
     <div class="profile-section">
       <div class="profile-section-title">${t('market_schedule')} — ${mCount} ${mCount===1?t('market_label'):t('markets_label')}</div>
-      ${v.markets.map(mid=>{
+      ${v.markets&&v.markets.length?v.markets.map(mid=>{
         const m = getMarket(mid);
         if(!m) return '';
         const dayKey = 'day_'+m.day_of_week.toLowerCase();
@@ -3313,20 +3350,44 @@ function renderVendorProfile(id) {
           <div style="flex:1"><div class="schedule-market">${m.name}</div><div class="schedule-time">${m.day_of_week}s · ${m.start_time.replace(':00','')}–${m.end_time.replace(':00','')} · ${m.city}</div></div>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </div>`;
-      }).join('')}
+      }).join(''):`<p style="font-size:13px;color:var(--text2)">${t('no_markets_yet')}</p>`}
     </div>
 
+    <!-- PHOTOS -->
+    <div style="height:0;overflow:hidden;visibility:hidden" id="vnd-photos"></div>
     <div class="profile-section">
-      <div class="profile-section-title">${t('messaging')}</div>
-      <div class="pro-lock"><span style="font-size:20px">💬</span><div class="pro-lock-text"><div class="pro-lock-title">${t('msg_not_setup')}</div><div class="pro-lock-sub">${t('msg_reach_via')}</div></div></div>
+      <div class="profile-section-title">${t('photos')}</div>
+      ${isPro?`<div class="photo-grid">${[1,2,3,4,5,6].map(()=>`<div class="photo-slot"><div class="photo-slot-text">${t('no_photos')}</div></div>`).join('')}</div>`:`
+      <div style="background:var(--amber-lt);border:0.5px solid #F0D090;border-radius:var(--r-md);padding:12px 14px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">🔒</span>
+        <div><div style="font-size:12px;font-weight:500;color:#7A4E08">${t('gallery_pro')}</div><div style="font-size:11px;color:var(--amber)">${t('gallery_pro_sub')}</div></div>
+      </div>`}
     </div>
 
-    <div class="profile-section" style="margin-bottom:16px">
-      <div class="profile-section-title">${t('reviews')}</div>
-      <div style="text-align:center;padding:20px"><div style="font-size:32px;margin-bottom:8px">⭐</div><div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:4px">${t('no_reviews')}</div><button style="margin-top:8px;padding:6px 16px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer" onclick="openSignIn()">${t('write_review')}</button></div>
+    <!-- PRODUCTS -->
+    <div style="height:0;overflow:hidden;visibility:hidden" id="vnd-products"></div>
+    <div class="profile-section">
+      <div class="profile-section-title">Products & Menu</div>
+      ${isPro?`<p style="font-size:13px;color:var(--text2);font-style:italic">No products listed yet.</p>`:`
+      <div style="background:var(--amber-lt);border:0.5px solid #F0D090;border-radius:var(--r-md);padding:12px 14px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">🔒</span>
+        <div><div style="font-size:12px;font-weight:500;color:#7A4E08">Products & Menu — Pro feature</div><div style="font-size:11px;color:var(--amber)">Upgrade to Pro to list your products, menu items and prices</div></div>
+      </div>`}
+    </div>
+
+    <!-- REVIEWS -->
+    <div style="height:0;overflow:hidden;visibility:hidden" id="vnd-reviews"></div>
+    <div class="profile-section" style="margin-bottom:24px">
+      <div class="profile-section-title">${t('reviews_label')}</div>
+      <div style="text-align:center;padding:20px 0">
+        <div style="font-size:32px;margin-bottom:8px">⭐</div>
+        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:4px">${t('no_reviews')}</div>
+        <button style="margin-top:8px;padding:7px 16px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-family:var(--font-sans)" onclick="openSignIn()">${t('write_review')}</button>
+      </div>
     </div>
   </div>`;
   document.getElementById('scrollBody').innerHTML = h;
+  setTimeout(() => initSectionNavObserver('vendorSectionNav', ['vnd-about','vnd-contact','vnd-schedule','vnd-photos','vnd-products','vnd-reviews']), 100);
 }
 
 /* ── MARKET DETAIL TEMPLATE ── */
@@ -3366,28 +3427,41 @@ function renderMarketDetail(id) {
         </div>
         </div>
         <div class="market-badges">
-          <span class="badge-pill ${isOpen(m)?'green':'amber'}">${isOpen(m)?t('open_season'):t('seasonal')}</span>
-          <span class="badge-pill gray">📅 ${m.day_of_week}s</span>
-          <span class="badge-pill gray">🕗 ${m.start_time.replace(':00','')}–${m.end_time.replace(':00','')}</span>
+          <span class="badge-pill ${isOpen(m)?'green':'amber'}" style="cursor:pointer" onclick="scrollToSection('mkt-info','marketSectionNav',document.querySelector('#marketSectionNav .section-nav-btn:nth-child(2)'))">${isOpen(m)?t('open_season'):t('seasonal')}</span>
+          <span class="badge-pill gray" style="cursor:pointer" onclick="scrollToSection('mkt-info','marketSectionNav',document.querySelector('#marketSectionNav .section-nav-btn:nth-child(2)'))">📅 ${m.day_of_week}s</span>
+          <span class="badge-pill gray" style="cursor:pointer" onclick="scrollToSection('mkt-info','marketSectionNav',document.querySelector('#marketSectionNav .section-nav-btn:nth-child(2)'))">🕗 ${m.start_time.replace(':00','')}–${m.end_time.replace(':00','')}</span>
           ${m.pet_friendly?`<span class="badge-pill green">${t('pets_welcome')}</span>`:`<span class="badge-pill terra">${t('no_pets')}</span>`}
-          <span class="badge-pill gray">👥 ${mvs.length} ${t('vendors_c')}</span>
+          <span class="badge-pill gray" style="cursor:pointer" onclick="scrollToSection('mkt-vendors','marketSectionNav',document.querySelector('#marketSectionNav .section-nav-btn:nth-child(5)'))">👥 ${mvs.length} ${t('vendors_c')}</span>
         </div>
-        <div class="map-placeholder" onclick="openMaps('${m.address}, ${m.city}, ${m.state} ${m.zip}')">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-          <div class="map-placeholder-text">${m.address}</div>
-          <div class="map-placeholder-sub">${t('tap_directions')}</div>
-        </div>
+        <a href="https://maps.google.com/?q=${encodeURIComponent(m.address+', '+m.city+', '+m.state+' '+m.zip)}" target="_blank" rel="noopener"
+          style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);text-decoration:none;margin-top:10px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <span style="flex:1;font-size:12px;color:var(--text)">${m.address}, ${m.city}, ${m.state}</span>
+          <span style="font-size:11px;color:var(--terra);font-weight:500;white-space:nowrap">Get directions →</span>
+        </a>
       </div>
     </div>
 
+    <!-- STICKY SECTION NAV -->
+    <div class="section-nav" id="marketSectionNav">
+      <button class="section-nav-btn active" onclick="scrollToSection('mkt-about','marketSectionNav',this)">About</button>
+      <button class="section-nav-btn" onclick="scrollToSection('mkt-social','marketSectionNav',this)">Contact</button>
+      <button class="section-nav-btn" onclick="scrollToSection('mkt-info','marketSectionNav',this)">Info</button>
+      <button class="section-nav-btn" onclick="scrollToSection('mkt-gallery','marketSectionNav',this)">Gallery</button>
+      <button class="section-nav-btn" onclick="scrollToSection('mkt-vendors','marketSectionNav',this)">Vendors</button>
+      <button class="section-nav-btn" onclick="scrollToSection('mkt-reviews','marketSectionNav',this)">Reviews</button>
+    </div>
+
     <!-- ABOUT -->
+    <div style="height:0;overflow:hidden;visibility:hidden" id="mkt-about"></div>
     <div class="profile-section">
       <div class="profile-section-title">${t('about_market')}</div>
       <p style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:${m.special_notes?'12px':'0'}">${m.description}</p>
       ${m.special_notes?`<div style="background:var(--amber-lt);border-radius:var(--r-sm);padding:10px 12px;font-size:12px;color:#7A4E08">📌 ${m.special_notes}</div>`:''}
     </div>
 
-    <!-- SOCIAL & LINKS — matches vendor profile pattern exactly -->
+    <!-- SOCIAL & LINKS -->
+    <div style="height:0;overflow:hidden;visibility:hidden" id="mkt-social"></div>
     <div class="profile-section">
       <div class="profile-section-title">${t('contact_links')}</div>
       ${op?`<div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><div><div class="info-row-label">${t('operator_label')}</div><div class="info-row-value">${op.name}</div></div></div>`:''}
@@ -3409,13 +3483,15 @@ function renderMarketDetail(id) {
     </div>
 
     <!-- PRACTICAL INFO -->
+    <div style="height:0;overflow:hidden;visibility:hidden" id="mkt-info"></div>
     <div class="profile-section">
       <div class="profile-section-title">${t('practical_info')}</div>
       <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><div><div class="info-row-label">${t('season_label')}</div><div class="info-row-value">${m.season_dates||m.season_start+' – '+m.season_end}</div></div></div>
       <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg><div><div class="info-row-label">${t('parking_label')}</div><div class="info-row-value">${m.parking_notes||t('see_market_details')}</div></div></div>
     </div>
 
-    <!-- PHOTO GALLERY — Pro locked for unclaimed, placeholder for claimed -->
+    <!-- PHOTO GALLERY -->
+    <div style="height:0;overflow:hidden;visibility:hidden" id="mkt-gallery"></div>
     <div class="profile-section">
       <div class="profile-section-title">Market Gallery</div>
       <div style="background:var(--amber-lt);border:0.5px solid #F0D090;border-radius:var(--r-md);padding:10px 12px;display:flex;align-items:center;gap:10px">
@@ -3426,6 +3502,7 @@ function renderMarketDetail(id) {
     </div>
 
     <!-- VENDORS AT THIS MARKET -->
+    <div style="height:0;overflow:hidden;visibility:hidden" id="mkt-vendors"></div>
     <div class="section"><div class="section-header"><span class="section-title">${t('vendors_at')}</span><span style="font-size:12px;color:var(--text2)">${mvs.length} ${t('vendors_c')}</span></div></div>
     <div class="vendor-grid">${mvs.map((v,i)=>{
       const c=vc(i);
@@ -3436,6 +3513,18 @@ function renderMarketDetail(id) {
         ${!v.claimed?`<div class="vendor-grid-unclaimed">${t('not_yet_claimed')}</div>`:''}
       </div>`;
     }).join('')}</div>
+
+    <!-- REVIEWS -->
+    <div style="height:0;overflow:hidden;visibility:hidden" id="mkt-reviews"></div>
+    <div class="profile-section">
+      <div class="profile-section-title">Reviews</div>
+      <div style="text-align:center;padding:20px 0">
+        <div style="font-size:32px;margin-bottom:8px">⭐</div>
+        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:4px">No reviews yet</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Be the first to review this market</div>
+        <button style="padding:7px 16px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-family:var(--font-sans)" onclick="openSignIn()">Write a review</button>
+      </div>
+    </div>
 
     <!-- CLAIM CTA -->
     <div style="padding:0 16px 24px">
@@ -3452,6 +3541,7 @@ function renderMarketDetail(id) {
     </div>
   </div>`;
   document.getElementById('scrollBody').innerHTML = h;
+  setTimeout(() => initSectionNavObserver('marketSectionNav', ['mkt-about','mkt-social','mkt-info','mkt-gallery','mkt-vendors','mkt-reviews']), 100);
 }
 
 /* ── AREA REQUEST PAGE ── */
@@ -3602,7 +3692,7 @@ function renderMe() {
         <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
       </div>
     </div>
-      <div style="text-align:center;margin-top:20px;font-size:10px;color:var(--text3)">Windmill v1.35 · shopwindmill.com</div>
+      <div style="text-align:center;margin-top:20px;font-size:10px;color:var(--text3)">Windmill v1.42 · shopwindmill.com</div>
     </div>`;
     return;
   }
@@ -3679,7 +3769,7 @@ function renderMe() {
       </div>
     </div>
     <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text3)">
-      Windmill v1.35 · <a href="https://shopwindmill.com" style="color:var(--terra);text-decoration:none">shopwindmill.com</a>
+      Windmill v1.42 · <a href="https://shopwindmill.com" style="color:var(--terra);text-decoration:none">shopwindmill.com</a>
     </div>
   </div>`;
 }
@@ -5991,6 +6081,157 @@ function quickSetLocation(city) {
   updateLocation(city);
 }
 
+/* ── SECTION NAV SCROLL ── */
+function scrollToSection(sectionId, navId, btn) {
+  const el = document.getElementById(sectionId);
+  if(!el) return;
+  if(navId) {
+    document.querySelectorAll('#'+navId+' .section-nav-btn').forEach(b => b.classList.remove('active'));
+  }
+  if(btn) btn.classList.add('active');
+  el.scrollIntoView({behavior:'smooth', block:'start'});
+  // Nudge back up to compensate for fixed nav height
+  const navEl = document.getElementById(navId);
+  const navH = navEl ? navEl.offsetHeight : 44;
+  const sb = document.getElementById('scrollBody');
+  setTimeout(() => { if(sb) sb.scrollTop -= navH; }, 500);
+}
+
+// Update active nav button on scroll
+function initSectionNavObserver(navId, sectionIds) {
+  const navEl = document.getElementById(navId);
+  const sb = document.getElementById('scrollBody');
+  if(!navEl || !sb) return;
+
+  // Make nav fixed using JS — bulletproof across all browsers
+  function fixNav() {
+    // Measure actual topbar height dynamically
+    let topbarH = 0;
+    if(window.innerWidth < 768) {
+      const mobileBar = document.getElementById('mobileTopbar');
+      topbarH = mobileBar ? mobileBar.getBoundingClientRect().height : 88;
+    } else {
+      const desktopNav = document.querySelector('.desktop-topnav');
+      topbarH = desktopNav ? desktopNav.getBoundingClientRect().bottom : 57;
+    }
+    const sbRect = sb.getBoundingClientRect();
+    navEl.classList.add('is-fixed');
+    navEl.style.top = topbarH + 'px';
+    navEl.style.left = sbRect.left + 'px';
+    navEl.style.width = sbRect.width + 'px';
+    // Add top padding to next sibling so content isn't hidden behind fixed nav
+    const navH = navEl.offsetHeight;
+    const sibling = navEl.nextElementSibling;
+    if(sibling) sibling.style.paddingTop = navH + 'px';
+  }
+
+  // Run after paint so dimensions are available
+  requestAnimationFrame(() => {
+    requestAnimationFrame(fixNav);
+  });
+
+  // Re-fix on resize
+  window.addEventListener('resize', fixNav, {passive:true});
+
+  // Update active button on scroll using IntersectionObserver
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if(entry.isIntersecting) {
+        const id = entry.target.id;
+        const idx = sectionIds.indexOf(id);
+        if(idx >= 0) {
+          navEl.querySelectorAll('.section-nav-btn').forEach((btn, i) => {
+            btn.classList.toggle('active', i === idx);
+          });
+        }
+      }
+    });
+  }, {root: sb, rootMargin: '-20% 0px -70% 0px', threshold: 0});
+
+  sectionIds.forEach(id => {
+    const el = document.getElementById(id);
+    if(el) observer.observe(el);
+  });
+}
+
+/* ── SPOTLIGHT CAROUSEL ── */
+let _carouselTimer = null;
+let _carouselIdx = 0;
+let _carouselPaused = false;
+
+function initSpotlightCarousel() {
+  const track = document.getElementById('spotlightTrack');
+  if(!track) return;
+
+  if(_carouselTimer) clearInterval(_carouselTimer);
+  _carouselPaused = false;
+
+  const origCards = Array.from(track.querySelectorAll('.spotlight-card'));
+  if(origCards.length <= 1) return;
+
+  // Clone all cards and append for seamless infinite loop
+  origCards.forEach(card => {
+    const clone = card.cloneNode(true);
+    clone.setAttribute('aria-hidden', 'true');
+    track.appendChild(clone);
+  });
+
+  const total = origCards.length;
+  _carouselIdx = 0;
+
+  requestAnimationFrame(() => {
+    const cardWidth = origCards[0].getBoundingClientRect().width + 10;
+
+    function goTo(idx, animated) {
+      if(animated === false) track.style.transition = 'none';
+      else track.style.transition = 'transform .5s cubic-bezier(.4,0,.2,1)';
+      _carouselIdx = idx;
+      track.style.transform = `translateX(-${idx * cardWidth}px)`;
+    }
+
+    function advance() {
+      if(_carouselPaused) return;
+      const next = _carouselIdx + 1;
+      goTo(next, true);
+      // When we've shown all clones, silently reset to real cards
+      if(next >= total) {
+        setTimeout(() => goTo(0, false), 520);
+      }
+    }
+
+    if(_carouselTimer) clearInterval(_carouselTimer);
+    _carouselTimer = setInterval(advance, 4500);
+
+    const wrap = document.getElementById('spotlightCarousel');
+    if(wrap) {
+      let touchStartX = 0;
+      wrap.addEventListener('touchstart', e => {
+        touchStartX = e.touches[0].clientX;
+        _carouselPaused = true;
+        clearInterval(_carouselTimer);
+      }, {passive:true});
+
+      wrap.addEventListener('touchend', e => {
+        const diff = touchStartX - e.changedTouches[0].clientX;
+        if(Math.abs(diff) > 40) goTo(_carouselIdx + (diff > 0 ? 1 : -1), true);
+        setTimeout(() => {
+          _carouselPaused = false;
+          _carouselTimer = setInterval(advance, 4500);
+        }, 8000);
+      }, {passive:true});
+
+      wrap.addEventListener('click', () => {
+        _carouselPaused = true;
+        clearInterval(_carouselTimer);
+        setTimeout(() => {
+          _carouselPaused = false;
+          _carouselTimer = setInterval(advance, 4500);
+        }, 8000);
+      });
+    }
+  });
+}
+
 /* ── INIT ── */
 // Dev mode: show role bar only if ?dev=true in URL or localStorage flag
 (function checkDevMode() {
@@ -6048,6 +6289,7 @@ async function initApp() {
   renderBottom();
   renderHome();
   initViewToggle();
+  setTimeout(initSpotlightCarousel, 100);
 }
 
 // Add spin animation
