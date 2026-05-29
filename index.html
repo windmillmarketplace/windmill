@@ -791,7 +791,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 
 <script>
 /* ============================================================
-   WINDMILL v1.28 — Complete Application Script
+   WINDMILL v1.29 — Complete Application Script
    18 Lee County markets · 60+ vendors · 4 role views
    Vendor profile template · Market detail template
    Admin build/publish tools · Expansion request flow
@@ -3153,7 +3153,7 @@ function renderVendorProfile(id) {
           <div class="profile-name">${v.name}</div>
           <div class="profile-category">${v.category}</div>
           <div class="profile-actions">
-            <button class="btn-follow" onclick="toggleFollow(this)">${t('follow')}</button>
+            <button class="btn-follow" onclick="handleFollow(event,'vendor','${v.id}',this)" style="${isFollowing('vendor','${v.id}')?'background:var(--green);color:#fff;border-color:var(--green)':''}">${isFollowing('vendor','${v.id}')?t('following'):t('follow')}</button>
           </div>
         </div>
       </div>
@@ -3254,7 +3254,7 @@ function renderMarketDetail(id) {
             <div class="market-name-lg" style="margin-bottom:2px">${m.name}</div>
             <div class="market-subtitle">${m.venue} · ${m.city}, ${m.state}</div>
           </div>
-          <button class="btn-follow" onclick="toggleFollow(this)" style="flex-shrink:0;margin-top:2px">${t('follow')}</button>
+          <button class="btn-follow" onclick="handleFollow(event,'market','${m.id}',this)" style="flex-shrink:0;margin-top:2px;${isFollowing('market','${m.id}')?'background:var(--green);color:#fff;border-color:var(--green)':''}">${isFollowing('market','${m.id}')?t('following'):t('follow')}</button>
         </div>
         <div class="market-badges">
           <span class="badge-pill ${isOpen(m)?'green':'amber'}">${isOpen(m)?t('open_season'):t('seasonal')}</span>
@@ -3369,7 +3369,63 @@ function renderAreaRequest() {
 
 /* ── FOLLOWING ── */
 function renderFollowing() {
-  document.getElementById('scrollBody').innerHTML = `<div style="padding:16px">${adUnit()}<div class="login-nudge"><div class="nudge-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C4622D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div><div class="nudge-text"><div class="nudge-title">${t('nudge_title')}</div><div class="nudge-sub">${t('nudge_sub')}</div></div><button class="nudge-btn" onclick="openSignIn()">${t('signin')}</button></div></div>`;
+  if(!ST.user) {
+    document.getElementById('scrollBody').innerHTML = `<div style="padding:16px">${adUnit()}<div class="login-nudge"><div class="nudge-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C4622D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div><div class="nudge-text"><div class="nudge-title">${t('nudge_title')}</div><div class="nudge-sub">${t('nudge_sub')}</div></div><button class="nudge-btn" onclick="openSignIn()">${t('signin')}</button></div></div>`;
+    return;
+  }
+
+  const followedVendors = ST.follows.filter(f=>f.vendor_id).map(f=>getVendor(f.vendor_id)).filter(Boolean);
+  const followedMarkets = ST.follows.filter(f=>f.market_id).map(f=>getMarket(f.market_id)).filter(Boolean);
+
+  let h = `<div style="padding:16px 16px 40px">
+    <div style="font-family:var(--font-serif);font-size:20px;font-weight:600;color:var(--text);margin-bottom:4px">Following</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:20px">${ST.follows.length} saved</div>`;
+
+  if(ST.follows.length === 0) {
+    h += `<div style="text-align:center;padding:40px 20px">
+      <div style="font-size:40px;margin-bottom:12px">💚</div>
+      <div style="font-size:15px;font-weight:500;color:var(--text);margin-bottom:8px">Nothing saved yet</div>
+      <div style="font-size:13px;color:var(--text2)">Follow vendors and markets to see them here</div>
+    </div>`;
+  } else {
+    if(followedVendors.length > 0) {
+      h += `<div style="font-size:12px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Vendors (${followedVendors.length})</div>`;
+      followedVendors.forEach((v,i) => {
+        const c = vc(i);
+        const places = v.markets.slice(0,2).map(id=>{const m=getMarket(id);return m?m.city:'?'});
+        h += `<div class="vendor-card" onclick="navigate('vendor','${v.id}')">
+          <div class="vendor-avatar" style="background:${c.bg};color:${c.c}">${initials(v.name)}</div>
+          <div class="vendor-body">
+            <div class="vendor-name">${v.name}</div>
+            <div class="vendor-at"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${places.join(' · ')}</div>
+            <div class="vendor-category">${v.category}</div>
+          </div>
+          <button class="follow-btn" style="background:var(--green);color:#fff;border-color:var(--green)" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">Following</button>
+        </div>`;
+      });
+    }
+
+    if(followedMarkets.length > 0) {
+      h += `<div style="font-size:12px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:16px 0 10px">Markets (${followedMarkets.length})</div>`;
+      followedMarkets.forEach(m => {
+        const open = isOpen(m);
+        h += `<div class="vendor-card" onclick="navigate('market','${m.id}')">
+          <div style="width:44px;height:44px;border-radius:10px;overflow:hidden;flex-shrink:0;background:var(--surface2)">
+            ${DATA.market_photos[m.id]?`<img src="${DATA.market_photos[m.id]}" style="width:100%;height:100%;object-fit:cover">`:`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:20px">🏪</div>`}
+          </div>
+          <div class="vendor-body">
+            <div class="vendor-name">${m.name}</div>
+            <div class="vendor-at">${m.city} · ${m.day_of_week}s ${m.start_time.replace(':00','')}–${m.end_time.replace(':00','')}</div>
+            <div class="vendor-category" style="color:${open?'var(--green-dk)':'var(--text3)'}">${open?'Open now':'Seasonal'}</div>
+          </div>
+          <button class="follow-btn" style="background:var(--green);color:#fff;border-color:var(--green)" onclick="event.stopPropagation();handleFollow(event,'market','${m.id}',this)">Following</button>
+        </div>`;
+      });
+    }
+  }
+
+  h += `</div>`;
+  document.getElementById('scrollBody').innerHTML = h;
 }
 
 function renderMe() {
@@ -3402,7 +3458,7 @@ function renderMe() {
         </div>
       </div>
       <button onclick="authSignOut()" style="width:100%;padding:12px;background:transparent;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;color:var(--text2);font-family:var(--font-sans);margin-bottom:20px">Sign out</button>
-      <div style="text-align:center;font-size:10px;color:var(--text3)">Windmill v1.28 · shopwindmill.com</div>
+      <div style="text-align:center;font-size:10px;color:var(--text3)">Windmill v1.29 · shopwindmill.com</div>
     </div>`;
     return;
   }
@@ -3446,7 +3502,7 @@ function renderMe() {
       </div>
     </div>
     <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text3)">
-      Windmill v1.28 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
+      Windmill v1.29 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
     </div>
   </div>`;
 }
@@ -3514,14 +3570,15 @@ function renderAdminPanel() {
   const unreadMsgs = ST.adminMessages.filter(m=>!m.read).length;
   const pendingClaims = ST.adminClaims.filter(c=>c.status==='pending').length;
 
-  const tabs = ['vendors','markets','claims','messages','areas','ads'];
+  const tabs = ['vendors','markets','claims','messages','users','areas','ads'];
   const tabLabels = {
     vendors:`Vendors`,
     markets:`Markets`,
     claims:`Claims${pendingClaims>0?` <span style="background:var(--terra);color:#fff;border-radius:99px;padding:0 5px;font-size:9px;margin-left:3px">${pendingClaims}</span>`:''}`,
     messages:`Messages${unreadMsgs>0?` <span style="background:var(--terra);color:#fff;border-radius:99px;padding:0 5px;font-size:9px;margin-left:3px">${unreadMsgs}</span>`:''}`,
     areas:'Areas',
-    ads:'Ads'
+    ads:'Ads',
+    users:`Users`
   };
 
   let h = `<div class="admin-panel">
@@ -3723,6 +3780,46 @@ function renderAdminPanel() {
         <div class="admin-table">
           ${ST.adminAnnouncements.map(a=>`<div class="admin-row"><div class="admin-row-info"><div class="admin-row-name">${a.subject}</div><div class="admin-row-meta">${a.to} · ${a.date}</div></div></div>`).join('')}
         </div>`:''}`;
+    }
+  }
+
+  /* ── USERS TAB ── */
+  if(ST.adminTab==='users') {
+    h += `<div style="font-size:12px;color:var(--text2);margin-bottom:12px">Registered user accounts. Role changes take effect on next sign-in.</div>`;
+    if(!supabaseClient) {
+      h += `<div style="padding:24px;text-align:center;color:var(--text2);font-size:13px">⚠ Supabase not connected — user list unavailable</div>`;
+    } else {
+      h += `<div id="adminUserList"><div style="padding:24px;text-align:center;color:var(--text2);font-size:13px">Loading users...</div></div>`;
+      // Load users async
+      supabaseClient.from('users').select('*').order('created_at', {ascending:false}).then(({data, error}) => {
+        const el = document.getElementById('adminUserList');
+        if(!el) return;
+        if(error || !data || data.length === 0) {
+          el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text2);font-size:13px">No users yet</div>';
+          return;
+        }
+        let ul = '<div class="admin-table">';
+        data.forEach(u => {
+          const roleColor = {admin:'var(--terra)',vendor:'var(--green-dk)',operator:'var(--amber)',customer:'var(--text3)'};
+          const joined = new Date(u.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+          ul += `<div class="admin-row">
+            <div class="admin-row-info">
+              <div class="admin-row-name">${u.name||'—'} <span style="font-size:10px;color:${roleColor[u.role]||'var(--text3)'};font-weight:500;text-transform:uppercase">${u.role||'customer'}</span></div>
+              <div class="admin-row-meta">${u.email} · Joined ${joined}</div>
+            </div>
+            <div class="admin-row-actions">
+              <select onchange="adminChangeUserRole('${u.id}',this.value)" style="font-size:11px;padding:4px 6px;border:0.5px solid var(--border-med);border-radius:var(--r-sm);background:var(--surface2);font-family:var(--font-sans)">
+                <option value="customer" ${u.role==='customer'?'selected':''}>Customer</option>
+                <option value="vendor" ${u.role==='vendor'?'selected':''}>Vendor</option>
+                <option value="operator" ${u.role==='operator'?'selected':''}>Operator</option>
+                <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
+              </select>
+            </div>
+          </div>`;
+        });
+        ul += '</div>';
+        el.innerHTML = ul;
+      });
     }
   }
 
@@ -4580,6 +4677,13 @@ function togglePublish(btn, id, type) {
     const m = DATA.markets.find(x=>x.id===id);
     if(m) { m.published=!m.published; btn.textContent=m.published?'Live':'Publish'; btn.className=`action-btn ${m.published?'published':'publish'}`; }
   }
+}
+
+async function adminChangeUserRole(userId, newRole) {
+  if(!supabaseClient) return;
+  const { error } = await supabaseClient.from('users').update({role: newRole}).eq('id', userId);
+  if(error) { alert('Failed to update role: ' + error.message); return; }
+  console.log('✓ Role updated to', newRole);
 }
 
 function runExpansionSearch() {
