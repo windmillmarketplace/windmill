@@ -110,7 +110,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .search-input-wrap{position:relative;flex:1;display:flex;align-items:center}
 /* Global search dropdown */
 .global-search-wrap{position:relative;flex:1}
-.global-search-dropdown{position:absolute;top:calc(100% + 6px);left:-40px;right:-20px;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-md);box-shadow:0 8px 24px rgba(44,32,22,.15);z-index:600;overflow:hidden;max-height:400px;overflow-y:auto}
+.global-search-dropdown{position:fixed;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-md);box-shadow:0 8px 24px rgba(44,32,22,.15);z-index:9000;overflow:hidden;max-height:320px;overflow-y:auto;-webkit-overflow-scrolling:touch;min-width:280px}
 @media(min-width:768px){.global-search-dropdown{left:0;right:0}}
 .gs-section-label{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:8px 14px 4px;background:var(--surface2)}
 .gs-item{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;border-bottom:0.5px solid var(--border);transition:background .1s}
@@ -709,8 +709,13 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
     <div class="modal-sub">Windmill shows markets and vendors near you.</div>
     <div class="form-field">
       <label class="form-label">City or ZIP code</label>
-      <input class="form-input" id="locationModalInput" placeholder="e.g. Fort Myers, Sarasota, Tampa..." value=""
-        oninput="locationModalPredict(this.value)" autocomplete="off">
+      <div style="position:relative;display:flex;align-items:center">
+        <input class="form-input" id="locationModalInput" placeholder="e.g. Fort Myers, Sarasota, Tampa..." value=""
+          oninput="locationModalPredict(this.value);document.getElementById('locClearBtn').style.display=this.value?'flex':'none'" 
+          autocomplete="off" style="padding-right:36px">
+        <button id="locClearBtn" onclick="document.getElementById('locationModalInput').value='';document.getElementById('locationModalSuggestions').style.display='none';document.getElementById('locClearBtn').style.display='none';document.getElementById('locationModalInput').focus()" 
+          style="display:none;position:absolute;right:10px;background:var(--border-med);border:none;cursor:pointer;width:20px;height:20px;border-radius:50%;align-items:center;justify-content:center;font-size:12px;color:var(--text2);line-height:1">×</button>
+      </div>
       <div id="locationModalSuggestions" style="margin-top:6px;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-md);overflow:hidden;display:none"></div>
     </div>
     <button class="btn-primary" onclick="applyLocationModal()">Set location</button>
@@ -813,7 +818,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 
 <script>
 /* ============================================================
-   WINDMILL v1.34 — Complete Application Script
+   WINDMILL v1.35 — Complete Application Script
    18 Lee County markets · 60+ vendors · 4 role views
    Vendor profile template · Market detail template
    Admin build/publish tools · Expansion request flow
@@ -1611,6 +1616,14 @@ function switchRole(role, btn) {
 
 /* ── SEARCH ── */
 /* ── GLOBAL SEARCH ── */
+function positionSearchDropdown(inputEl, dropdownEl) {
+  if(!inputEl || !dropdownEl) return;
+  const rect = inputEl.getBoundingClientRect();
+  dropdownEl.style.top = (rect.bottom + 4) + 'px';
+  dropdownEl.style.left = rect.left + 'px';
+  dropdownEl.style.width = Math.max(rect.width, 300) + 'px';
+}
+
 function globalSearch(val) {
   ST.globalSearchQuery = val;
   // Sync both inputs
@@ -1734,7 +1747,13 @@ function showGlobalSearchDropdown(results, val) {
 
   dropdownIds.forEach(id => {
     const el = document.getElementById(id);
-    if(el) { el.innerHTML = html; el.style.display = 'block'; }
+    if(!el) return;
+    el.innerHTML = html;
+    el.style.display = 'block';
+    // Position fixed dropdown under the search input
+    const inputId = id === 'mobileSearchDropdown' ? 'mobileSearch' : 'desktopSearch';
+    const inputEl = document.getElementById(inputId);
+    positionSearchDropdown(inputEl, el);
   });
 
   // Close on outside click — use one listener
@@ -1742,6 +1761,17 @@ function showGlobalSearchDropdown(results, val) {
     document.addEventListener('click', closeGlobalSearchListener);
   }, 50);
 }
+
+// Reposition dropdowns on scroll so they follow the input
+window.addEventListener('scroll', function() {
+  ['mobileSearchDropdown','desktopSearchDropdown'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el && el.style.display === 'block') {
+      const inputId = id === 'mobileSearchDropdown' ? 'mobileSearch' : 'desktopSearch';
+      positionSearchDropdown(document.getElementById(inputId), el);
+    }
+  });
+}, {passive:true});
 
 function closeGlobalSearchListener(e) {
   const dropdowns = ['mobileSearchDropdown','desktopSearchDropdown'];
@@ -3572,7 +3602,7 @@ function renderMe() {
         <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
       </div>
     </div>
-      <div style="text-align:center;margin-top:20px;font-size:10px;color:var(--text3)">Windmill v1.34 · shopwindmill.com</div>
+      <div style="text-align:center;margin-top:20px;font-size:10px;color:var(--text3)">Windmill v1.35 · shopwindmill.com</div>
     </div>`;
     return;
   }
@@ -3649,7 +3679,7 @@ function renderMe() {
       </div>
     </div>
     <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text3)">
-      Windmill v1.34 · <a href="https://shopwindmill.com" style="color:var(--terra);text-decoration:none">shopwindmill.com</a>
+      Windmill v1.35 · <a href="https://shopwindmill.com" style="color:var(--terra);text-decoration:none">shopwindmill.com</a>
     </div>
   </div>`;
 }
@@ -3870,9 +3900,12 @@ function renderAdminPanel() {
 
   /* ── MESSAGES TAB ── */
   if(ST.adminTab==='messages') {
-    h += `<div class="admin-subtabs">
-      <button class="admin-subtab ${ST.adminMsgTab==='inbox'?'active':''}" onclick="ST.adminMsgTab='inbox';ST.adminMsgThread=null;renderAdminPanel()">Inbox${unreadMsgs>0?` (${unreadMsgs} new)`:''}</button>
-      <button class="admin-subtab ${ST.adminMsgTab==='announce'?'active':''}" onclick="ST.adminMsgTab='announce';ST.adminMsgThread=null;renderAdminPanel()">Announcements</button>
+    h += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div class="admin-subtabs" style="margin-bottom:0">
+        <button class="admin-subtab ${ST.adminMsgTab==='inbox'?'active':''}" onclick="ST.adminMsgTab='inbox';ST.adminMsgThread=null;renderAdminPanel()">Inbox${unreadMsgs>0?` (${unreadMsgs} new)`:''}</button>
+        <button class="admin-subtab ${ST.adminMsgTab==='compose'?'active':''}" onclick="ST.adminMsgTab='compose';ST.adminMsgThread=null;renderAdminPanel()">✏️ New</button>
+        <button class="admin-subtab ${ST.adminMsgTab==='announce'?'active':''}" onclick="ST.adminMsgTab='announce';ST.adminMsgThread=null;renderAdminPanel()">📢 Announce</button>
+      </div>
     </div>`;
 
     if(ST.adminMsgTab==='inbox') {
@@ -3930,6 +3963,32 @@ function renderAdminPanel() {
           h += `</div>`;
         }
       }
+    }
+
+    if(ST.adminMsgTab==='compose') {
+      // Load users for recipient dropdown
+      h += `<div class="admin-table" style="padding:16px">
+        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:12px">Compose message</div>
+        <div class="form-field">
+          <label class="form-label">To</label>
+          <div style="display:flex;gap:8px">
+            <select class="form-input" id="composeRecipientType" onchange="updateComposeRecipients()" style="max-width:140px">
+              <option value="email">By email</option>
+              <option value="role">By role</option>
+            </select>
+            <input class="form-input" id="composeRecipient" placeholder="recipient@email.com">
+          </div>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Subject</label>
+          <input class="form-input" id="composeSubject" placeholder="Subject line">
+        </div>
+        <div class="form-field">
+          <label class="form-label">Message</label>
+          <textarea class="form-textarea" id="composeBody" placeholder="Write your message..." style="min-height:120px"></textarea>
+        </div>
+        <button onclick="adminSendIndividualMessage()" style="width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500">Send message</button>
+      </div>`;
     }
 
     if(ST.adminMsgTab==='announce') {
@@ -4674,6 +4733,35 @@ function setAdminTab(tab) {
   ST.adminMsgThread = null;
   if(!ST.adminClaimsTab) ST.adminClaimsTab = 'pending';
   if(!ST.adminAnnouncements) ST.adminAnnouncements = [];
+  if(tab === 'messages' && supabaseClient) {
+    // Load real messages from Supabase
+    supabaseClient.from('messages').select('*, message_replies(*)').order('created_at', {ascending:false}).then(({data, error}) => {
+      if(!error && data && data.length > 0) {
+        // Merge Supabase messages with local demo messages, deduplicate by id
+        const supabaseMsgs = data.map(m => ({
+          id: m.id,
+          from: m.from_name,
+          from_email: m.from_email,
+          role: m.role || 'Customer',
+          subject: m.subject || '(no subject)',
+          body: m.body,
+          date: new Date(m.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}),
+          read: m.read || false,
+          resolved: m.resolved || false,
+          replies: (m.message_replies || []).map(r => ({
+            from: r.from_name,
+            body: r.body,
+            date: new Date(r.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+          })),
+          fromDB: true
+        }));
+        // Keep demo messages that aren't from DB, add real ones
+        const demoMsgs = ST.adminMessages.filter(m => !m.fromDB);
+        ST.adminMessages = [...supabaseMsgs, ...demoMsgs];
+        renderAdminPanel();
+      }
+    });
+  }
   renderAdminPanel();
 }
 
@@ -5041,6 +5129,39 @@ async function adminChangeUserRole(userId, newRole) {
   const { error } = await supabaseClient.from('users').update({role: newRole}).eq('id', userId);
   if(error) { alert('Failed to update role: ' + error.message); return; }
   console.log('✓ Role updated to', newRole);
+}
+
+async function adminSendIndividualMessage() {
+  const recipient = document.getElementById('composeRecipient')?.value?.trim();
+  const subject = document.getElementById('composeSubject')?.value?.trim();
+  const body = document.getElementById('composeBody')?.value?.trim();
+  if(!recipient||!subject||!body) { alert('Please fill in all fields.'); return; }
+
+  // Save to Supabase
+  if(supabaseClient) {
+    await supabaseClient.from('messages').insert({
+      from_name: 'Windmill Admin',
+      from_email: 'hello@shopwindmill.com',
+      role: 'Admin',
+      subject: '[Admin → '+recipient+'] '+subject,
+      body
+    });
+  }
+
+  // Add to local inbox
+  ST.adminMessages.unshift({
+    id:'admin_'+Date.now(),
+    from:'Windmill Admin',
+    role:'Admin',
+    subject:'[To: '+recipient+'] '+subject,
+    body,
+    date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
+    read:true, resolved:false, replies:[], isOutbound:true
+  });
+
+  alert('Message sent to '+recipient);
+  ST.adminMsgTab = 'inbox';
+  renderAdminPanel();
 }
 
 function runExpansionSearch() {
