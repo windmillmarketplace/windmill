@@ -793,7 +793,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 
 <script>
 /* ============================================================
-   WINDMILL v1.31 — Complete Application Script
+   WINDMILL v1.32 — Complete Application Script
    18 Lee County markets · 60+ vendors · 4 role views
    Vendor profile template · Market detail template
    Admin build/publish tools · Expansion request flow
@@ -3544,7 +3544,7 @@ function renderMe() {
         <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
       </div>
     </div>
-      <div style="text-align:center;margin-top:20px;font-size:10px;color:var(--text3)">Windmill v1.31 · shopwindmill.com</div>
+      <div style="text-align:center;margin-top:20px;font-size:10px;color:var(--text3)">Windmill v1.32 · shopwindmill.com</div>
     </div>`;
     return;
   }
@@ -3621,7 +3621,7 @@ function renderMe() {
       </div>
     </div>
     <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text3)">
-      Windmill v1.31 · <a href="https://shopwindmill.com" style="color:var(--terra);text-decoration:none">shopwindmill.com</a>
+      Windmill v1.32 · <a href="https://shopwindmill.com" style="color:var(--terra);text-decoration:none">shopwindmill.com</a>
     </div>
   </div>`;
 }
@@ -4213,10 +4213,25 @@ async function onAuthSuccess(user) {
   // Load user profile from database
   const { data: profile } = await supabaseClient.from('users').select('*').eq('id', user.id).single();
 
-  const name = profile?.name || user.user_metadata?.name || user.email.split('@')[0];
+  const name = profile?.name || user.user_metadata?.full_name || user.user_metadata?.name || user.email.split('@')[0];
   const role = profile?.role || user.user_metadata?.role || 'customer';
 
   ST.user = { id: user.id, email: user.email, name, role };
+
+  // Auto-create users table row if it doesn't exist (Google/OAuth sign-ins)
+  if(!profile) {
+    try {
+      await supabaseClient.from('users').upsert({
+        id: user.id,
+        email: user.email,
+        name,
+        role,
+        email_opt_in: true
+      });
+    } catch(e) {
+      console.warn('Could not create user profile:', e);
+    }
+  }
 
   // Set role (unless in dev mode where role bar controls it)
   if(!ST.devMode) ST.role = role;
