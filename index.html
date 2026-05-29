@@ -531,6 +531,8 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .no-results-title{font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:6px}
 .no-results-sub{font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:20px}
 </style>
+  <!-- Supabase client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -800,12 +802,75 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 
 <script>
 /* ============================================================
-   WINDMILL v1.24 — Complete Application Script
+   WINDMILL v1.25 — Complete Application Script
    18 Lee County markets · 60+ vendors · 4 role views
    Vendor profile template · Market detail template
    Admin build/publish tools · Expansion request flow
    Responsive mobile + desktop
    ============================================================ */
+
+/* ── SUPABASE CONFIG ── */
+const SUPABASE_URL = 'https://fwzgazmewsspgtekcdhs.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_-7UcJwmFHya0mOXcAkD7og_yPKv9-YO';
+let supabaseClient = null;
+try {
+  supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
+} catch(e) {
+  console.warn('Supabase init failed, using local data:', e);
+}
+
+/* ── DATA LOADING ── */
+// REMOVE FALLBACK BEFORE GO-LIVE
+let DB_LOADED = false;
+
+async function loadFromSupabase() {
+  if(!supabaseClient) return false;
+  try {
+    // Load operators
+    const { data: operators, error: opErr } = await supabaseClient.from('operators').select('*');
+    if(opErr) throw opErr;
+
+    // Load markets
+    const { data: markets, error: mkErr } = await supabaseClient.from('markets').select('*');
+    if(mkErr) throw mkErr;
+
+    // Load vendors
+    const { data: vendors, error: vErr } = await supabaseClient.from('vendors').select('*');
+    if(vErr) throw vErr;
+
+    // Load vendor_markets relationships
+    const { data: vendorMarkets, error: vmErr } = await supabaseClient.from('vendor_markets').select('*');
+    if(vmErr) throw vmErr;
+
+    // If we got data, use it
+    if(vendors && vendors.length > 0) {
+      // Attach markets array to each vendor
+      const vmMap = {};
+      (vendorMarkets || []).forEach(vm => {
+        if(!vmMap[vm.vendor_id]) vmMap[vm.vendor_id] = [];
+        vmMap[vm.vendor_id].push(vm.market_id);
+      });
+      vendors.forEach(v => { v.markets = vmMap[v.id] || []; });
+
+      DATA.operators = operators || DATA.operators;
+      DATA.markets = markets || DATA.markets;
+      DATA.vendors = vendors || DATA.vendors;
+
+      // Rebuild market_photos from market.photo field
+      const photos = {};
+      (markets || []).forEach(m => { if(m.photo) photos[m.id] = m.photo; });
+      DATA.market_photos = { ...DATA.market_photos, ...photos };
+
+      DB_LOADED = true;
+      console.log(`✓ Loaded from Supabase: ${vendors.length} vendors, ${markets.length} markets`);
+      return true;
+    }
+    return false;
+  } catch(err) {
+    console.warn('Supabase load failed, using local data:', err);
+    return false;
+  }
+}
 
 /* ── DATA ── */
 const DATA = {
@@ -3355,7 +3420,7 @@ function renderMe() {
       </div>
     </div>
     <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text3)">
-      Windmill v1.24 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
+      Windmill v1.25 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
     </div>
   </div>`;
 }
@@ -3680,6 +3745,110 @@ function renderAdminPanel() {
   h += `</div>`;
   document.getElementById('scrollBody').innerHTML = h;
 }
+/* ── SUPABASE WRITE HELPERS ── */
+async function dbSaveVendor(vendor) {
+  if(!supabaseClient) return;
+  try {
+    const { markets, ...vendorData } = vendor;
+    const { error } = await supabaseClient.from('vendors').upsert(vendorData);
+    if(error) throw error;
+    // Update vendor_markets
+    await supabaseClient.from('vendor_markets').delete().eq('vendor_id', vendor.id);
+    if(markets && markets.length > 0) {
+      await supabaseClient.from('vendor_markets').insert(
+        markets.map(mid => ({ vendor_id: vendor.id, market_id: mid }))
+      );
+    }
+    console.log('✓ Vendor saved to Supabase:', vendor.name);
+  } catch(err) {
+    console.warn('Failed to save vendor to Supabase:', err);
+  }
+}
+
+async function dbSaveMarket(market) {
+  if(!supabaseClient) return;
+  try {
+    const { error } = await supabaseClient.from('markets').upsert(market);
+    if(error) throw error;
+    console.log('✓ Market saved to Supabase:', market.name);
+  } catch(err) {
+    console.warn('Failed to save market to Supabase:', err);
+  }
+}
+
+async function dbDeleteVendor(id) {
+  if(!supabaseClient) return;
+  try {
+    await supabaseClient.from('vendor_markets').delete().eq('vendor_id', id);
+    await supabaseClient.from('vendors').delete().eq('id', id);
+    console.log('✓ Vendor deleted from Supabase:', id);
+  } catch(err) {
+    console.warn('Failed to delete vendor from Supabase:', err);
+  }
+}
+
+async function dbDeleteMarket(id) {
+  if(!supabaseClient) return;
+  try {
+    await supabaseClient.from('markets').delete().eq('id', id);
+    console.log('✓ Market deleted from Supabase:', id);
+  } catch(err) {
+    console.warn('Failed to delete market from Supabase:', err);
+  }
+}
+
+async function dbSaveClaim(claim) {
+  if(!supabaseClient) return;
+  try {
+    const { error } = await supabaseClient.from('claims').upsert({
+      id: claim.id,
+      vendor_id: claim.vendorId,
+      claimant_name: claim.claimant,
+      email: claim.email,
+      phone: claim.phone,
+      message: claim.message,
+      status: claim.status,
+      deny_reason: claim.denyReason
+    });
+    if(error) throw error;
+  } catch(err) {
+    console.warn('Failed to save claim to Supabase:', err);
+  }
+}
+
+async function dbSaveMessage(msg) {
+  if(!supabaseClient) return;
+  try {
+    const { error } = await supabaseClient.from('messages').upsert({
+      id: msg.id,
+      from_name: msg.from,
+      from_email: msg.email || null,
+      role: msg.role,
+      subject: msg.subject,
+      body: msg.body,
+      read: msg.read,
+      resolved: msg.resolved
+    });
+    if(error) throw error;
+  } catch(err) {
+    console.warn('Failed to save message to Supabase:', err);
+  }
+}
+
+async function dbSaveReply(messageId, reply) {
+  if(!supabaseClient) return;
+  try {
+    const { error } = await supabaseClient.from('message_replies').insert({
+      message_id: messageId,
+      from_name: reply.from,
+      body: reply.body
+    });
+    if(error) throw error;
+  } catch(err) {
+    console.warn('Failed to save reply to Supabase:', err);
+  }
+}
+
 /* ── ADMIN ACTIONS ── */
 function setAdminTab(tab) {
   ST.adminTab = tab;
@@ -3763,11 +3932,13 @@ function adminSendReply(msgId) {
   if(!text) return;
   const msg = ST.adminMessages.find(m=>m.id===msgId);
   if(!msg) return;
-  msg.replies.push({
+  const reply = {
     from:'Windmill Admin',
     body: text,
     date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})
-  });
+  };
+  msg.replies.push(reply);
+  dbSaveReply(msg.id, reply); // sync to Supabase
   renderAdminPanel();
 }
 function adminResolveMsg(msgId) {
@@ -3839,12 +4010,14 @@ function adminSaveVendor(id) {
   v.pro = document.getElementById('ef_pro').checked;
   const sel = document.getElementById('ef_markets');
   v.markets = Array.from(sel.selectedOptions).map(o=>o.value);
+  dbSaveVendor(v); // sync to Supabase
   closeAdminModal();
   renderAdminPanel();
 }
 function adminDeleteVendor(id) {
   if(!confirm('Delete this vendor? This cannot be undone.')) return;
   DATA.vendors = DATA.vendors.filter(v=>v.id!==id);
+  dbDeleteVendor(id); // sync to Supabase
   closeAdminModal();
   renderAdminPanel();
 }
@@ -3924,12 +4097,14 @@ function adminSaveMarket(id) {
   m.facebook = document.getElementById('em_fb').value.trim();
   m.pet_friendly = document.getElementById('em_pet').checked;
   m.published = document.getElementById('em_pub').checked;
+  dbSaveMarket(m); // sync to Supabase
   closeAdminModal();
   renderAdminPanel();
 }
 function adminDeleteMarket(id) {
   if(!confirm('Delete this market? This cannot be undone.')) return;
   DATA.markets = DATA.markets.filter(m=>m.id!==id);
+  dbDeleteMarket(id); // sync to Supabase
   closeAdminModal();
   renderAdminPanel();
 }
@@ -4017,7 +4192,7 @@ function submitContactSupport(role, senderName) {
   const text = textarea?.value?.trim();
   if(!text) { alert('Please write a message first.'); return; }
   if(!ST.adminMessages) ST.adminMessages = [];
-  ST.adminMessages.unshift({
+  const newMsg = {
     id:'msg_'+Date.now(),
     from: senderName || role+' User',
     role: role.charAt(0).toUpperCase()+role.slice(1),
@@ -4025,7 +4200,9 @@ function submitContactSupport(role, senderName) {
     body: text,
     date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}),
     read:false, resolved:false, replies:[]
-  });
+  };
+  ST.adminMessages.unshift(newMsg);
+  dbSaveMessage(newMsg); // sync to Supabase
   if(textarea) textarea.value = '';
   alert('Message sent! Our team will respond within 24 hours.');
 }
@@ -4271,10 +4448,97 @@ function downloadData() {
   a.click();
 }
 
+/* ── DATA MIGRATION (run once to populate Supabase) ── */
+async function migrateDataToSupabase() {
+  if(!supabaseClient) { alert('Supabase not connected.'); return; }
+  const btn = document.getElementById('migrateBtn');
+  if(btn) { btn.textContent = 'Migrating...'; btn.disabled = true; }
+
+  try {
+    // 1. Operators
+    const opData = DATA.operators.map(o => ({
+      id: o.id, name: o.name, website: o.website || null,
+      phone: o.phone || null, email: o.email || null
+    }));
+    const { error: opErr } = await supabaseClient.from('operators').upsert(opData);
+    if(opErr) throw new Error('Operators: ' + opErr.message);
+    console.log(`✓ ${opData.length} operators migrated`);
+
+    // 2. Markets
+    const mkData = DATA.markets.map(m => ({
+      id: m.id, region: m.region || 'lee-county', slug: m.slug || m.id,
+      name: m.name, operator_id: m.operator_id || null,
+      description: m.description || null, address: m.address || null,
+      city: m.city || null, state: m.state || 'FL', zip: m.zip || null,
+      venue: m.venue || null, lat: m.lat || null, lng: m.lng || null,
+      day_of_week: m.day_of_week || null, start_time: m.start_time || null,
+      end_time: m.end_time || null, season_start: m.season_start || null,
+      season_end: m.season_end || null, season_dates: m.season_dates || null,
+      pet_friendly: m.pet_friendly || false, parking_notes: m.parking_notes || null,
+      special_notes: m.special_notes || null, facebook: m.facebook || null,
+      instagram: m.instagram || null, website: m.website || null,
+      photo: DATA.market_photos[m.id] || null,
+      published: m.published !== false, claimed: m.claimed || false, pro: m.pro || false
+    }));
+    const { error: mkErr } = await supabaseClient.from('markets').upsert(mkData);
+    if(mkErr) throw new Error('Markets: ' + mkErr.message);
+    console.log(`✓ ${mkData.length} markets migrated`);
+
+    // 3. Vendors
+    const vData = DATA.vendors.map(v => ({
+      id: v.id, region: v.region || 'lee-county', name: v.name,
+      slug: v.slug || v.id, category: v.category || null,
+      email: v.email || null, phone: v.phone || null,
+      website: v.website || null, instagram: v.instagram || null,
+      facebook: v.facebook || null, description: v.description || null,
+      tagline: v.tagline || null, photo: v.photo || null,
+      claimed: v.claimed || false, pro: v.pro || false,
+      published: v.published !== false
+    }));
+    const { error: vErr } = await supabaseClient.from('vendors').upsert(vData);
+    if(vErr) throw new Error('Vendors: ' + vErr.message);
+    console.log(`✓ ${vData.length} vendors migrated`);
+
+    // 4. Vendor-Market relationships
+    const vmData = [];
+    DATA.vendors.forEach(v => {
+      (v.markets || []).forEach(mid => {
+        if(DATA.markets.find(m => m.id === mid)) {
+          vmData.push({ vendor_id: v.id, market_id: mid });
+        }
+      });
+    });
+    // Delete existing and re-insert
+    await supabaseClient.from('vendor_markets').delete().neq('vendor_id', '');
+    const { error: vmErr } = await supabaseClient.from('vendor_markets').insert(vmData);
+    if(vmErr) throw new Error('Vendor-Markets: ' + vmErr.message);
+    console.log(`✓ ${vmData.length} vendor-market relationships migrated`);
+
+    const msg = `✅ Migration complete!\n${opData.length} operators\n${mkData.length} markets\n${vData.length} vendors\n${vmData.length} relationships`;
+    alert(msg);
+    if(btn) { btn.textContent = '✓ Migration complete!'; btn.style.background = 'var(--green)'; }
+
+  } catch(err) {
+    alert('Migration failed: ' + err.message);
+    console.error('Migration error:', err);
+    if(btn) { btn.textContent = 'Migration failed — retry'; btn.disabled = false; }
+  }
+}
+
 function renderAdminSettings() {
   hideFilterUI();
   document.getElementById('scrollBody').innerHTML=`<div class="admin-panel">
     <div class="admin-title">Admin Settings</div>
+    <div class="admin-table" style="padding:16px;margin-bottom:16px;background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-md)">
+      <div style="font-size:13px;font-weight:500;color:var(--green-dk);margin-bottom:6px">🗄 Supabase Database</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">
+        Status: <strong style="color:${DB_LOADED?'var(--green-dk)':'var(--terra)'}">${DB_LOADED?'✓ Connected — loading from database':'⚠ Using local data (Supabase not connected)'}</strong>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px">Run migration once to populate Supabase with all current vendors, markets and operators. Safe to run multiple times — it will update existing records.</div>
+      <button id="migrateBtn" onclick="migrateDataToSupabase()" style="width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500">
+        🚀 Migrate all data to Supabase
+      </button>
+    </div>
     <div class="admin-sub">Platform configuration and tools</div>
     <div class="admin-table" style="margin-bottom:16px">
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
@@ -4807,11 +5071,28 @@ function quickSetLocation(city) {
   });
 })();
 
-renderSidebar();
-renderFilterStrip();
-renderBottom();
-renderHome();
-initViewToggle();
+// Load from Supabase first, fall back to local DATA if unavailable
+// REMOVE FALLBACK BEFORE GO-LIVE
+async function initApp() {
+  // Show loading state briefly
+  const sb = document.getElementById('scrollBody');
+  if(sb) sb.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:200px;gap:12px"><div style="width:20px;height:20px;border:2px solid var(--green);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></div><span style="font-size:13px;color:var(--text2)">Loading...</span></div>';
+
+  await loadFromSupabase();
+
+  renderSidebar();
+  renderFilterStrip();
+  renderBottom();
+  renderHome();
+  initViewToggle();
+}
+
+// Add spin animation
+const spinStyle = document.createElement('style');
+spinStyle.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+document.head.appendChild(spinStyle);
+
+initApp();
 </script>
 </body>
 </html>
