@@ -793,7 +793,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 
 <script>
 /* ============================================================
-   WINDMILL v1.32 — Complete Application Script
+   WINDMILL v1.33 — Complete Application Script
    18 Lee County markets · 60+ vendors · 4 role views
    Vendor profile template · Market detail template
    Admin build/publish tools · Expansion request flow
@@ -1904,8 +1904,8 @@ function filterPillsHTML(includeMapToggle) {
 
 /* ── FILTER STRIP (desktop) + TOPBAR ROW2 (mobile) ── */
 function renderFilterStrip() {
-  const isCustomer = ST.role==='customer';
-  const showPills = isCustomer && ST.currentPage!=='vendor' && ST.currentPage!=='market' && ST.currentPage!=='area-request';
+  const isCustomer = ST.role==='customer' || ST.role==='friends-family';
+  const showPills = (isCustomer || ST.role==='friends-family') && ST.currentPage!=='vendor' && ST.currentPage!=='market' && ST.currentPage!=='area-request';
   const onExplore = ST.tab==='explore' && !ST.currentPage;
 
   // Desktop filter strip (location + pills, desktop only via CSS)
@@ -3483,7 +3483,7 @@ function renderFollowing() {
 
 function renderMe() {
   hideFilterUI();
-  if(ST.role !== 'customer') { renderCurrentPage(); return; }
+  if(ST.role !== 'customer' && ST.role !== 'friends-family') { renderCurrentPage(); return; }
 
   // Signed in view
   if(ST.user) {
@@ -3544,7 +3544,7 @@ function renderMe() {
         <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
       </div>
     </div>
-      <div style="text-align:center;margin-top:20px;font-size:10px;color:var(--text3)">Windmill v1.32 · shopwindmill.com</div>
+      <div style="text-align:center;margin-top:20px;font-size:10px;color:var(--text3)">Windmill v1.33 · shopwindmill.com</div>
     </div>`;
     return;
   }
@@ -3621,7 +3621,7 @@ function renderMe() {
       </div>
     </div>
     <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text3)">
-      Windmill v1.32 · <a href="https://shopwindmill.com" style="color:var(--terra);text-decoration:none">shopwindmill.com</a>
+      Windmill v1.33 · <a href="https://shopwindmill.com" style="color:var(--terra);text-decoration:none">shopwindmill.com</a>
     </div>
   </div>`;
 }
