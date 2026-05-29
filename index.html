@@ -23,12 +23,11 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
 
-/* ROLE BAR */
+/* ROLE BAR — hidden by default, only shown in dev mode */
 .role-bar{background:#2C2016;display:flex;align-items:center;height:32px}
-/* Mobile: role bar scrolls away naturally (not fixed) */
 @media(max-width:767px){.role-bar{position:relative;z-index:1}}
-/* Desktop: role bar stays fixed */
 @media(min-width:768px){.role-bar{position:fixed;top:0;left:0;right:0;z-index:9999}}
+.role-bar.hidden{display:none!important}
 .role-bar-label{font-size:10px;color:#B0A89F;padding:0 10px;white-space:nowrap;font-family:var(--font-sans)}
 .role-btn{flex:1;height:100%;font-size:10px;font-family:var(--font-sans);border:none;background:transparent;color:#B0A89F;cursor:pointer;transition:all .15s;border-left:0.5px solid #3d3330}
 .role-btn.active{background:var(--terra);color:#fff;font-weight:500}
@@ -43,11 +42,12 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
   .desktop-topnav{display:none}
 }
 @media(min-width:768px){
-  .shell{flex-direction:row;max-width:1200px;margin-left:auto;margin-right:auto;margin-top:32px}
+  .shell{flex-direction:row;max-width:1200px;margin-left:auto;margin-right:auto;margin-top:0}
+  .role-bar:not(.hidden) ~ .shell, body:has(.role-bar:not(.hidden)) .shell{margin-top:32px}
   .bottom-nav{display:none}
   .desktop-sidebar{display:flex;flex-direction:column;width:220px;min-height:calc(100vh - 32px);background:var(--surface);border-right:0.5px solid var(--border);position:sticky;top:32px;height:calc(100vh - 32px);overflow-y:auto;padding:20px 0}
   .desktop-main{flex:1;min-width:0;display:flex;flex-direction:column}
-  .desktop-topnav{display:flex;align-items:center;background:#EEF2EB;border-bottom:0.5px solid #C8D8BE;padding:12px 24px;gap:16px;position:sticky;top:32px;z-index:50}
+  .desktop-topnav{display:flex;align-items:center;background:#EEF2EB;border-bottom:0.5px solid #C8D8BE;padding:12px 24px;gap:16px;position:sticky;top:0;z-index:50}
   .topbar{display:none}
   .filter-strip{padding:10px 24px}
   .scroll-body{padding:0}
@@ -800,7 +800,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 
 <script>
 /* ============================================================
-   WINDMILL v1.23 — Complete Application Script
+   WINDMILL v1.24 — Complete Application Script
    18 Lee County markets · 60+ vendors · 4 role views
    Vendor profile template · Market detail template
    Admin build/publish tools · Expansion request flow
@@ -1124,6 +1124,7 @@ let ST = {
   searchQuery:'', currentPage:null, currentId:null,
   filters:{days:[],cats:[],pet:false,open:true,parking:false},
   adminTab:'vendors',
+  devMode:false,
   region:'lee-county',
   dateFilter:null, dateFilterLabel:'Any day',
   forcedView:null,
@@ -3354,7 +3355,7 @@ function renderMe() {
       </div>
     </div>
     <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text3)">
-      Windmill v1.23 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
+      Windmill v1.24 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
     </div>
   </div>`;
 }
@@ -4765,6 +4766,47 @@ function quickSetLocation(city) {
 }
 
 /* ── INIT ── */
+// Dev mode: show role bar only if ?dev=true in URL or localStorage flag
+(function checkDevMode() {
+  const urlDev = new URLSearchParams(window.location.search).get('dev') === 'true';
+  const storedDev = localStorage.getItem('windmill_dev') === 'true';
+  ST.devMode = urlDev || storedDev;
+  if(ST.devMode) {
+    localStorage.setItem('windmill_dev', 'true');
+  }
+  const roleBar = document.querySelector('.role-bar');
+  if(roleBar) {
+    if(ST.devMode) {
+      roleBar.classList.remove('hidden');
+    } else {
+      roleBar.classList.add('hidden');
+    }
+  }
+  // Secret: tap windmill logo 5 times to toggle dev mode
+  let logoTaps = 0;
+  let logoTimer = null;
+  document.addEventListener('click', function(e) {
+    if(e.target.closest('.brand') || e.target.closest('.sidebar-brand')) {
+      logoTaps++;
+      clearTimeout(logoTimer);
+      logoTimer = setTimeout(() => { logoTaps = 0; }, 2000);
+      if(logoTaps >= 5) {
+        logoTaps = 0;
+        ST.devMode = !ST.devMode;
+        localStorage.setItem('windmill_dev', ST.devMode ? 'true' : 'false');
+        const rb = document.querySelector('.role-bar');
+        if(rb) rb.classList.toggle('hidden', !ST.devMode);
+        const msg = ST.devMode ? '🛠 Dev mode ON' : '✓ Dev mode OFF';
+        const toast = document.createElement('div');
+        toast.textContent = msg;
+        toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#2C2016;color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;z-index:9999;font-family:sans-serif';
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2000);
+      }
+    }
+  });
+})();
+
 renderSidebar();
 renderFilterStrip();
 renderBottom();
