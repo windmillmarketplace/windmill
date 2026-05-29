@@ -791,7 +791,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 
 <script>
 /* ============================================================
-   WINDMILL v1.26 — Complete Application Script
+   WINDMILL v1.27 — Complete Application Script
    18 Lee County markets · 60+ vendors · 4 role views
    Vendor profile template · Market detail template
    Admin build/publish tools · Expansion request flow
@@ -3412,7 +3412,7 @@ function renderMe() {
       </div>
     </div>
     <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text3)">
-      Windmill v1.26 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
+      Windmill v1.27 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
     </div>
   </div>`;
 }
@@ -3834,8 +3834,8 @@ function renderAuthModal(mode, prefillRole) {
 
 function openSignIn(mode, prefillRole) {
   ST.authMode = mode || 'signin';
+  openModal('signinModal');
   renderAuthModal(ST.authMode, prefillRole);
-  openSignIn();
 }
 
 function authShowError(msg) {
