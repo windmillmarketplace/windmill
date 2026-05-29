@@ -533,6 +533,8 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 </style>
   <!-- Supabase client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23EEF2EB'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%235C7A4E'/%3E%3Cline x1='16' y1='12.5' x2='16' y2='4' stroke='%235C7A4E' stroke-width='2.2' stroke-linecap='round'/%3E%3Cline x1='16' y1='19.5' x2='16' y2='28' stroke='%235C7A4E' stroke-width='2.2' stroke-linecap='round'/%3E%3Cline x1='12.5' y1='16' x2='4' y2='16' stroke='%235C7A4E' stroke-width='2.2' stroke-linecap='round'/%3E%3Cline x1='19.5' y1='16' x2='28' y2='16' stroke='%235C7A4E' stroke-width='2.2' stroke-linecap='round'/%3E%3Cline x1='14.2' y1='14.2' x2='7.8' y2='7.8' stroke='%23C4622D' stroke-width='1.5' stroke-linecap='round' opacity='.7'/%3E%3Cline x1='17.8' y1='17.8' x2='24.2' y2='24.2' stroke='%23C4622D' stroke-width='1.5' stroke-linecap='round' opacity='.7'/%3E%3Cline x1='17.8' y1='14.2' x2='24.2' y2='7.8' stroke='%23C4622D' stroke-width='1.5' stroke-linecap='round' opacity='.7'/%3E%3Cline x1='14.2' y1='17.8' x2='7.8' y2='24.2' stroke='%23C4622D' stroke-width='1.5' stroke-linecap='round' opacity='.7'/%3E%3C/svg%3E">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23EEF2EB'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%235C7A4E'/%3E%3Cline x1='16' y1='12.5' x2='16' y2='4' stroke='%235C7A4E' stroke-width='2.2' stroke-linecap='round'/%3E%3Cline x1='16' y1='19.5' x2='16' y2='28' stroke='%235C7A4E' stroke-width='2.2' stroke-linecap='round'/%3E%3Cline x1='12.5' y1='16' x2='4' y2='16' stroke='%235C7A4E' stroke-width='2.2' stroke-linecap='round'/%3E%3Cline x1='19.5' y1='16' x2='28' y2='16' stroke='%235C7A4E' stroke-width='2.2' stroke-linecap='round'/%3E%3Cline x1='14.2' y1='14.2' x2='7.8' y2='7.8' stroke='%23C4622D' stroke-width='1.5' stroke-linecap='round' opacity='.7'/%3E%3Cline x1='17.8' y1='17.8' x2='24.2' y2='24.2' stroke='%23C4622D' stroke-width='1.5' stroke-linecap='round' opacity='.7'/%3E%3Cline x1='17.8' y1='14.2' x2='24.2' y2='7.8' stroke='%23C4622D' stroke-width='1.5' stroke-linecap='round' opacity='.7'/%3E%3Cline x1='14.2' y1='17.8' x2='7.8' y2='24.2' stroke='%23C4622D' stroke-width='1.5' stroke-linecap='round' opacity='.7'/%3E%3C/svg%3E">
 </head>
 <body>
 
@@ -791,7 +793,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 
 <script>
 /* ============================================================
-   WINDMILL v1.30 — Complete Application Script
+   WINDMILL v1.31 — Complete Application Script
    18 Lee County markets · 60+ vendors · 4 role views
    Vendor profile template · Market detail template
    Admin build/publish tools · Expansion request flow
@@ -1139,6 +1141,38 @@ const DATA = {
     {name:"Sanibel Captiva Conservation",tagline:"Protecting the islands we love — donate today",icon:"🌿",color:"#EEF2EB",link:"#"},
     {name:"Florida Blue",tagline:"Health coverage for local business owners",icon:"💙",color:"#EBF1FB",link:"#"}
   ],
+  charity:{
+    'lee-county':{
+      name:"Guardians of Florida Animal Rescue",
+      short:"GOFAR",
+      tagline:"Rescuing animals from death row — We Are Their Voice",
+      description:"GOFAR rescues dogs and cats from high-kill shelters across Florida, providing foster care, medical treatment and loving forever homes. Based right here in Fort Myers.",
+      photo:"https://images.squarespace-cdn.com/content/v1/61ab82ed9c91ed2eba1740d1/004b300b-73ed-41e1-9690-769c7306665e/Website+Banners+%283%29.png",
+      url:"https://gofar.dog",
+      emoji:"🐾",
+      cta:"Learn more & donate"
+    },
+    'sarasota-bradenton':{
+      name:"Feature Your Local Charity",
+      short:"Community Spotlight",
+      tagline:"Know a great local cause? Let us know and we'll feature them here.",
+      description:"Windmill is committed to supporting the communities we serve. We partner with one local nonprofit per region to shine a spotlight on the causes that matter most.",
+      photo:"https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?w=600&q=80",
+      url:null,
+      emoji:"💚",
+      cta:"Contact us to be featured"
+    },
+    'tampa-bay':{
+      name:"Feature Your Local Charity",
+      short:"Community Spotlight",
+      tagline:"Know a great local cause? Let us know and we'll feature them here.",
+      description:"Windmill is committed to supporting the communities we serve. We partner with one local nonprofit per region to shine a spotlight on the causes that matter most.",
+      photo:"https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?w=600&q=80",
+      url:null,
+      emoji:"💚",
+      cta:"Contact us to be featured"
+    }
+  },
   spotlight:{
     'lee-county':[
       {type:'vendor',id:'demo-vendor-pro',name:'The Empanada Queen',tagline:'Handmade empanadas — 12 flavors, made fresh every morning',photo:'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=400&q=80',route:'demo-vendor-pro'},
@@ -2180,9 +2214,28 @@ function renderHome() {
     });
   }
 
-  // ── LOGIN NUDGE + AD 4 + COMING SOON + AD 5 ──
+  // ── LOGIN NUDGE + AD 4 + COMMUNITY SPOTLIGHT + COMING SOON + AD 5 ──
+  const charity = DATA.charity[ST.region] || DATA.charity['lee-county'];
   h += `<div class="login-nudge"><div class="nudge-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C4622D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div><div class="nudge-text"><div class="nudge-title">${t('nudge_title')}</div><div class="nudge-sub">${t('nudge_sub')}</div></div><button class="nudge-btn" onclick="openSignIn()">${t('signin')}</button></div>
   ${adUnit()}
+  <div style="margin:0 0 16px;border-radius:var(--r-lg);overflow:hidden;border:0.5px solid var(--border);background:var(--surface);mx:16px">
+    <div style="position:relative;height:160px;overflow:hidden">
+      <img src="${charity.photo}" alt="${charity.name}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.style.display='none'">
+      <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.1) 0%,rgba(0,0,0,.65) 100%)"></div>
+      <div style="position:absolute;top:10px;left:12px;background:var(--green);color:#fff;font-size:9px;font-weight:600;padding:3px 8px;border-radius:var(--r-pill);text-transform:uppercase;letter-spacing:.5px">💚 Community Spotlight</div>
+      <div style="position:absolute;bottom:12px;left:12px;right:12px">
+        <div style="font-size:15px;font-weight:600;color:#fff;margin-bottom:2px">${charity.name}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.85)">${charity.tagline}</div>
+      </div>
+    </div>
+    <div style="padding:14px 16px">
+      <div style="font-size:12px;color:var(--text);line-height:1.5;margin-bottom:12px">${charity.description}</div>
+      ${charity.url
+        ? `<a href="${charity.url}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:8px 18px;background:var(--green);color:#fff;border-radius:var(--r-pill);font-size:12px;font-weight:500;text-decoration:none;font-family:var(--font-sans)">${charity.emoji} ${charity.cta}</a>`
+        : `<button onclick="navigate('me')" style="padding:8px 18px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;font-weight:500;cursor:pointer;font-family:var(--font-sans)">${charity.emoji} ${charity.cta}</button>`
+      }
+    </div>
+  </div>
   <div class="coming-soon">
     <div class="cs-header"><div class="cs-icon">🚚</div><div class="cs-title">${t('coming')} — ${t('coming_title')}</div></div>
     <div class="cs-sub">${t('coming_sub')}</div>
@@ -3458,7 +3511,40 @@ function renderMe() {
         </div>
       </div>
       <button onclick="authSignOut()" style="width:100%;padding:12px;background:transparent;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;color:var(--text2);font-family:var(--font-sans);margin-bottom:20px">Sign out</button>
-      <div style="text-align:center;font-size:10px;color:var(--text3)">Windmill v1.30 · shopwindmill.com</div>
+      
+    <div style="margin-top:24px;border-top:0.5px solid var(--border);padding-top:20px">
+      <div style="font-size:12px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px">About Windmill</div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-bottom:12px">
+        <div style="padding:16px;border-bottom:0.5px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <svg width="20" height="20" viewBox="0 0 26 26" fill="none"><circle cx="13" cy="13" r="2.8" fill="#5C7A4E"/><line x1="13" y1="9.8" x2="13" y2="2" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="13" y1="16.2" x2="13" y2="24" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="9.8" y1="13" x2="2" y2="13" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="16.2" y1="13" x2="24" y2="13" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="11.4" y1="11.4" x2="5.5" y2="5.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><line x1="14.6" y1="14.6" x2="20.5" y2="20.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><line x1="14.6" y1="11.4" x2="20.5" y2="5.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><line x1="11.4" y1="14.6" x2="5.5" y2="20.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/></svg>
+            <span style="font-size:14px;font-weight:600;color:var(--text);font-family:var(--font-serif)">Our Mission</span>
+          </div>
+          <p style="font-size:12px;color:var(--text);line-height:1.6;margin:0">Windmill exists to connect communities with the local farmers markets, artisan vendors and small businesses that make them unique. We believe shopping local builds stronger neighborhoods — and we're building the platform that makes it effortless.</p>
+        </div>
+        <div style="padding:14px 16px;border-bottom:0.5px solid var(--border)">
+          <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:8px">🛍 For Shoppers</div>
+          <p style="font-size:12px;color:var(--text2);line-height:1.5;margin:0">Discover markets near you, explore vendors by category, follow your favorites and never miss a market day. Free forever.</p>
+        </div>
+        <div style="padding:14px 16px;border-bottom:0.5px solid var(--border)">
+          <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:8px">🏪 For Vendors</div>
+          <p style="font-size:12px;color:var(--text2);line-height:1.5;margin:0">Claim your free listing to manage your profile and connect with customers. Upgrade to Windmill Pro for photos, analytics, social links and more.</p>
+        </div>
+        <div style="padding:14px 16px">
+          <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:8px">🏛 For Market Operators</div>
+          <p style="font-size:12px;color:var(--text2);line-height:1.5;margin:0">List your market, manage your vendor directory and promote your events to thousands of local shoppers — all in one place.</p>
+        </div>
+      </div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">📍 Where we are</div>
+        <p style="font-size:12px;color:var(--text2);line-height:1.5;margin:0">Currently live in Lee County, Sarasota/Bradenton and Tampa Bay, Florida. Expanding across the US — one market at a time.</p>
+      </div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px">
+        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">✉️ Contact us</div>
+        <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
+      </div>
+    </div>
+      <div style="text-align:center;margin-top:20px;font-size:10px;color:var(--text3)">Windmill v1.31 · shopwindmill.com</div>
     </div>`;
     return;
   }
@@ -3501,8 +3587,41 @@ function renderMe() {
         <button onclick="openModal('claimModal')" style="width:100%;padding:10px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500">${t('claim_cta')}</button>
       </div>
     </div>
+    
+    <div style="margin-top:24px;border-top:0.5px solid var(--border);padding-top:20px">
+      <div style="font-size:12px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px">About Windmill</div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-bottom:12px">
+        <div style="padding:16px;border-bottom:0.5px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <svg width="20" height="20" viewBox="0 0 26 26" fill="none"><circle cx="13" cy="13" r="2.8" fill="#5C7A4E"/><line x1="13" y1="9.8" x2="13" y2="2" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="13" y1="16.2" x2="13" y2="24" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="9.8" y1="13" x2="2" y2="13" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="16.2" y1="13" x2="24" y2="13" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="11.4" y1="11.4" x2="5.5" y2="5.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><line x1="14.6" y1="14.6" x2="20.5" y2="20.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><line x1="14.6" y1="11.4" x2="20.5" y2="5.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><line x1="11.4" y1="14.6" x2="5.5" y2="20.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/></svg>
+            <span style="font-size:14px;font-weight:600;color:var(--text);font-family:var(--font-serif)">Our Mission</span>
+          </div>
+          <p style="font-size:12px;color:var(--text);line-height:1.6;margin:0">Windmill exists to connect communities with the local farmers markets, artisan vendors and small businesses that make them unique. We believe shopping local builds stronger neighborhoods — and we're building the platform that makes it effortless.</p>
+        </div>
+        <div style="padding:14px 16px;border-bottom:0.5px solid var(--border)">
+          <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:8px">🛍 For Shoppers</div>
+          <p style="font-size:12px;color:var(--text2);line-height:1.5;margin:0">Discover markets near you, explore vendors by category, follow your favorites and never miss a market day. Free forever.</p>
+        </div>
+        <div style="padding:14px 16px;border-bottom:0.5px solid var(--border)">
+          <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:8px">🏪 For Vendors</div>
+          <p style="font-size:12px;color:var(--text2);line-height:1.5;margin:0">Claim your free listing to manage your profile and connect with customers. Upgrade to Windmill Pro for photos, analytics, social links and more.</p>
+        </div>
+        <div style="padding:14px 16px">
+          <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:8px">🏛 For Market Operators</div>
+          <p style="font-size:12px;color:var(--text2);line-height:1.5;margin:0">List your market, manage your vendor directory and promote your events to thousands of local shoppers — all in one place.</p>
+        </div>
+      </div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">📍 Where we are</div>
+        <p style="font-size:12px;color:var(--text2);line-height:1.5;margin:0">Currently live in Lee County, Sarasota/Bradenton and Tampa Bay, Florida. Expanding across the US — one market at a time.</p>
+      </div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px">
+        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">✉️ Contact us</div>
+        <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
+      </div>
+    </div>
     <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text3)">
-      Windmill v1.30 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
+      Windmill v1.31 · <a href="https://shopwindmill.com" style="color:var(--terra);text-decoration:none">shopwindmill.com</a>
     </div>
   </div>`;
 }
@@ -3800,7 +3919,7 @@ function renderAdminPanel() {
         }
         let ul = '<div class="admin-table">';
         data.forEach(u => {
-          const roleColor = {admin:'var(--terra)',vendor:'var(--green-dk)',operator:'var(--amber)',customer:'var(--text3)'};
+          const roleColor = {admin:'var(--terra)',vendor:'var(--green-dk)',operator:'var(--amber)',customer:'var(--text3)','friends-family':'#9B59B6'};
           const joined = new Date(u.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
           ul += `<div class="admin-row">
             <div class="admin-row-info">
@@ -3810,6 +3929,7 @@ function renderAdminPanel() {
             <div class="admin-row-actions">
               <select onchange="adminChangeUserRole('${u.id}',this.value)" style="font-size:11px;padding:4px 6px;border:0.5px solid var(--border-med);border-radius:var(--r-sm);background:var(--surface2);font-family:var(--font-sans)">
                 <option value="customer" ${u.role==='customer'?'selected':''}>Customer</option>
+                <option value="friends-family" ${u.role==='friends-family'?'selected':''}>👨‍👩‍👧 Friends & Family</option>
                 <option value="vendor" ${u.role==='vendor'?'selected':''}>Vendor</option>
                 <option value="operator" ${u.role==='operator'?'selected':''}>Operator</option>
                 <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
