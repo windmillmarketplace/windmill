@@ -581,7 +581,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
           <span class="notif-dot"></span>
         </button>
-        <button onclick="openModal('signinModal')" style="padding:7px 16px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)" id="desktopSigninBtn">Sign in</button>
+        <button onclick="openSignIn()" style="padding:7px 16px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)" id="desktopSigninBtn">Sign in</button>
       </div>
     </div>
 
@@ -728,23 +728,12 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
   </div>
 </div>
 
-<!-- SIGN IN MODAL -->
+<!-- AUTH MODAL (sign in / sign up / magic link) -->
 <div class="modal-overlay hidden" id="signinModal" onclick="closeModalOnOverlay(event,'signinModal')">
-  <div class="modal">
+  <div class="modal" style="max-height:92vh;overflow-y:auto">
     <div class="modal-handle"></div>
     <button class="modal-close" onclick="closeModal('signinModal')">×</button>
-    <div class="modal-title">Welcome to Windmill</div>
-    <div class="modal-sub">Sign in to follow vendors, save favorites, and get market updates.</div>
-    <div class="social-login">
-      <button class="social-btn">🍎 Apple</button>
-      <button class="social-btn">G Google</button>
-    </div>
-    <div class="divider-text">or email</div>
-    <div class="form-field"><label class="form-label">Email address</label><input class="form-input" type="email" placeholder="you@example.com"></div>
-    <div class="form-field"><label class="form-label">Password</label><input class="form-input" type="password" placeholder="••••••••"></div>
-    <button class="btn-primary" onclick="closeModal('signinModal')">Sign in</button>
-    <button class="btn-secondary" onclick="closeModal('signinModal')">Create free account</button>
-    <div style="text-align:center;margin-top:12px;font-size:11px;color:var(--text3)">Vendor? <span style="color:var(--terra);cursor:pointer" onclick="closeModal('signinModal');openModal('claimModal')">Claim your listing →</span></div>
+    <div id="authModalContent"></div>
   </div>
 </div>
 
@@ -775,7 +764,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
     <div class="form-field"><label class="form-label">Markets in your area (one per line)</label><textarea class="form-textarea" placeholder="e.g. Nashville Farmers Market&#10;12South Farmers Market"></textarea></div>
     <div class="form-field"><label class="form-label">Your name</label><input class="form-input" type="text" placeholder="Your name"></div>
     <div class="form-field"><label class="form-label">Your email</label><input class="form-input" type="email" placeholder="you@example.com"></div>
-    <button class="btn-primary" onclick="closeModal('areaModal')">Submit request</button>
+    <button class="btn-primary" onclick="submitAreaRequest()">Submit request</button>
   </div>
 </div>
 
@@ -802,7 +791,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 
 <script>
 /* ============================================================
-   WINDMILL v1.25 — Complete Application Script
+   WINDMILL v1.26 — Complete Application Script
    18 Lee County markets · 60+ vendors · 4 role views
    Vendor profile template · Market detail template
    Admin build/publish tools · Expansion request flow
@@ -1191,6 +1180,9 @@ let ST = {
   adminTab:'vendors',
   devMode:false,
   region:'lee-county',
+  user:null, // {id, email, name, role, emailOptIn} — set on sign in
+  authMode:'signin', // 'signin' | 'signup' | 'magic'
+  follows:[], // [{vendor_id} or {market_id}]
   dateFilter:null, dateFilterLabel:'Any day',
   forcedView:null,
   mapInstance:null, mapMarkers:{}, mapSelectedId:null,
@@ -2183,13 +2175,13 @@ function renderHome() {
           <div class="vendor-at"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${places.join(' · ')}${v.markets.length>2?' +'+(v.markets.length-2):''}</div>
           <div class="vendor-category">${v.category}</div>
         </div>
-        <button class="follow-btn" onclick="event.stopPropagation();toggleFollow(this)">${t('follow')}</button>
+        <button class="follow-btn" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor','${v.id}')?t('following'):t('follow')}</button>
       </div>`;
     });
   }
 
   // ── LOGIN NUDGE + AD 4 + COMING SOON + AD 5 ──
-  h += `<div class="login-nudge"><div class="nudge-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C4622D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div><div class="nudge-text"><div class="nudge-title">${t('nudge_title')}</div><div class="nudge-sub">${t('nudge_sub')}</div></div><button class="nudge-btn" onclick="openModal('signinModal')">${t('signin')}</button></div>
+  h += `<div class="login-nudge"><div class="nudge-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C4622D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div><div class="nudge-text"><div class="nudge-title">${t('nudge_title')}</div><div class="nudge-sub">${t('nudge_sub')}</div></div><button class="nudge-btn" onclick="openSignIn()">${t('signin')}</button></div>
   ${adUnit()}
   <div class="coming-soon">
     <div class="cs-header"><div class="cs-icon">🚚</div><div class="cs-title">${t('coming')} — ${t('coming_title')}</div></div>
@@ -2246,7 +2238,7 @@ function renderVendorsList() {
           <div class="vendor-category">${v.category}</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:5px;align-self:flex-start;flex-shrink:0">
-          <button class="follow-btn" onclick="event.stopPropagation();toggleFollow(this)">${t('follow')}</button>
+          <button class="follow-btn" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor','${v.id}')?t('following'):t('follow')}</button>
           <button onclick="event.stopPropagation();seeVendorOnMap('${v.id}')" style="font-size:10px;padding:4px 8px;border:0.5px solid var(--green-mid);border-radius:var(--r-pill);color:var(--green-dk);background:var(--green-lt);cursor:pointer;white-space:nowrap;font-family:var(--font-sans)">📍 Map</button>
         </div>
       </div>`;
@@ -3225,7 +3217,7 @@ function renderVendorProfile(id) {
 
     <div class="profile-section" style="margin-bottom:16px">
       <div class="profile-section-title">${t('reviews')}</div>
-      <div style="text-align:center;padding:20px"><div style="font-size:32px;margin-bottom:8px">⭐</div><div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:4px">${t('no_reviews')}</div><button style="margin-top:8px;padding:6px 16px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer" onclick="openModal('signinModal')">${t('write_review')}</button></div>
+      <div style="text-align:center;padding:20px"><div style="font-size:32px;margin-bottom:8px">⭐</div><div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:4px">${t('no_reviews')}</div><button style="margin-top:8px;padding:6px 16px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer" onclick="openSignIn()">${t('write_review')}</button></div>
     </div>
   </div>`;
   document.getElementById('scrollBody').innerHTML = h;
@@ -3377,7 +3369,7 @@ function renderAreaRequest() {
 
 /* ── FOLLOWING ── */
 function renderFollowing() {
-  document.getElementById('scrollBody').innerHTML = `<div style="padding:16px">${adUnit()}<div class="login-nudge"><div class="nudge-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C4622D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div><div class="nudge-text"><div class="nudge-title">${t('nudge_title')}</div><div class="nudge-sub">${t('nudge_sub')}</div></div><button class="nudge-btn" onclick="openModal('signinModal')">${t('signin')}</button></div></div>`;
+  document.getElementById('scrollBody').innerHTML = `<div style="padding:16px">${adUnit()}<div class="login-nudge"><div class="nudge-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C4622D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div><div class="nudge-text"><div class="nudge-title">${t('nudge_title')}</div><div class="nudge-sub">${t('nudge_sub')}</div></div><button class="nudge-btn" onclick="openSignIn()">${t('signin')}</button></div></div>`;
 }
 
 function renderMe() {
@@ -3391,8 +3383,8 @@ function renderMe() {
       </div>
       <div style="font-family:var(--font-serif);font-size:20px;font-weight:600;color:var(--text);margin-bottom:6px">${t('my_account')}</div>
       <div style="font-size:13px;color:var(--text2);margin-bottom:20px">${t('signin_sub')}</div>
-      <button onclick="openModal('signinModal')" style="width:100%;max-width:280px;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;font-weight:500;cursor:pointer;font-family:var(--font-sans);margin-bottom:10px">${t('signin')}</button>
-      <button onclick="openModal('signinModal')" style="width:100%;max-width:280px;padding:12px;background:transparent;color:var(--text);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:14px;font-weight:500;cursor:pointer;font-family:var(--font-sans)">${t('create_account')}</button>
+      <button onclick="openSignIn()" style="width:100%;max-width:280px;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;font-weight:500;cursor:pointer;font-family:var(--font-sans);margin-bottom:10px">${t('signin')}</button>
+      <button onclick="openSignIn()" style="width:100%;max-width:280px;padding:12px;background:transparent;color:var(--text);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:14px;font-weight:500;cursor:pointer;font-family:var(--font-sans)">${t('create_account')}</button>
     </div>
     <div style="border-top:0.5px solid var(--border);padding-top:20px">
       <div style="font-size:12px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">${t('app_settings')}</div>
@@ -3420,7 +3412,7 @@ function renderMe() {
       </div>
     </div>
     <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text3)">
-      Windmill v1.25 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
+      Windmill v1.26 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
     </div>
   </div>`;
 }
@@ -3745,6 +3737,345 @@ function renderAdminPanel() {
   h += `</div>`;
   document.getElementById('scrollBody').innerHTML = h;
 }
+/* ── AUTH SYSTEM ── */
+
+// Render the auth modal content based on ST.authMode
+function renderAuthModal(mode, prefillRole) {
+  ST.authMode = mode || ST.authMode || 'signin';
+  if(prefillRole) ST._pendingRole = prefillRole;
+  const role = ST._pendingRole || 'customer';
+  const roleLabel = {customer:'Shopper', vendor:'Vendor', operator:'Market Operator', admin:'Admin'};
+
+  const el = document.getElementById('authModalContent');
+  if(!el) return;
+
+  if(ST.authMode === 'magic') {
+    el.innerHTML = `
+      <div class="modal-title">Magic link sign in</div>
+      <div class="modal-sub">We'll email you a link — no password needed.</div>
+      <div class="form-field"><label class="form-label">Email address</label>
+        <input class="form-input" type="email" id="authEmail" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div id="authError" style="color:var(--terra);font-size:12px;margin-bottom:8px;display:none"></div>
+      <button class="btn-primary" id="authSubmitBtn" onclick="authSendMagicLink()">Send magic link</button>
+      <div style="text-align:center;margin-top:14px">
+        <span style="font-size:12px;color:var(--text3);cursor:pointer" onclick="renderAuthModal('signin')">← Back to sign in</span>
+      </div>`;
+    return;
+  }
+
+  if(ST.authMode === 'signup') {
+    el.innerHTML = `
+      <div class="modal-title">Create your free account</div>
+      <div class="modal-sub">Join Windmill to follow markets, save vendors and get updates near you.</div>
+      <button class="social-btn" onclick="authGoogleSignIn()" style="width:100%;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border:0.5px solid var(--border-med);border-radius:var(--r-md);background:var(--surface);font-size:13px;cursor:pointer">
+        <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Continue with Google
+      </button>
+      <div class="divider-text">or create with email</div>
+      <div class="form-field"><label class="form-label">Full name</label>
+        <input class="form-input" type="text" id="authName" placeholder="Your name" autocomplete="name">
+      </div>
+      <div class="form-field"><label class="form-label">Email address</label>
+        <input class="form-input" type="email" id="authEmail" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="form-field"><label class="form-label">Password</label>
+        <input class="form-input" type="password" id="authPassword" placeholder="At least 8 characters" autocomplete="new-password">
+      </div>
+      <div class="form-field"><label class="form-label">I am a...</label>
+        <select class="form-input" id="authRole">
+          <option value="customer" ${role==='customer'?'selected':''}>🛍 Shopper</option>
+          <option value="vendor" ${role==='vendor'?'selected':''}>🏪 Vendor</option>
+          <option value="operator" ${role==='operator'?'selected':''}>🏛 Market Operator</option>
+        </select>
+      </div>
+      <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--text2);margin-bottom:16px;cursor:pointer">
+        <input type="checkbox" id="authOptIn" checked style="margin-top:2px;flex-shrink:0">
+        <span>Keep me updated on new markets, vendors and events near me</span>
+      </label>
+      <div id="authError" style="color:var(--terra);font-size:12px;margin-bottom:8px;display:none"></div>
+      <button class="btn-primary" id="authSubmitBtn" onclick="authSignUp()">Create free account</button>
+      <div style="text-align:center;margin-top:14px;font-size:12px;color:var(--text3)">
+        Already have an account? <span style="color:var(--terra);cursor:pointer" onclick="renderAuthModal('signin')">Sign in</span>
+      </div>`;
+    return;
+  }
+
+  // Default: sign in
+  el.innerHTML = `
+    <div class="modal-title">Welcome to Windmill</div>
+    <div class="modal-sub">Sign in to follow vendors, save favorites and get market updates.</div>
+    <button class="social-btn" onclick="authGoogleSignIn()" style="width:100%;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border:0.5px solid var(--border-med);border-radius:var(--r-md);background:var(--surface);font-size:13px;cursor:pointer">
+      <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Continue with Google
+    </button>
+    <div style="text-align:center;margin-bottom:10px">
+      <span style="font-size:12px;color:var(--terra);cursor:pointer" onclick="renderAuthModal('magic')">✉ Send me a magic link instead</span>
+    </div>
+    <div class="divider-text">or sign in with email</div>
+    <div class="form-field"><label class="form-label">Email address</label>
+      <input class="form-input" type="email" id="authEmail" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <div class="form-field" style="margin-bottom:6px"><label class="form-label">Password</label>
+      <input class="form-input" type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <div style="text-align:right;margin-bottom:14px">
+      <span style="font-size:11px;color:var(--terra);cursor:pointer" onclick="renderAuthModal('magic')">Forgot password?</span>
+    </div>
+    <div id="authError" style="color:var(--terra);font-size:12px;margin-bottom:8px;display:none"></div>
+    <button class="btn-primary" id="authSubmitBtn" onclick="authSignIn()">Sign in</button>
+    <div style="text-align:center;margin-top:12px;font-size:12px;color:var(--text3)">
+      New to Windmill? <span style="color:var(--terra);cursor:pointer" onclick="renderAuthModal('signup')">Create free account</span>
+    </div>
+    <div style="text-align:center;margin-top:10px;font-size:11px;color:var(--text3)">
+      Vendor? <span style="color:var(--terra);cursor:pointer" onclick="closeModal('signinModal');openModal('claimModal')">Claim your listing →</span>
+    </div>`;
+}
+
+function openSignIn(mode, prefillRole) {
+  ST.authMode = mode || 'signin';
+  renderAuthModal(ST.authMode, prefillRole);
+  openSignIn();
+}
+
+function authShowError(msg) {
+  const el = document.getElementById('authError');
+  if(el) { el.textContent = msg; el.style.display = 'block'; }
+}
+
+function authSetLoading(loading) {
+  const btn = document.getElementById('authSubmitBtn');
+  if(btn) { btn.disabled = loading; btn.textContent = loading ? 'Please wait...' : btn.dataset.label || btn.textContent; }
+}
+
+async function authSignIn() {
+  if(!supabaseClient) { authShowError('Connection unavailable. Please try again.'); return; }
+  const email = document.getElementById('authEmail')?.value?.trim();
+  const password = document.getElementById('authPassword')?.value;
+  if(!email || !password) { authShowError('Please enter your email and password.'); return; }
+
+  authSetLoading(true);
+  try {
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if(error) throw error;
+    await onAuthSuccess(data.user);
+  } catch(err) {
+    authShowError(err.message || 'Sign in failed. Please check your credentials.');
+    authSetLoading(false);
+  }
+}
+
+async function authSignUp() {
+  if(!supabaseClient) { authShowError('Connection unavailable. Please try again.'); return; }
+  const name = document.getElementById('authName')?.value?.trim();
+  const email = document.getElementById('authEmail')?.value?.trim();
+  const password = document.getElementById('authPassword')?.value;
+  const role = document.getElementById('authRole')?.value || 'customer';
+  const optIn = document.getElementById('authOptIn')?.checked !== false;
+
+  if(!name) { authShowError('Please enter your name.'); return; }
+  if(!email) { authShowError('Please enter your email address.'); return; }
+  if(!password || password.length < 8) { authShowError('Password must be at least 8 characters.'); return; }
+
+  authSetLoading(true);
+  try {
+    const { data, error } = await supabaseClient.auth.signUp({
+      email, password,
+      options: { data: { name, role, email_opt_in: optIn } }
+    });
+    if(error) throw error;
+
+    // Save user profile to users table
+    if(data.user) {
+      await supabaseClient.from('users').upsert({
+        id: data.user.id, email, name, role, email_opt_in: optIn
+      });
+    }
+
+    // Show confirmation
+    const el = document.getElementById('authModalContent');
+    if(el) el.innerHTML = `
+      <div style="text-align:center;padding:20px 0">
+        <div style="font-size:40px;margin-bottom:12px">🎉</div>
+        <div class="modal-title">Welcome to Windmill!</div>
+        <div class="modal-sub">Check your email to confirm your account, then sign in.</div>
+        <button class="btn-primary" style="margin-top:16px" onclick="renderAuthModal('signin');ST.authMode='signin'">Go to sign in</button>
+      </div>`;
+  } catch(err) {
+    authShowError(err.message || 'Sign up failed. Please try again.');
+    authSetLoading(false);
+  }
+}
+
+async function authSendMagicLink() {
+  if(!supabaseClient) { authShowError('Connection unavailable.'); return; }
+  const email = document.getElementById('authEmail')?.value?.trim();
+  if(!email) { authShowError('Please enter your email address.'); return; }
+
+  authSetLoading(true);
+  try {
+    const { error } = await supabaseClient.auth.signInWithOtp({ email });
+    if(error) throw error;
+    const el = document.getElementById('authModalContent');
+    if(el) el.innerHTML = `
+      <div style="text-align:center;padding:20px 0">
+        <div style="font-size:40px;margin-bottom:12px">✉️</div>
+        <div class="modal-title">Check your email</div>
+        <div class="modal-sub">We sent a magic link to <strong>${email}</strong>. Click it to sign in instantly.</div>
+        <button class="btn-secondary" style="margin-top:16px" onclick="renderAuthModal('signin')">← Back</button>
+      </div>`;
+  } catch(err) {
+    authShowError(err.message || 'Failed to send link.');
+    authSetLoading(false);
+  }
+}
+
+async function authGoogleSignIn() {
+  if(!supabaseClient) { authShowError('Connection unavailable.'); return; }
+  try {
+    const { error } = await supabaseClient.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin }
+    });
+    if(error) throw error;
+  } catch(err) {
+    authShowError('Google sign in failed: ' + err.message);
+  }
+}
+
+async function authSignOut() {
+  if(supabaseClient) await supabaseClient.auth.signOut();
+  ST.user = null;
+  ST.follows = [];
+  if(ST.devMode) {
+    ST.role = 'customer';
+  }
+  renderBottom();
+  renderFilterStrip();
+  navigate('home');
+}
+
+async function onAuthSuccess(user) {
+  if(!user) return;
+  // Load user profile from database
+  const { data: profile } = await supabaseClient.from('users').select('*').eq('id', user.id).single();
+
+  const name = profile?.name || user.user_metadata?.name || user.email.split('@')[0];
+  const role = profile?.role || user.user_metadata?.role || 'customer';
+
+  ST.user = { id: user.id, email: user.email, name, role };
+
+  // Set role (unless in dev mode where role bar controls it)
+  if(!ST.devMode) ST.role = role;
+
+  // Load follows
+  await loadUserFollows();
+
+  closeModal('signinModal');
+  renderBottom();
+  renderFilterStrip();
+  renderMe();
+
+  // Show welcome toast
+  const toast = document.createElement('div');
+  toast.textContent = `Welcome back, ${name.split(' ')[0]}! 👋`;
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+async function loadUserFollows() {
+  if(!supabaseClient || !ST.user) return;
+  const { data } = await supabaseClient.from('follows').select('*').eq('user_id', ST.user.id);
+  ST.follows = data || [];
+}
+
+function isFollowing(type, id) {
+  if(!ST.user) return false;
+  if(type === 'vendor') return ST.follows.some(f => f.vendor_id === id);
+  if(type === 'market') return ST.follows.some(f => f.market_id === id);
+  return false;
+}
+
+async function toggleFollowDB(type, id) {
+  if(!ST.user) { openSignIn('signup'); return; }
+  if(!supabaseClient) return;
+  const existing = type === 'vendor'
+    ? ST.follows.find(f => f.vendor_id === id)
+    : ST.follows.find(f => f.market_id === id);
+
+  if(existing) {
+    // Unfollow
+    ST.follows = ST.follows.filter(f => f !== existing);
+    await supabaseClient.from('follows').delete()
+      .eq('user_id', ST.user.id)
+      .eq(type === 'vendor' ? 'vendor_id' : 'market_id', id);
+  } else {
+    // Follow
+    const row = { user_id: ST.user.id };
+    if(type === 'vendor') row.vendor_id = id;
+    else row.market_id = id;
+    ST.follows.push(row);
+    await supabaseClient.from('follows').insert(row);
+  }
+}
+
+// Check for existing session on load
+async function checkExistingSession() {
+  if(!supabaseClient) return;
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if(session?.user) await onAuthSuccess(session.user);
+  } catch(err) {
+    console.warn('Session check failed:', err);
+  }
+
+  // Listen for auth state changes (magic link, OAuth callback)
+  supabaseClient.auth.onAuthStateChange(async (event, session) => {
+    if(event === 'SIGNED_IN' && session?.user) await onAuthSuccess(session.user);
+    if(event === 'SIGNED_OUT') { ST.user = null; ST.follows = []; renderBottom(); }
+  });
+}
+
+/* ── AUTH-GATED ACTIONS ── */
+function handleFollow(e, type, id, btn) {
+  if(e) e.stopPropagation();
+  if(!ST.user) { openSignIn('signup'); return; }
+  toggleFollowDB(type, id).then(() => {
+    if(btn) {
+      const following = isFollowing(type, id);
+      btn.textContent = following ? 'Following' : 'Follow';
+      btn.style.background = following ? 'var(--green)' : '';
+      btn.style.color = following ? '#fff' : '';
+    }
+  });
+}
+
+function submitAreaRequest() {
+  if(!ST.user) {
+    closeModal('areaModal');
+    openSignIn('signup');
+    return;
+  }
+  const city = document.getElementById('requestCity')?.value?.trim();
+  if(!city) { alert('Please enter your city.'); return; }
+  // Save to Supabase
+  if(supabaseClient) {
+    supabaseClient.from('area_requests').insert({
+      city,
+      user_id: ST.user.id,
+      email: ST.user.email,
+      name: ST.user.name
+    }).then(() => {
+      closeModal('areaModal');
+      alert("Thanks! We'll notify you when Windmill comes to " + city + ".");
+    });
+  } else {
+    closeModal('areaModal');
+    alert("Thanks for your interest! We'll be in touch.");
+  }
+}
+
 /* ── SUPABASE WRITE HELPERS ── */
 async function dbSaveVendor(vendor) {
   if(!supabaseClient) return;
@@ -4717,7 +5048,7 @@ function renderDemoVendorPro() {
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div style="font-size:12px;font-weight:500;color:var(--text)">${r.name}</div><div style="color:var(--amber);font-size:11px">${'★'.repeat(r.stars)}</div><div style="font-size:10px;color:var(--text3);margin-left:auto">${r.date}</div></div>
         <div style="font-size:12px;color:var(--text2);line-height:1.5">${r.text}</div>
       </div>`).join('')}
-      <button style="margin-top:12px;padding:7px 16px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer" onclick="openModal('signinModal')">Write a review</button>
+      <button style="margin-top:12px;padding:7px 16px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer" onclick="openSignIn()">Write a review</button>
     </div>
   </div>`;
 }
@@ -5079,6 +5410,7 @@ async function initApp() {
   if(sb) sb.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:200px;gap:12px"><div style="width:20px;height:20px;border:2px solid var(--green);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></div><span style="font-size:13px;color:var(--text2)">Loading...</span></div>';
 
   await loadFromSupabase();
+  await checkExistingSession();
 
   renderSidebar();
   renderFilterStrip();
