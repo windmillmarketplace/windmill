@@ -791,7 +791,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 
 <script>
 /* ============================================================
-   WINDMILL v1.27 — Complete Application Script
+   WINDMILL v1.28 — Complete Application Script
    18 Lee County markets · 60+ vendors · 4 role views
    Vendor profile template · Market detail template
    Admin build/publish tools · Expansion request flow
@@ -3374,6 +3374,40 @@ function renderFollowing() {
 
 function renderMe() {
   hideFilterUI();
+  if(ST.role !== 'customer') { renderCurrentPage(); return; }
+
+  // Signed in view
+  if(ST.user) {
+    const initials = ST.user.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    const langName = ST.lang==='en'?'English':ST.lang==='es'?'Español':'Português';
+    document.getElementById('scrollBody').innerHTML = `<div style="padding:16px 16px 40px">
+      <div style="text-align:center;margin-bottom:24px;padding-top:16px">
+        <div style="width:68px;height:68px;background:var(--green);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:600;color:#fff;margin:0 auto 12px">${initials}</div>
+        <div style="font-size:18px;font-weight:600;color:var(--text)">${ST.user.name}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px">${ST.user.email}</div>
+        <div style="font-size:11px;color:var(--green-dk);margin-top:4px;text-transform:capitalize;font-weight:500">${ST.user.role}</div>
+      </div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 14px;border-bottom:0.5px solid var(--border)">
+          <span style="font-size:13px;color:var(--text)">Location</span>
+          <span style="font-size:13px;color:var(--terra);cursor:pointer" onclick="openLocationModal()">${ST.location}</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 14px;border-bottom:0.5px solid var(--border)">
+          <div><div style="font-size:13px;font-weight:500;color:var(--text)">${t('language')}</div><div style="font-size:11px;color:var(--text2)">${langName}</div></div>
+          <button onclick="cycleLang();renderMe()" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text);font-family:var(--font-sans)">${t('toggle')}</button>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 14px">
+          <div><div style="font-size:13px;font-weight:500;color:var(--text)">${t('view_label')}</div></div>
+          <button onclick="toggleForcedView();renderMe()" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text);font-family:var(--font-sans)">${t('toggle')}</button>
+        </div>
+      </div>
+      <button onclick="authSignOut()" style="width:100%;padding:12px;background:transparent;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;color:var(--text2);font-family:var(--font-sans);margin-bottom:20px">Sign out</button>
+      <div style="text-align:center;font-size:10px;color:var(--text3)">Windmill v1.28 · shopwindmill.com</div>
+    </div>`;
+    return;
+  }
+
+  // Signed out view
   const langName = ST.lang==='en'?'English':ST.lang==='es'?'Español':'Português';
   const viewLabel = ST.forcedView ? (t('view_label')+': '+ST.forcedView) : t('auto_detect');
   document.getElementById('scrollBody').innerHTML = `<div style="padding:16px 16px 24px">
@@ -3412,7 +3446,7 @@ function renderMe() {
       </div>
     </div>
     <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text3)">
-      Windmill v1.27 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
+      Windmill v1.28 · <span style="color:var(--terra);cursor:pointer" onclick="alert('shopwindmill.com — coming soon')">shopwindmill.com</span>
     </div>
   </div>`;
 }
