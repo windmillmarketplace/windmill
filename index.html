@@ -71,7 +71,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .desktop-actions{margin-left:auto;display:flex;align-items:center;gap:12px}
 
 /* MOBILE TOPBAR */
-.topbar{background:#EEF2EB;border-bottom:0.5px solid #C8D8BE;position:sticky;top:0;z-index:100;transition:all .25s ease}
+.topbar{background:#EEF2EB;border-bottom:0.5px solid #C8D8BE;position:sticky;top:0;z-index:200;transition:all .25s ease}
 /* Row 1: logo + location + bell */
 .topbar-row1{display:flex;align-items:center;padding:10px 16px 0;gap:0}
 .brand{display:flex;align-items:center;gap:7px;cursor:pointer;text-decoration:none;flex-shrink:0}
@@ -104,6 +104,10 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .search-bar{display:flex;align-items:center;gap:9px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);padding:9px 14px}
 .search-bar input{border:none;background:transparent;outline:none;width:100%;font-size:13px;color:var(--text);font-family:var(--font-sans)}
 .search-bar input::placeholder{color:var(--text3)}
+/* Search clear button */
+.search-clear{background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px;padding:0 2px;line-height:1;flex-shrink:0;display:none}
+.search-clear.visible{display:block}
+.search-input-wrap{position:relative;flex:1;display:flex;align-items:center}
 /* Global search dropdown */
 .global-search-wrap{position:relative;flex:1}
 .global-search-dropdown{position:absolute;top:calc(100% + 6px);left:-40px;right:-20px;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-md);box-shadow:0 8px 24px rgba(44,32,22,.15);z-index:600;overflow:hidden;max-height:400px;overflow-y:auto}
@@ -616,9 +620,16 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
         <div class="topbar-search-wrap" id="topbarSearchWrap">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;color:var(--text3)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <div class="global-search-wrap">
-            <input placeholder="Search markets, vendors..." oninput="globalSearch(this.value)" onkeydown="globalSearchKeydown(event)" id="mobileSearch" autocomplete="off" onfocus="expandSearchBar()" onblur="collapseSearchBar(this)">
+            <input placeholder="Search markets, vendors..." 
+              oninput="globalSearch(this.value);toggleSearchClear('mobileSearchClear',this.value)" 
+              onkeydown="globalSearchKeydown(event)" 
+              id="mobileSearch" autocomplete="off" 
+              onfocus="expandSearchBar()" 
+              onblur="collapseSearchBar(this)"
+              style="-webkit-appearance:none">
             <div id="mobileSearchDropdown" class="global-search-dropdown" style="display:none"></div>
           </div>
+          <button id="mobileSearchClear" class="search-clear" onclick="clearSearchInput('mobileSearch','mobileSearchDropdown','mobileSearchClear')" style="display:none">×</button>
         </div>
         <div id="topbarFilterPills" style="display:flex;gap:6px;flex-shrink:0"></div>
       </div>
@@ -677,6 +688,15 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
       <button onclick="closeAdminModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3);padding:4px">×</button>
     </div>
     <div id="adminModalBody"></div>
+  </div>
+</div>
+
+<!-- MESSAGE MODAL -->
+<div class="modal-overlay hidden" id="messageModal" onclick="closeModalOnOverlay(event,'messageModal')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('messageModal')">×</button>
+    <div id="messageModalContent"></div>
   </div>
 </div>
 
@@ -793,7 +813,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 
 <script>
 /* ============================================================
-   WINDMILL v1.33 — Complete Application Script
+   WINDMILL v1.34 — Complete Application Script
    18 Lee County markets · 60+ vendors · 4 role views
    Vendor profile template · Market detail template
    Admin build/publish tools · Expansion request flow
@@ -3206,7 +3226,10 @@ function renderVendorProfile(id) {
           <div class="profile-name">${v.name}</div>
           <div class="profile-category">${v.category}</div>
           <div class="profile-actions">
-            <button class="btn-follow" onclick="handleFollow(event,'vendor','${v.id}',this)" style="${isFollowing('vendor','${v.id}')?'background:var(--green);color:#fff;border-color:var(--green)':''}">${isFollowing('vendor','${v.id}')?t('following'):t('follow')}</button>
+            <div style="display:flex;gap:6px;flex-shrink:0;margin-top:2px">
+          <button class="btn-follow" onclick="handleFollow(event,'vendor','${v.id}',this)" style="${isFollowing('vendor','${v.id}')?'background:var(--green);color:#fff;border-color:var(--green)':''}">${isFollowing('vendor','${v.id}')?t('following'):t('follow')}</button>
+          <button onclick="openMessageModal('vendor','${v.id}','${v.name}')" style="padding:7px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);font-family:var(--font-sans);white-space:nowrap">💬</button>
+        </div>
           </div>
         </div>
       </div>
@@ -3307,7 +3330,10 @@ function renderMarketDetail(id) {
             <div class="market-name-lg" style="margin-bottom:2px">${m.name}</div>
             <div class="market-subtitle">${m.venue} · ${m.city}, ${m.state}</div>
           </div>
-          <button class="btn-follow" onclick="handleFollow(event,'market','${m.id}',this)" style="flex-shrink:0;margin-top:2px;${isFollowing('market','${m.id}')?'background:var(--green);color:#fff;border-color:var(--green)':''}">${isFollowing('market','${m.id}')?t('following'):t('follow')}</button>
+          <div style="display:flex;gap:6px;flex-shrink:0;margin-top:2px">
+          <button class="btn-follow" onclick="handleFollow(event,'market','${m.id}',this)" style="${isFollowing('market','${m.id}')?'background:var(--green);color:#fff;border-color:var(--green)':''}">${isFollowing('market','${m.id}')?t('following'):t('follow')}</button>
+          <button onclick="openMessageModal('market','${m.id}','${m.name}')" style="padding:7px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);font-family:var(--font-sans);white-space:nowrap">💬</button>
+        </div>
         </div>
         <div class="market-badges">
           <span class="badge-pill ${isOpen(m)?'green':'amber'}">${isOpen(m)?t('open_season'):t('seasonal')}</span>
@@ -3431,6 +3457,7 @@ function renderFollowing() {
   const followedMarkets = ST.follows.filter(f=>f.market_id).map(f=>getMarket(f.market_id)).filter(Boolean);
 
   let h = `<div style="padding:16px 16px 40px">
+    ${adUnit()}
     <div style="font-family:var(--font-serif);font-size:20px;font-weight:600;color:var(--text);margin-bottom:4px">Following</div>
     <div style="font-size:12px;color:var(--text2);margin-bottom:20px">${ST.follows.length} saved</div>`;
 
@@ -3510,7 +3537,8 @@ function renderMe() {
           <button onclick="toggleForcedView();renderMe()" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text);font-family:var(--font-sans)">${t('toggle')}</button>
         </div>
       </div>
-      <button onclick="authSignOut()" style="width:100%;padding:12px;background:transparent;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;color:var(--text2);font-family:var(--font-sans);margin-bottom:20px">Sign out</button>
+      <button onclick="openMessageModal('admin','windmill-support','Windmill Support')" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans);margin-bottom:8px">💬 Contact Windmill Support</button>
+      <button onclick="(function(){authSignOut();})()" style="width:100%;padding:12px;background:transparent;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;color:var(--text2);font-family:var(--font-sans);margin-bottom:20px">Sign out</button>
       
     <div style="margin-top:24px;border-top:0.5px solid var(--border);padding-top:20px">
       <div style="font-size:12px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px">About Windmill</div>
@@ -3544,7 +3572,7 @@ function renderMe() {
         <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
       </div>
     </div>
-      <div style="text-align:center;margin-top:20px;font-size:10px;color:var(--text3)">Windmill v1.33 · shopwindmill.com</div>
+      <div style="text-align:center;margin-top:20px;font-size:10px;color:var(--text3)">Windmill v1.34 · shopwindmill.com</div>
     </div>`;
     return;
   }
@@ -3621,15 +3649,22 @@ function renderMe() {
       </div>
     </div>
     <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text3)">
-      Windmill v1.33 · <a href="https://shopwindmill.com" style="color:var(--terra);text-decoration:none">shopwindmill.com</a>
+      Windmill v1.34 · <a href="https://shopwindmill.com" style="color:var(--terra);text-decoration:none">shopwindmill.com</a>
     </div>
   </div>`;
 }
 
 
 /* ── VENDOR DASHBOARD ── */
-function renderVendorDash() {
+async function renderVendorDash() {
   hideFilterUI();
+  // Load follower count from Supabase for demo vendor
+  let followerCount = 0;
+  const demoVendorId = 'the-empanada-queen';
+  if(supabaseClient) {
+    const { count } = await supabaseClient.from('follows').select('*', {count:'exact',head:true}).eq('vendor_id', demoVendorId);
+    followerCount = count || 0;
+  }
   document.getElementById('scrollBody').innerHTML = `<div class="vendor-dash">
     <div class="dash-title">${t('dashboard')}</div>
     <div class="dash-sub">${t('free_tier')} · <span style="color:var(--terra);cursor:pointer">${t('upgrade_pro')} — $9/mo</span></div>
@@ -3637,7 +3672,7 @@ function renderVendorDash() {
     <div class="upgrade-banner"><span style="font-size:20px">⭐</span><div class="upgrade-text">${t('upgrade_banner')} <strong>$9/mo · ${t('first_month_free')}</strong></div><button class="upgrade-btn">${t('start_free_trial')}</button></div>
     <div class="dash-grid">
       <div class="dash-card"><div class="dash-card-num">0</div><div class="dash-card-label">${t('profile_views')}</div></div>
-      <div class="dash-card"><div class="dash-card-num">0</div><div class="dash-card-label">${t('followers')}</div></div>
+      <div class="dash-card"><div class="dash-card-num">${followerCount}</div><div class="dash-card-label">${t('followers')}</div></div>
       <div class="dash-card"><div class="dash-card-num">0</div><div class="dash-card-label">${t('markets_label')}</div></div>
       <div class="dash-card"><div class="dash-card-num">0</div><div class="dash-card-label">${t('my_products')}</div></div>
     </div>
@@ -3656,9 +3691,21 @@ function renderVendorDash() {
 }
 
 /* ── OPERATOR DASHBOARD ── */
-function renderOperatorDash() {
+async function renderOperatorDash() {
   hideFilterUI();
   const myMarkets = DATA.markets.filter(m=>m.operator_id==='local-roots');
+  
+  // Load follower counts per market from Supabase
+  let marketFollowers = {};
+  let totalFollowers = 0;
+  if(supabaseClient && myMarkets.length > 0) {
+    const { data: follows } = await supabaseClient.from('follows').select('market_id').in('market_id', myMarkets.map(m=>m.id));
+    (follows || []).forEach(f => {
+      marketFollowers[f.market_id] = (marketFollowers[f.market_id] || 0) + 1;
+      totalFollowers++;
+    });
+  }
+
   document.getElementById('scrollBody').innerHTML = `<div class="operator-dash">
     <div class="dash-title">Operator Dashboard</div>
     <div class="dash-sub">Managing your markets on Windmill · Free tier</div>
@@ -3666,16 +3713,19 @@ function renderOperatorDash() {
     <div class="upgrade-banner"><span style="font-size:20px">⭐</span><div class="upgrade-text">Upgrade to <strong>Operator Pro</strong> — remove ads, control "Presented By" sponsor slots on your market pages, advanced analytics. <strong>$99/month</strong></div><button class="upgrade-btn">Upgrade</button></div>
     <div class="dash-grid">
       <div class="dash-card"><div class="dash-card-num">${myMarkets.length}</div><div class="dash-card-label">Your markets</div></div>
-      <div class="dash-card"><div class="dash-card-num">${DATA.vendors.length}</div><div class="dash-card-label">Total vendors</div></div>
+      <div class="dash-card"><div class="dash-card-num">${totalFollowers}</div><div class="dash-card-label">Total followers</div></div>
       <div class="dash-card"><div class="dash-card-num">0</div><div class="dash-card-label">Page views</div></div>
-      <div class="dash-card"><div class="dash-card-num">0</div><div class="dash-card-label">Claimed vendors</div></div>
+      <div class="dash-card"><div class="dash-card-num">${DATA.vendors.filter(v=>v.claimed&&myMarkets.some(m=>v.markets.includes(m.id))).length}</div><div class="dash-card-label">Claimed vendors</div></div>
     </div>
     <div class="dash-section">
       <div class="dash-section-title">Your markets</div>
       ${myMarkets.map((m,i)=>`
         <div class="schedule-row" onclick="navigate('market','${m.id}')">
           <div class="schedule-day" style="background:${mbg(i)};color:${micn(i)}">${shortDay(m.day_of_week)}</div>
-          <div style="flex:1"><div class="schedule-market">${m.name}</div><div class="schedule-time">${m.day_of_week}s · ${m.city} · ${vendorCount(m.id)} vendors</div></div>
+          <div style="flex:1">
+            <div class="schedule-market">${m.name}</div>
+            <div class="schedule-time">${m.day_of_week}s · ${m.city} · ${vendorCount(m.id)} vendors · <span style="color:var(--green-dk);font-weight:500">${marketFollowers[m.id]||0} followers</span></div>
+          </div>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </div>`).join('')}
     </div>
@@ -3689,7 +3739,7 @@ function renderAdminPanel() {
   const unreadMsgs = ST.adminMessages.filter(m=>!m.read).length;
   const pendingClaims = ST.adminClaims.filter(c=>c.status==='pending').length;
 
-  const tabs = ['vendors','markets','claims','messages','users','areas','ads'];
+  const tabs = ['vendors','markets','claims','messages','users','follows','areas','ads'];
   const tabLabels = {
     vendors:`Vendors`,
     markets:`Markets`,
@@ -3697,7 +3747,8 @@ function renderAdminPanel() {
     messages:`Messages${unreadMsgs>0?` <span style="background:var(--terra);color:#fff;border-radius:99px;padding:0 5px;font-size:9px;margin-left:3px">${unreadMsgs}</span>`:''}`,
     areas:'Areas',
     ads:'Ads',
-    users:`Users`
+    users:`Users`,
+    follows:`Follows`
   };
 
   let h = `<div class="admin-panel">
@@ -3943,6 +3994,75 @@ function renderAdminPanel() {
     }
   }
 
+  /* ── FOLLOWS TAB ── */
+  if(ST.adminTab==='follows') {
+    h += `<div id="adminFollowsContent"><div style="padding:24px;text-align:center;color:var(--text2);font-size:13px">Loading follow data...</div></div>`;
+    if(supabaseClient) {
+      Promise.all([
+        supabaseClient.from('follows').select('vendor_id, market_id, user_id'),
+        supabaseClient.from('users').select('id, name, email')
+      ]).then(([{data: follows}, {data: users}]) => {
+        const el = document.getElementById('adminFollowsContent');
+        if(!el) return;
+        const followList = follows || [];
+        const userList = users || [];
+        const userMap = {};
+        userList.forEach(u => userMap[u.id] = u);
+
+        // Count follows per vendor
+        const vendorCounts = {};
+        const marketCounts = {};
+        followList.forEach(f => {
+          if(f.vendor_id) vendorCounts[f.vendor_id] = (vendorCounts[f.vendor_id]||0) + 1;
+          if(f.market_id) marketCounts[f.market_id] = (marketCounts[f.market_id]||0) + 1;
+        });
+
+        let html = `<div style="font-size:12px;color:var(--text2);margin-bottom:12px">Total follows: ${followList.length}</div>`;
+
+        // Vendors with follows
+        const vendorFollows = Object.entries(vendorCounts).sort((a,b)=>b[1]-a[1]);
+        if(vendorFollows.length > 0) {
+          html += `<div style="font-size:12px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Vendors</div>
+          <div class="admin-table" style="margin-bottom:16px">`;
+          vendorFollows.forEach(([vid, count]) => {
+            const v = DATA.vendors.find(x=>x.id===vid);
+            const followers = followList.filter(f=>f.vendor_id===vid).map(f=>userMap[f.user_id]).filter(Boolean);
+            html += `<div class="admin-row">
+              <div class="admin-row-info">
+                <div class="admin-row-name">${v?.name||vid}</div>
+                <div class="admin-row-meta">${followers.map(u=>`${u.name||'?'} (${u.email})`).join(' · ')||'No user details'}</div>
+              </div>
+              <span class="status-pill claimed">${count} follower${count!==1?'s':''}</span>
+            </div>`;
+          });
+          html += `</div>`;
+        }
+
+        // Markets with follows
+        const marketFollows = Object.entries(marketCounts).sort((a,b)=>b[1]-a[1]);
+        if(marketFollows.length > 0) {
+          html += `<div style="font-size:12px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Markets</div>
+          <div class="admin-table">`;
+          marketFollows.forEach(([mid, count]) => {
+            const m = DATA.markets.find(x=>x.id===mid);
+            const followers = followList.filter(f=>f.market_id===mid).map(f=>userMap[f.user_id]).filter(Boolean);
+            html += `<div class="admin-row">
+              <div class="admin-row-info">
+                <div class="admin-row-name">${m?.name||mid}</div>
+                <div class="admin-row-meta">${followers.map(u=>`${u.name||'?'} (${u.email})`).join(' · ')||'No user details'}</div>
+              </div>
+              <span class="status-pill claimed">${count} follower${count!==1?'s':''}</span>
+            </div>`;
+          });
+          html += `</div>`;
+        }
+
+        if(followList.length === 0) html = '<div style="padding:24px;text-align:center;color:var(--text2);font-size:13px">No follows yet</div>';
+        el.innerHTML = html;
+      });
+    }
+  }
+
   /* ── AREAS TAB (renamed from Expansion) ── */
   if(ST.adminTab==='areas') {
     h += `<div class="expansion-tool">
@@ -3988,6 +4108,99 @@ function renderAdminPanel() {
   h += `</div>`;
   document.getElementById('scrollBody').innerHTML = h;
 }
+/* ── MESSAGING SYSTEM ── */
+
+function openMessageModal(type, recipientId, recipientName) {
+  // Must be signed in
+  if(!ST.user) { openSignIn('signup'); return; }
+
+  const el = document.getElementById('messageModalContent');
+  if(!el) return;
+
+  const isAdmin = recipientId === 'windmill-support';
+  const isPro = type === 'vendor'
+    ? DATA.vendors.find(v=>v.id===recipientId)?.pro
+    : DATA.markets.find(m=>m.id===recipientId)?.pro;
+
+  if(!isAdmin && !isPro) {
+    el.innerHTML = `
+      <div style="text-align:center;padding:20px 0">
+        <div style="font-size:36px;margin-bottom:12px">🔒</div>
+        <div class="modal-title">Pro feature</div>
+        <div class="modal-sub">${recipientName} hasn't upgraded to Pro yet. Pro vendors can receive messages from shoppers.</div>
+        <button onclick="closeModal('messageModal')" style="margin-top:16px;padding:8px 20px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:13px;cursor:pointer;font-family:var(--font-sans)">Got it</button>
+      </div>`;
+    openModal('messageModal');
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="modal-title">Message ${isAdmin ? 'Windmill Support' : recipientName}</div>
+    <div class="modal-sub">${isAdmin ? 'We typically respond within 24 hours.' : 'Your message will be forwarded to ' + recipientName + '.'}</div>
+    <div class="form-field">
+      <label class="form-label">Subject</label>
+      <input class="form-input" id="msgSubject" placeholder="What's your message about?">
+    </div>
+    <div class="form-field">
+      <label class="form-label">Message</label>
+      <textarea class="form-textarea" id="msgBody" placeholder="Write your message here..." style="min-height:120px"></textarea>
+    </div>
+    <div id="msgError" style="color:var(--terra);font-size:12px;margin-bottom:8px;display:none"></div>
+    <button onclick="sendMessage('${type}','${recipientId}','${recipientName}')" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Send message</button>`;
+
+  openModal('messageModal');
+}
+
+async function sendMessage(type, recipientId, recipientName) {
+  const subject = document.getElementById('msgSubject')?.value?.trim();
+  const body = document.getElementById('msgBody')?.value?.trim();
+  const errEl = document.getElementById('msgError');
+
+  if(!subject) { if(errEl){errEl.textContent='Please add a subject.';errEl.style.display='block';} return; }
+  if(!body) { if(errEl){errEl.textContent='Please write a message.';errEl.style.display='block';} return; }
+
+  const msg = {
+    id: 'msg_'+Date.now(),
+    from: ST.user.name,
+    from_email: ST.user.email,
+    role: 'Customer',
+    subject,
+    body,
+    recipient_type: type,
+    recipient_id: recipientId,
+    recipient_name: recipientName,
+    date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}),
+    read: false,
+    resolved: false,
+    replies: []
+  };
+
+  // Save to Supabase messages table
+  if(supabaseClient) {
+    await supabaseClient.from('messages').insert({
+      from_name: msg.from,
+      from_email: msg.from_email,
+      role: msg.role,
+      subject: msg.subject,
+      body: `[To: ${recipientName}]
+
+${msg.body}`
+    });
+  }
+
+  // Also add to local admin messages
+  ST.adminMessages.unshift(msg);
+
+  closeModal('messageModal');
+  
+  // Toast confirmation
+  const toast = document.createElement('div');
+  toast.textContent = 'Message sent! ✓';
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2500);
+}
+
 /* ── AUTH SYSTEM ── */
 
 // Render the auth modal content based on ST.authMode
@@ -5557,6 +5770,21 @@ function submitAreaReq() {
 })();
 
 /* ── SEARCH BAR EXPAND/COLLAPSE ── */
+/* ── SEARCH CLEAR HELPERS ── */
+function toggleSearchClear(clearBtnId, value) {
+  const btn = document.getElementById(clearBtnId);
+  if(btn) btn.style.display = value && value.length > 0 ? 'block' : 'none';
+}
+
+function clearSearchInput(inputId, dropdownId, clearBtnId) {
+  const inp = document.getElementById(inputId);
+  const drop = document.getElementById(dropdownId);
+  const btn = document.getElementById(clearBtnId);
+  if(inp) { inp.value = ''; inp.focus(); globalSearch(''); }
+  if(drop) drop.style.display = 'none';
+  if(btn) btn.style.display = 'none';
+}
+
 function expandSearchBar() {
   const wrap = document.getElementById('topbarSearchWrap');
   const pills = document.getElementById('topbarFilterPills');
