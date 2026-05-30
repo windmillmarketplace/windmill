@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
+<meta name="description" content="Discover local farmers markets and vendors near you. Find fresh produce, artisan goods, and more at markets in your area.">
+<link rel="canonical" href="https://shopwindmill.com/" id="canonicalTag">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
@@ -1525,6 +1527,8 @@ const getVendor = id => DATA.vendors.find(v=>v.id===id);
 const getOperator = id => DATA.operators.find(o=>o.id===id);
 const vendorCount = mid => DATA.vendors.filter(v=>v.markets.includes(mid)).length;
 const shortDay = d => ({Sunday:'Sun',Monday:'Mon',Tuesday:'Tue',Wednesday:'Wed',Thursday:'Thu',Friday:'Fri',Saturday:'Sat'}[d]||d);
+const formatTime = t => { if(!t) return ''; const [h,m] = t.split(':'); const hr = parseInt(h); const suffix = hr >= 12 ? 'pm' : 'am'; const hr12 = hr % 12 || 12; return m === '00' ? `${hr12}${suffix}` : `${hr12}:${m}${suffix}`; };
+const formatTimeRange = (s, e) => s && e ? `${formatTime(s)}–${formatTime(e)}` : '';
 
 function isOpen(m) {
   if(m.season_start==='All Year') return true;
@@ -1717,7 +1721,7 @@ function showGlobalSearchDropdown(results, val) {
           </div>
           <div class="gs-item-info">
             <div class="gs-item-name">${m.name}</div>
-            <div class="gs-item-sub">${m.city} · ${m.day_of_week}s ${m.start_time.replace(':00','')}–${m.end_time.replace(':00','')}</div>
+            <div class="gs-item-sub">${m.city} · ${m.day_of_week}s ${formatTimeRange(m.start_time,m.end_time)}</div>
           </div>
           <span class="gs-item-badge" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'Open':'Seasonal'}</span>
         </div>`;
@@ -1851,16 +1855,84 @@ function globalSearchKeydown(e) {
 }
 
 /* ── NAVIGATE ── */
+/* ── SEO: PAGE META + CANONICAL ── */
+function updatePageMeta(title, desc, path) {
+  // Title
+  document.title = title;
+  // Meta description
+  let metaDesc = document.querySelector('meta[name="description"]');
+  if(!metaDesc) { metaDesc = document.createElement('meta'); metaDesc.name = 'description'; document.head.appendChild(metaDesc); }
+  metaDesc.content = desc;
+  // Canonical
+  const canon = document.getElementById('canonicalTag');
+  if(canon) canon.href = 'https://shopwindmill.com' + (path || '/');
+  // Push URL to browser bar (no reload) — only on real domain, not local file
+  if(path && window.location.protocol !== 'file:' && window.location.pathname !== path) {
+    history.pushState({page: ST.currentPage, id: ST.currentId, tab: ST.tab}, title, path);
+  }
+}
+
+/* ── HISTORY API: handle back/forward buttons ── */
+window.addEventListener('popstate', function(e) {
+  if(e.state) {
+    ST.currentPage = e.state.page || null;
+    ST.currentId = e.state.id || null;
+    ST.tab = e.state.tab || 'home';
+  } else {
+    ST.currentPage = null;
+    ST.currentId = null;
+    ST.tab = 'home';
+  }
+  const sb = document.getElementById('scrollBody');
+  window.scrollTo(0, 0);
+  if(sb) sb.scrollTop = 0;
+  renderSidebar(); renderBottom(); renderCurrentPage();
+  setTimeout(() => { window.scrollTo(0, 0); if(sb) sb.scrollTop = 0; }, 50);
+});
+
+/* ── HISTORY API: parse URL on first load ── */
+function routeFromURL() {
+  const path = window.location.pathname;
+  const marketMatch = path.match(/^\/markets\/([^/]+)\/?$/);
+  const vendorMatch = path.match(/^\/vendors\/([^/]+)\/?$/);
+  if(marketMatch) {
+    ST.currentPage = 'market';
+    ST.currentId = marketMatch[1];
+    return;
+  }
+  if(vendorMatch) {
+    ST.currentPage = 'vendor';
+    ST.currentId = vendorMatch[1];
+    return;
+  }
+  // Tab routes
+  const tabMap = {'/explore':'explore','/markets':'markets','/following':'following','/me':'me'};
+  if(tabMap[path]) { ST.tab = tabMap[path]; ST.currentPage = null; }
+}
+
+/* ── SCROLL RESET HELPER ── */
+function resetScroll() {
+  window.scrollTo(0, 0);
+  const sb = document.getElementById('scrollBody');
+  if(sb) sb.scrollTop = 0;
+  setTimeout(() => {
+    window.scrollTo(0, 0);
+    const sb2 = document.getElementById('scrollBody');
+    if(sb2) sb2.scrollTop = 0;
+  }, 50);
+}
+
 function navigate(page, id) {
   ST.currentPage = page; ST.currentId = id || null;
   const tabs = ['home','explore','markets','following','me','admin-ads','admin-settings'];
   if(tabs.includes(page)) ST.tab = page;
+  // Reset scroll on BOTH window and scrollBody before render
+  const sb = document.getElementById('scrollBody');
+  window.scrollTo(0, 0);
+  if(sb) sb.scrollTop = 0;
   renderSidebar(); renderBottom(); renderCurrentPage();
-  // Reset scroll after render completes
-  requestAnimationFrame(() => {
-    const sb = document.getElementById('scrollBody');
-    if(sb) sb.scrollTop = 0;
-  });
+  // Belt-and-suspenders: reset again after render in case reflow moved it
+  setTimeout(() => { window.scrollTo(0, 0); if(sb) sb.scrollTop = 0; }, 50);
 }
 
 function renderCurrentPage() {
@@ -1873,8 +1945,8 @@ function renderCurrentPage() {
   }
   if(p === 'vendor') return renderVendorProfile(ST.currentId);
   if(p === 'market') return renderMarketDetail(ST.currentId);
-  if(p === 'area-request') return renderAreaRequest();
-  if(p === 'vendors-list') return renderVendorsList();
+  if(p === 'area-request') { updatePageMeta('Request Your Area | Windmill','Ask us to bring Windmill to your city.','/area-request'); return renderAreaRequest(); }
+  if(p === 'vendors-list') { updatePageMeta('Browse Vendors | Windmill','Browse all local market vendors on Windmill.','/vendors'); return renderVendorsList(); }
   if(p === 'demo-vendor-free') return renderDemoVendorFree();
   if(p === 'demo-vendor-pro') return renderDemoVendorPro();
   if(p === 'demo-operator-free') return renderDemoOperatorFree();
@@ -1882,12 +1954,13 @@ function renderCurrentPage() {
   if(ST.role === 'vendor') return renderVendorSubPage();
   if(ST.role === 'operator') return renderOperatorSubPage();
   if(ST.role === 'admin') return renderAdminSubPage();
-  // customer views
-  if(ST.tab === 'home') return renderHome();
-  if(ST.tab === 'explore') return renderExplore();
-  if(ST.tab === 'markets') return renderMarketsPage();
-  if(ST.tab === 'following') return renderFollowing();
-  if(ST.tab === 'me') return renderMe();
+  // customer views — update meta + URL for each tab
+  if(ST.tab === 'home') { updatePageMeta('Windmill — Discover Local Markets & Vendors','Find farmers markets and local vendors near you. Browse fresh produce, artisan goods, and more.','/'); return renderHome(); }
+  if(ST.tab === 'explore') { updatePageMeta('Explore Markets | Windmill','Explore farmers markets on the map near you.','/explore'); return renderExplore(); }
+  if(ST.tab === 'markets') { updatePageMeta('Markets | Windmill','Browse all farmers markets on Windmill.','/markets'); return renderMarketsPage(); }
+  if(ST.tab === 'following') { updatePageMeta('Following | Windmill','Markets and vendors you follow on Windmill.','/following'); return renderFollowing(); }
+  if(ST.tab === 'me') { updatePageMeta('My Account | Windmill','Manage your Windmill account.','/me'); return renderMe(); }
+  updatePageMeta('Windmill — Discover Local Markets & Vendors','Find farmers markets and local vendors near you.','/');
   renderHome();
 }
 
@@ -2234,7 +2307,7 @@ function renderHome() {
         </div>
         <div class="market-info">
           <div class="market-name">${m.name.replace(' Farmers Market','').replace(' Market','')}</div>
-          <div class="market-meta-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${m.day_of_week.slice(0,3)}s ${m.start_time.replace(':00','')}–${m.end_time.replace(':00','')}</div>
+          <div class="market-meta-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${m.day_of_week.slice(0,3)}s ${formatTimeRange(m.start_time,m.end_time)}</div>
           <div class="market-meta-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${m.city} <span style="color:var(--text3)">· ${vendorCount(m.id)} ${t('vendors_c')}</span></div>
         </div></div>`;
     });
@@ -2615,7 +2688,7 @@ function initWindmillMap() {
               ${photo ? `<img class="map-card-img" src="${photo}" alt="${m.name}" loading="lazy">` : `<div class="map-card-img" style="background:${mbg(i)};display:flex;align-items:center;justify-content:center;font-size:20px">🏪</div>`}
               <div style="flex:1;min-width:0">
                 <div class="map-card-name">${m.name}</div>
-                <div class="map-card-sub">${m.city} · ${m.day_of_week}s ${m.start_time.replace(':00','')}–${m.end_time.replace(':00','')}</div>
+                <div class="map-card-sub">${m.city} · ${m.day_of_week}s ${formatTimeRange(m.start_time,m.end_time)}</div>
                 <div class="map-card-pills">
                   <span class="market-pill" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'Open now':m.season_start+'–'+m.season_end}</span>
                   <span class="market-pill">${vendorCount(m.id)} vendors</span>
@@ -2819,7 +2892,7 @@ function showMarketPopup(market, index, marker) {
     }
     <div class="wm-popup-body">
       <div class="wm-popup-name">${market.name}</div>
-      <div class="wm-popup-sub">${market.city} · ${market.day_of_week}s ${market.start_time.replace(':00','')}–${market.end_time.replace(':00','')}</div>
+      <div class="wm-popup-sub">${market.city} · ${market.day_of_week}s ${formatTimeRange(market.start_time,market.end_time)}</div>
       <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">
         <span style="font-size:10px;padding:2px 7px;border-radius:99px;${open?'background:#EEF2EB;color:#3D5435':'background:#FDF3DC;color:#7A4E08'}">${open?'✓ Open now':market.season_start+'–'+market.season_end}</span>
         <span style="font-size:10px;padding:2px 7px;border-radius:99px;background:#F5F1EB;color:#7A6E65">${vendorCount(market.id)} vendors</span>
@@ -2875,7 +2948,7 @@ function renderMapCards(markets) {
         }
         <div style="flex:1;min-width:0">
           <div class="map-card-name">${m.name}</div>
-          <div class="map-card-sub">${m.city} · ${m.day_of_week}s ${m.start_time.replace(':00','')}–${m.end_time.replace(':00','')}</div>
+          <div class="map-card-sub">${m.city} · ${m.day_of_week}s ${formatTimeRange(m.start_time,m.end_time)}</div>
           <div class="map-card-pills">
             <span class="market-pill" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'Open now':m.season_start+'–'+m.season_end}</span>
             <span class="market-pill">${vendorCount(m.id)} vendors</span>
@@ -3243,7 +3316,7 @@ function renderMarketsPage() {
           <div class="vendor-name">${m.name}</div>
           <div class="vendor-at" style="color:var(--green)">${m.city} · ${m.day_of_week}s</div>
           <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">
-            <span class="market-pill">${m.start_time.replace(':00','')}–${m.end_time.replace(':00','')}</span>
+            <span class="market-pill">${formatTimeRange(m.start_time,m.end_time)}</span>
             <span class="market-pill">${vendorCount(m.id)} vendors</span>
             <span class="market-pill" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'Open now':m.season_start+'–'+m.season_end}</span>
             ${m.pet_friendly?'<span class="market-pill">🐾 Pets OK</span>':''}
@@ -3263,6 +3336,10 @@ function renderVendorProfile(id) {
   hideFilterUI();
   const v = getVendor(id);
   if(!v) { document.getElementById('scrollBody').innerHTML='<div style="padding:24px;text-align:center;color:var(--text2)">Vendor not found.</div>'; return; }
+  const slug = v.slug || v.id;
+  const marketNames = v.markets ? v.markets.map(mid => { const m = getMarket(mid); return m ? m.name : null; }).filter(Boolean) : [];
+  const metaDesc = `${v.name} — ${v.category}${marketNames.length ? ' at ' + marketNames.join(', ') : ''} in Southwest Florida. Find them on Windmill.${v.tagline ? ' ' + v.tagline : ''}`;
+  updatePageMeta(`${v.name} — ${v.category} | Windmill`, metaDesc, `/vendors/${slug}`);
   const c = vc(DATA.vendors.indexOf(v));
   const mCount = v.markets ? v.markets.filter(mid => getMarket(mid)).length : 0;
   const isPro = v.pro;
@@ -3331,9 +3408,8 @@ function renderVendorProfile(id) {
       </div>`:`
       <div class="info-row" style="opacity:.45"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/></svg><div><div class="info-row-label">Instagram</div><div style="font-size:12px;color:var(--text3)">${isClaimed?t('claim_to_add'):t('not_provided')}</div></div></div>
       <div class="info-row" style="opacity:.45"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg><div><div class="info-row-label">Facebook</div><div style="font-size:12px;color:var(--text3)">${isClaimed?t('claim_to_add'):t('not_provided')}</div></div></div>
-      <div style="margin-top:12px;background:var(--amber-lt);border:0.5px solid #F0D090;border-radius:var(--r-md);padding:10px 12px;display:flex;align-items:center;gap:10px">
-        <span style="font-size:18px">💬</span>
-        <div style="flex:1"><div style="font-size:12px;font-weight:500;color:#7A4E08">${t('msg_not_setup')}</div><div style="font-size:11px;color:var(--amber)">${t('msg_reach_via')}</div></div>
+      <div style="margin-top:12px">
+        <button onclick="alert('This vendor isn\'t set up for messages yet.')" style="width:100%;padding:10px;background:var(--surface2);color:var(--text3);border:0.5px solid var(--border);border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)" title="This vendor isn't set up for messages yet">💬 Message</button>
       </div>`}
     </div>
 
@@ -3347,7 +3423,7 @@ function renderVendorProfile(id) {
         const dayKey = 'day_'+m.day_of_week.toLowerCase();
         return `<div class="schedule-row" onclick="navigate('market','${m.id}')">
           <div class="schedule-day">${t(dayKey)||shortDay(m.day_of_week)}</div>
-          <div style="flex:1"><div class="schedule-market">${m.name}</div><div class="schedule-time">${m.day_of_week}s · ${m.start_time.replace(':00','')}–${m.end_time.replace(':00','')} · ${m.city}</div></div>
+          <div style="flex:1"><div class="schedule-market">${m.name}</div><div class="schedule-time">${m.day_of_week}s · ${formatTimeRange(m.start_time,m.end_time)} · ${m.city}</div></div>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </div>`;
       }).join(''):`<p style="font-size:13px;color:var(--text2)">${t('no_markets_yet')}</p>`}
@@ -3395,6 +3471,9 @@ function renderMarketDetail(id) {
   hideFilterUI();
   const m = getMarket(id);
   if(!m){ document.getElementById('scrollBody').innerHTML='<div style="padding:24px;text-align:center;color:var(--text2)">Market not found.</div>'; return; }
+  const slug = m.slug || m.id;
+  const metaDesc = `${m.name} — ${m.day_of_week}s ${formatTimeRange(m.start_time, m.end_time)} in ${m.city}, FL. Fresh produce, artisan goods and local vendors at Windmill.`;
+  updatePageMeta(`${m.name} — ${m.city}, FL | Windmill`, metaDesc, `/markets/${slug}`);
   const op = getOperator(m.operator_id);
   const mvs = DATA.vendors.filter(v=>v.markets.includes(m.id)&&v.published);
   const photo = DATA.market_photos[m.id];
@@ -3423,13 +3502,13 @@ function renderMarketDetail(id) {
           </div>
           <div style="display:flex;gap:6px;flex-shrink:0;margin-top:2px">
           <button class="btn-follow" onclick="handleFollow(event,'market','${m.id}',this)" style="${isFollowing('market','${m.id}')?'background:var(--green);color:#fff;border-color:var(--green)':''}">${isFollowing('market','${m.id}')?t('following'):t('follow')}</button>
-          <button onclick="openMessageModal('market','${m.id}','${m.name}')" style="padding:7px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);font-family:var(--font-sans);white-space:nowrap">💬</button>
+          <button onclick="openMessageModal('market','${m.id}','${m.name}')" style="padding:7px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);font-family:var(--font-sans);white-space:nowrap">💬 Message</button>
         </div>
         </div>
         <div class="market-badges">
           <span class="badge-pill ${isOpen(m)?'green':'amber'}" style="cursor:pointer" onclick="scrollToSection('mkt-info','marketSectionNav',document.querySelector('#marketSectionNav .section-nav-btn:nth-child(2)'))">${isOpen(m)?t('open_season'):t('seasonal')}</span>
           <span class="badge-pill gray" style="cursor:pointer" onclick="scrollToSection('mkt-info','marketSectionNav',document.querySelector('#marketSectionNav .section-nav-btn:nth-child(2)'))">📅 ${m.day_of_week}s</span>
-          <span class="badge-pill gray" style="cursor:pointer" onclick="scrollToSection('mkt-info','marketSectionNav',document.querySelector('#marketSectionNav .section-nav-btn:nth-child(2)'))">🕗 ${m.start_time.replace(':00','')}–${m.end_time.replace(':00','')}</span>
+          <span class="badge-pill gray" style="cursor:pointer" onclick="scrollToSection('mkt-info','marketSectionNav',document.querySelector('#marketSectionNav .section-nav-btn:nth-child(2)'))">🕗 ${formatTimeRange(m.start_time,m.end_time)}</span>
           ${m.pet_friendly?`<span class="badge-pill green">${t('pets_welcome')}</span>`:`<span class="badge-pill terra">${t('no_pets')}</span>`}
           <span class="badge-pill gray" style="cursor:pointer" onclick="scrollToSection('mkt-vendors','marketSectionNav',document.querySelector('#marketSectionNav .section-nav-btn:nth-child(5)'))">👥 ${mvs.length} ${t('vendors_c')}</span>
         </div>
@@ -3561,7 +3640,7 @@ function renderAreaRequest() {
       <div class="form-field"><label class="form-label">${t('your_name')}</label><input class="form-input" id="reqName" placeholder="${t('your_name')}"></div>
       <div class="form-field"><label class="form-label">${t('your_email')}</label><input class="form-input" id="reqEmail" type="email" placeholder="${t('notify_ph')}"></div>
       <button class="btn-primary" onclick="submitAreaReq()">${t('submit_request')}</button>
-      <button class="btn-secondary" onclick="ST.location='Fort Myers, FL';ST.currentPage=null;renderFilterStrip();renderHome()">${t('back_to_lee')}</button>
+      <button class="btn-secondary" onclick="ST.location='Fort Myers, FL';ST.currentPage=null;renderFilterStrip();resetScroll();renderHome()">${t('back_to_lee')}</button>
     </div>
   </div>`;
 }
@@ -3615,7 +3694,7 @@ function renderFollowing() {
           </div>
           <div class="vendor-body">
             <div class="vendor-name">${m.name}</div>
-            <div class="vendor-at">${m.city} · ${m.day_of_week}s ${m.start_time.replace(':00','')}–${m.end_time.replace(':00','')}</div>
+            <div class="vendor-at">${m.city} · ${m.day_of_week}s ${formatTimeRange(m.start_time,m.end_time)}</div>
             <div class="vendor-category" style="color:${open?'var(--green-dk)':'var(--text3)'}">${open?'Open now':'Seasonal'}</div>
           </div>
           <button class="follow-btn" style="background:var(--green);color:#fff;border-color:var(--green)" onclick="event.stopPropagation();handleFollow(event,'market','${m.id}',this)">Following</button>
@@ -3691,8 +3770,19 @@ function renderMe() {
         <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">✉️ Contact us</div>
         <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
       </div>
-    </div>
-      <div style="text-align:center;margin-top:20px;font-size:10px;color:var(--text3)">Windmill v1.42 · shopwindmill.com</div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px">
+        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:10px">🌐 Follow us</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <a href="https://www.instagram.com/shop.windmill?utm_source=qr" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--terra);text-decoration:none">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+            @shop.windmill
+          </a>
+          <a href="https://www.facebook.com/people/Shopwindmill/61590166275828/" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--terra);text-decoration:none">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+            Shopwindmill
+          </a>
+        </div>
+      </div>
     </div>`;
     return;
   }
@@ -3767,10 +3857,19 @@ function renderMe() {
         <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">✉️ Contact us</div>
         <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
       </div>
-    </div>
-    <div style="text-align:center;margin-top:24px;font-size:11px;color:var(--text3)">
-      Windmill v1.42 · <a href="https://shopwindmill.com" style="color:var(--terra);text-decoration:none">shopwindmill.com</a>
-    </div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px">
+        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:10px">🌐 Follow us</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <a href="https://www.instagram.com/shop.windmill?utm_source=qr" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--terra);text-decoration:none">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+            @shop.windmill
+          </a>
+          <a href="https://www.facebook.com/people/Shopwindmill/61590166275828/" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--terra);text-decoration:none">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+            Shopwindmill
+          </a>
+        </div>
+      </div>
   </div>`;
 }
 
@@ -5287,6 +5386,7 @@ function toggleFilter(type, el) { ST.filters[type]=!ST.filters[type]; el.classLi
 function clearFilters() { ST.filters={days:[],cats:[],pet:false,open:true,parking:false}; closeFilters(); renderFilterStrip(); renderCurrentPage(); }
 function applyFilters() { closeFilters(); renderFilterStrip(); renderCurrentPage(); }
 function filterByCat(catId) {
+  resetScroll();
   // Find the category label from the id
   const cat = DATA.categories.find(c => c.id === catId);
   const label = cat ? (ST.lang==='es'?cat.es:ST.lang==='pt'?cat.pt:cat.label) : catId.replace(/-/g,' ');
@@ -5332,7 +5432,7 @@ function renderVendorSchedule() {
     <div class="dash-title">My Schedule</div><div class="dash-sub">Markets where you attend</div>
     <div class="dash-section">
       <div class="dash-section-title">Your markets</div>
-      ${sampleIds.map(id=>{const m=getMarket(id);if(!m)return '';return `<div class="schedule-row" onclick="navigate('market','${m.id}')"><div class="schedule-day">${shortDay(m.day_of_week)}</div><div style="flex:1"><div class="schedule-market">${m.name}</div><div class="schedule-time">${m.day_of_week}s · ${m.start_time.replace(':00','')}–${m.end_time.replace(':00','')} · ${m.city}</div></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>`;}).join('')}
+      ${sampleIds.map(id=>{const m=getMarket(id);if(!m)return '';return `<div class="schedule-row" onclick="navigate('market','${m.id}')"><div class="schedule-day">${shortDay(m.day_of_week)}</div><div style="flex:1"><div class="schedule-market">${m.name}</div><div class="schedule-time">${m.day_of_week}s · ${formatTimeRange(m.start_time,m.end_time)} · ${m.city}</div></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>`;}).join('')}
       <button style="width:100%;margin-top:12px;padding:10px;background:var(--surface2);color:var(--text2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer">+ Request to add a market</button>
     </div>
     ${proLockedSection('Weekly Update Posts','Let customers know what you\'re bringing each week. Appears on your profile and market page.')}
@@ -5485,6 +5585,51 @@ function downloadData() {
   a.click();
 }
 
+function downloadSitemap() {
+  const base = 'https://shopwindmill.com';
+  const today = new Date().toISOString().split('T')[0];
+  const staticUrls = ['/','/markets','/explore'].map(p => `
+  <url>
+    <loc>${base}${p}</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>${p==='/'?'1.0':'0.8'}</priority>
+  </url>`).join('');
+
+  const marketUrls = DATA.markets.filter(m=>m.published!==false).map(m => `
+  <url>
+    <loc>${base}/markets/${m.slug||m.id}</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>`).join('');
+
+  const vendorUrls = DATA.vendors.filter(v=>v.published!==false).map(v => `
+  <url>
+    <loc>${base}/vendors/${v.slug||v.id}</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>`).join('');
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${staticUrls}
+${marketUrls}
+${vendorUrls}
+</urlset>`;
+
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([xml],{type:'application/xml'}));
+  a.download = 'sitemap.xml';
+  a.click();
+
+  // Also log URL count
+  const mCount = DATA.markets.filter(m=>m.published!==false).length;
+  const vCount = DATA.vendors.filter(v=>v.published!==false).length;
+  setTimeout(() => alert(`✅ sitemap.xml downloaded!\n\n${mCount} market pages\n${vCount} vendor pages\n3 static pages\n\nUpload this file to your GitHub repo alongside index.html.`), 300);
+}
+
 /* ── DATA MIGRATION (run once to populate Supabase) ── */
 async function migrateDataToSupabase() {
   if(!supabaseClient) { alert('Supabase not connected.'); return; }
@@ -5579,13 +5724,16 @@ function renderAdminSettings() {
     <div class="admin-sub">Platform configuration and tools</div>
     <div class="admin-table" style="margin-bottom:16px">
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
-        <div class="admin-row-name">Data Backup</div>
+        <div class="admin-row-name">SEO Sitemap</div>
+        <div class="admin-row-meta">Download sitemap.xml — upload to GitHub alongside index.html so Google can find all market and vendor pages. Re-download whenever you add new markets or vendors.</div>
+        <button onclick="downloadSitemap()" style="padding:7px 16px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500">⬇ Download sitemap.xml</button>
+      </div>
         <div class="admin-row-meta">Download all markets, vendors, and operators as JSON</div>
         <button onclick="downloadData()" style="padding:7px 16px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500">⬇ Download backup</button>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Platform Info</div>
-        <div class="admin-row-meta">Version 1.0.3 · Lee County, FL · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
+        <div class="admin-row-meta">Version 1.47 · Lee County, FL · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Coverage Area</div>
@@ -5663,7 +5811,7 @@ function renderDemoVendorFree() {
     </div>
     <div class="profile-section">
       <div class="profile-section-title">Market Schedule — ${v.markets.length} markets</div>
-      ${v.markets.map(mid=>{const m=getMarket(mid);if(!m)return '';return `<div class="schedule-row" onclick="navigate('market','${m.id}')"><div class="schedule-day">${shortDay(m.day_of_week)}</div><div style="flex:1"><div class="schedule-market">${m.name}</div><div class="schedule-time">${m.day_of_week}s · ${m.start_time.replace(':00','')}–${m.end_time.replace(':00','')} · ${m.city}</div></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>`;}).join('')}
+      ${v.markets.map(mid=>{const m=getMarket(mid);if(!m)return '';return `<div class="schedule-row" onclick="navigate('market','${m.id}')"><div class="schedule-day">${shortDay(m.day_of_week)}</div><div style="flex:1"><div class="schedule-market">${m.name}</div><div class="schedule-time">${m.day_of_week}s · ${formatTimeRange(m.start_time,m.end_time)} · ${m.city}</div></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>`;}).join('')}
     </div>
     ${adUnit()}
     <div class="profile-section" style="margin-bottom:16px">
@@ -5745,7 +5893,7 @@ function renderDemoVendorPro() {
 
     <div class="profile-section">
       <div class="profile-section-title">Market Schedule — ${v.markets.length} markets</div>
-      ${v.markets.map(mid=>{const m=getMarket(mid);if(!m)return '';return `<div class="schedule-row" onclick="navigate('market','${m.id}')"><div class="schedule-day">${shortDay(m.day_of_week)}</div><div style="flex:1"><div class="schedule-market">${m.name}</div><div class="schedule-time">${m.day_of_week}s · ${m.start_time.replace(':00','')}–${m.end_time.replace(':00','')} · ${m.city}</div></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>`;}).join('')}
+      ${v.markets.map(mid=>{const m=getMarket(mid);if(!m)return '';return `<div class="schedule-row" onclick="navigate('market','${m.id}')"><div class="schedule-day">${shortDay(m.day_of_week)}</div><div style="flex:1"><div class="schedule-market">${m.name}</div><div class="schedule-time">${m.day_of_week}s · ${formatTimeRange(m.start_time,m.end_time)} · ${m.city}</div></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>`;}).join('')}
     </div>
 
     <div class="profile-section" style="margin-bottom:16px">
@@ -5902,6 +6050,9 @@ function toggleFollow(btn) {
 function openMaps(addr) { window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`, '_blank'); }
 
 function goBack() {
+  window.scrollTo(0, 0);
+  const sb = document.getElementById('scrollBody');
+  if(sb) sb.scrollTop = 0;
   ST.currentPage = null;
   renderFilterStrip();
   navigate(ST.tab || 'home');
@@ -5927,7 +6078,7 @@ function submitAreaReq() {
     <div style="font-size:52px;margin-bottom:16px">✅</div>
     <div style="font-family:var(--font-serif);font-size:22px;font-weight:600;color:var(--text);margin-bottom:8px">Request submitted!</div>
     <div style="font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px">We'll review your area and reach out when Windmill expands to <strong>${city}</strong>. Thank you for helping us grow!</div>
-    <button onclick="ST.location='Fort Myers, FL';ST.currentPage=null;renderFilterStrip();renderHome()" style="padding:10px 28px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:500">← Back to Windmill</button>
+    <button onclick="ST.location='Fort Myers, FL';ST.currentPage=null;renderFilterStrip();resetScroll();renderHome()" style="padding:10px 28px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:500">← Back to Windmill</button>
   </div>`;
 }
 
@@ -6089,12 +6240,22 @@ function scrollToSection(sectionId, navId, btn) {
     document.querySelectorAll('#'+navId+' .section-nav-btn').forEach(b => b.classList.remove('active'));
   }
   if(btn) btn.classList.add('active');
-  el.scrollIntoView({behavior:'smooth', block:'start'});
-  // Nudge back up to compensate for fixed nav height
+  // The anchor elements are zero-height invisible divs — scroll to the next visible sibling instead
+  const target = el.nextElementSibling || el;
+  // Calculate offset: section nav bar + top nav bar + small breathing room
   const navEl = document.getElementById(navId);
   const navH = navEl ? navEl.offsetHeight : 44;
+  const topbar = document.getElementById('mobileTopbar') || document.querySelector('.desktop-topnav');
+  const topbarH = topbar ? topbar.offsetHeight : 57;
+  const totalOffset = navH + topbarH + 65;
+  // Scroll to exact position
+  const rect = target.getBoundingClientRect();
   const sb = document.getElementById('scrollBody');
-  setTimeout(() => { if(sb) sb.scrollTop -= navH; }, 500);
+  if(sb && sb.scrollHeight > sb.clientHeight) {
+    sb.scrollTop += rect.top - totalOffset;
+  } else {
+    window.scrollBy(0, rect.top - totalOffset);
+  }
 }
 
 // Update active nav button on scroll
@@ -6105,21 +6266,14 @@ function initSectionNavObserver(navId, sectionIds) {
 
   // Make nav fixed using JS — bulletproof across all browsers
   function fixNav() {
-    // Measure actual topbar height dynamically
-    let topbarH = 0;
-    if(window.innerWidth < 768) {
-      const mobileBar = document.getElementById('mobileTopbar');
-      topbarH = mobileBar ? mobileBar.getBoundingClientRect().height : 88;
-    } else {
-      const desktopNav = document.querySelector('.desktop-topnav');
-      topbarH = desktopNav ? desktopNav.getBoundingClientRect().bottom : 57;
-    }
+    const topbar = document.getElementById('mobileTopbar');
+    const topbarH = topbar && window.innerWidth < 768 ? topbar.offsetHeight : 57;
     const sbRect = sb.getBoundingClientRect();
     navEl.classList.add('is-fixed');
     navEl.style.top = topbarH + 'px';
     navEl.style.left = sbRect.left + 'px';
     navEl.style.width = sbRect.width + 'px';
-    // Add top padding to next sibling so content isn't hidden behind fixed nav
+    // Add top padding to first content sibling so it isn't hidden behind fixed nav
     const navH = navEl.offsetHeight;
     const sibling = navEl.nextElementSibling;
     if(sibling) sibling.style.paddingTop = navH + 'px';
@@ -6277,6 +6431,9 @@ function initSpotlightCarousel() {
 // Load from Supabase first, fall back to local DATA if unavailable
 // REMOVE FALLBACK BEFORE GO-LIVE
 async function initApp() {
+  // Parse URL path on first load (clean URL routing)
+  routeFromURL();
+
   // Show loading state briefly
   const sb = document.getElementById('scrollBody');
   if(sb) sb.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:200px;gap:12px"><div style="width:20px;height:20px;border:2px solid var(--green);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></div><span style="font-size:13px;color:var(--text2)">Loading...</span></div>';
