@@ -564,6 +564,20 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
   <button class="role-btn" onclick="switchRole('vendor',this)">Vendor</button>
   <button class="role-btn" onclick="switchRole('operator',this)">Operator</button>
   <button class="role-btn" onclick="switchRole('admin',this)">Admin</button>
+  <div id="vendorTierBar" style="display:none;align-items:center;border-left:0.5px solid #3d3330;padding-left:6px;gap:3px">
+    <span style="font-size:9px;color:#B0A89F;padding:0 4px;white-space:nowrap">Tier:</span>
+    <button class="role-btn active" id="tierBtnFree" onclick="setTestVendorTier('free',this)" style="font-size:9px;flex:none;padding:0 8px">Free</button>
+    <button class="role-btn" id="tierBtnTrial" onclick="setTestVendorTier('trial',this)" style="font-size:9px;flex:none;padding:0 8px">Pro Trial</button>
+    <button class="role-btn" id="tierBtnPro" onclick="setTestVendorTier('pro',this)" style="font-size:9px;flex:none;padding:0 8px">Pro</button>
+    <button onclick="ST.profileSetupComplete=false;showVendorOnboarding(1)" style="font-size:9px;flex:none;padding:0 8px;background:#5C4A3A;color:#B0A89F;border:none;border-left:0.5px solid #3d3330;height:32px;cursor:pointer;font-family:var(--font-sans)">Onboarding</button>
+  </div>
+  <div id="adminVendorSearchBar" style="display:none;align-items:center;border-left:0.5px solid #3d3330;padding-left:8px;gap:6px;flex:1;position:relative">
+    <input id="adminVendorSearchInput" type="text" placeholder="View as vendor..." autocomplete="off"
+      style="background:#3A2E24;border:0.5px solid #5C4A3A;color:#E8DDD4;font-size:10px;padding:3px 8px;border-radius:4px;font-family:var(--font-sans);outline:none;width:140px"
+      oninput="renderAdminVendorSuggestions(this.value)"
+      onblur="setTimeout(()=>document.getElementById('adminVendorDropdown').style.display='none',200)">
+    <div id="adminVendorDropdown" style="display:none;position:absolute;top:100%;left:0;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-md);z-index:10000;min-width:200px;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.2);margin-top:2px"></div>
+  </div>
 </div>
 
 <div class="shell" id="shell">
@@ -1254,9 +1268,14 @@ let ST = {
   adminTab:'vendors',
   devMode:false,
   region:'lee-county',
-  user:null, // {id, email, name, role, emailOptIn} — set on sign in
-  authMode:'signin', // 'signin' | 'signup' | 'magic'
-  follows:[], // [{vendor_id} or {market_id}]
+  user:null,
+  authMode:'signin',
+  follows:[],
+  vendorId:null, operatorId:null,
+  isProTrial:false, trialStart:null,
+  profileSetupComplete:false,
+  pendingCoverPhoto:null,
+  sandboxMode:false, sandboxOverwrite:false, sandboxVendorId:null, sandboxOriginalVendor:null,
   dateFilter:null, dateFilterLabel:'Any day',
   forcedView:null,
   mapInstance:null, mapMarkers:{}, mapSelectedId:null,
@@ -1355,6 +1374,7 @@ const T = {
     when_going:"When are you going?",date_sub:"Filter markets by the day you plan to visit.",
     today:"Today",tomorrow:"Tomorrow",this_saturday:"This Saturday",this_sunday:"This Sunday",
     this_weekend:"This Weekend",all_week:"All week",show_all_days:"Show all days",pick_date:"Or pick a specific date",
+    this_week:"This Week",about_vendor:"About this vendor",
     /* area request */
     coming_soon_area:"Coming soon to your area",
     coming_soon_sub:"Windmill is live in Lee County, Sarasota/Bradenton, and Tampa Bay. We're expanding nationally — tell us about the markets near you.",
@@ -1428,6 +1448,7 @@ const T = {
     when_going:"¿Cuándo vas?",date_sub:"Filtra mercados por el día que planeas visitar.",
     today:"Hoy",tomorrow:"Mañana",this_saturday:"Este sábado",this_sunday:"Este domingo",
     this_weekend:"Este fin de semana",all_week:"Toda la semana",show_all_days:"Mostrar todos los días",
+    this_week:"Esta semana",about_vendor:"Sobre este vendedor",
     pick_date:"O elige una fecha específica",
     coming_soon_area:"Próximamente en tu área",
     coming_soon_sub:"Windmill está disponible en el condado de Lee, Sarasota/Bradenton y Tampa Bay. Estamos expandiéndonos — cuéntanos sobre los mercados cerca de ti.",
@@ -1500,6 +1521,7 @@ const T = {
     when_going:"Quando você vai?",date_sub:"Filtre mercados pelo dia que planeja visitar.",
     today:"Hoje",tomorrow:"Amanhã",this_saturday:"Este sábado",this_sunday:"Este domingo",
     this_weekend:"Fim de semana",all_week:"Semana toda",show_all_days:"Mostrar todos os dias",
+    this_week:"Esta semana",about_vendor:"Sobre este vendedor",
     pick_date:"Ou escolha uma data específica",
     coming_soon_area:"Em breve na sua área",
     coming_soon_sub:"O Windmill está disponível no condado de Lee, Sarasota/Bradenton e Tampa Bay. Estamos expandindo — conte-nos sobre os mercados perto de você.",
@@ -1529,6 +1551,9 @@ const vendorCount = mid => DATA.vendors.filter(v=>v.markets.includes(mid)).lengt
 const shortDay = d => ({Sunday:'Sun',Monday:'Mon',Tuesday:'Tue',Wednesday:'Wed',Thursday:'Thu',Friday:'Fri',Saturday:'Sat'}[d]||d);
 const formatTime = t => { if(!t) return ''; const [h,m] = t.split(':'); const hr = parseInt(h); const suffix = hr >= 12 ? 'pm' : 'am'; const hr12 = hr % 12 || 12; return m === '00' ? `${hr12}${suffix}` : `${hr12}:${m}${suffix}`; };
 const formatTimeRange = (s, e) => s && e ? `${formatTime(s)}–${formatTime(e)}` : '';
+const vendorAvatar = (v, bg, color, size='36px', radius='8px') => v?.photo
+  ? `<div style="width:${size};height:${size};border-radius:${radius};background:url(${v.photo}) center/cover no-repeat;flex-shrink:0"></div>`
+  : `<div style="width:${size};height:${size};border-radius:${radius};background:${bg};color:${color};display:flex;align-items:center;justify-content:center;font-family:var(--font-serif);font-size:${parseInt(size)*0.35}px;font-weight:600;flex-shrink:0">${initials(v?.name||'')}</div>`;
 
 function isOpen(m) {
   if(m.season_start==='All Year') return true;
@@ -1626,12 +1651,198 @@ function sponsoredCard() {
 /* ── ROLE SWITCHER ── */
 function switchRole(role, btn) {
   ST.role = role; ST.tab = 'home'; ST.currentPage = null; ST.currentId = null;
-  document.querySelectorAll('.role-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.role-bar > .role-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
+  // Show vendor tier selector in dev mode
+  const tierBar = document.getElementById('vendorTierBar');
+  if(tierBar) tierBar.style.display = role === 'vendor' ? 'flex' : 'none';
+  // Show admin vendor search bar when in admin mode
+  const adminBar = document.getElementById('adminVendorSearchBar');
+  if(adminBar) adminBar.style.display = role === 'admin' ? 'flex' : 'none';
+  // Set test vendor identity when switching to vendor
+  if(role === 'vendor') {
+    setTestVendorTier('free', document.getElementById('tierBtnFree'));
+    return;
+  }
+  // Exit any sandbox mode when switching away from vendor
+  if(ST.sandboxMode) exitVendorSandbox();
   renderSidebar(); renderFilterStrip(); renderBottom(); renderCurrentPage();
 }
 
-/* ── SEARCH ── */
+function setTestVendorTier(tier, btn) {
+  document.querySelectorAll('#vendorTierBar .role-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  // Test vendor data for each tier
+  const testVendors = {
+    free: { id:'test-vendor-free', name:'Test Vendor (Free)', category:'Baked Goods', claimed:true, pro:false, markets:['lakes-park'], description:'A test vendor on the free tier.', photo:null },
+    trial: { id:'test-vendor-trial', name:'Test Vendor (Pro Trial)', category:'Produce', claimed:true, pro:false, markets:['lakes-park','babcock-ranch'], description:'A test vendor on a Pro trial.', photo:null },
+    pro: { id:'test-vendor-pro', name:'Test Vendor (Pro)', category:'Honey & Preserves', claimed:true, pro:true, markets:['lakes-park','coconut-point','fort-myers-downtown'], description:'A test vendor on full Pro.', photo:null }
+  };
+  const v = testVendors[tier];
+  ST.vendorId = v.id;
+  // Temporarily inject test vendor into DATA if not already there
+  if(!DATA.vendors.find(x=>x.id===v.id)) DATA.vendors.push(v);
+  else Object.assign(DATA.vendors.find(x=>x.id===v.id), v);
+  // Set tier state
+  if(tier === 'trial') {
+    ST.isProTrial = true;
+    ST.trialStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
+  } else if(tier === 'pro') {
+    ST.isProTrial = false;
+    ST.trialStart = null;
+    DATA.vendors.find(x=>x.id===v.id).pro = true;
+  } else {
+    ST.isProTrial = false;
+    ST.trialStart = null;
+  }
+  renderSidebar(); renderFilterStrip(); renderBottom(); renderCurrentPage();
+}
+
+/* ── ADMIN VENDOR SANDBOX ── */
+function renderAdminVendorSuggestions(q) {
+  const dropdown = document.getElementById('adminVendorDropdown');
+  if(!dropdown) return;
+  if(!q || q.length < 1) { dropdown.style.display = 'none'; return; }
+  const matches = DATA.vendors.filter(v => v.name.toLowerCase().includes(q.toLowerCase())).slice(0, 8);
+  if(!matches.length) { dropdown.style.display = 'none'; return; }
+  dropdown.style.display = 'block';
+  dropdown.innerHTML = matches.map(v => `
+    <div onclick="selectAdminVendor('${v.id}')"
+      style="padding:8px 12px;cursor:pointer;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:8px"
+      onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+      <div style="width:28px;height:28px;border-radius:6px;background:var(--green-lt);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--green-dk);flex-shrink:0">${initials(v.name)}</div>
+      <div>
+        <div style="font-size:12px;font-weight:500;color:var(--text)">${v.name}</div>
+        <div style="font-size:10px;color:var(--text3)">${v.category} · ${v.claimed ? 'Claimed' : 'Unclaimed'}${v.pro ? ' · Pro' : ''}</div>
+      </div>
+    </div>`).join('');
+}
+
+function selectAdminVendor(vendorId) {
+  const v = DATA.vendors.find(x => x.id === vendorId);
+  if(!v) return;
+  document.getElementById('adminVendorDropdown').style.display = 'none';
+  document.getElementById('adminVendorSearchInput').value = v.name;
+
+  // Show mode selector overlay
+  const existing = document.getElementById('adminModeSelector');
+  if(existing) existing.remove();
+
+  const el = document.createElement('div');
+  el.id = 'adminModeSelector';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+  el.innerHTML = `
+    <div style="background:var(--surface);border-radius:var(--r-lg);padding:24px;max-width:360px;width:100%">
+      <div style="font-family:var(--font-serif);font-size:17px;font-weight:600;color:var(--text);margin-bottom:6px">View as vendor</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:20px">You're about to view <strong>${v.name}</strong> as if you were them. Choose a mode:</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button onclick="enterVendorSandbox('${vendorId}',false)" style="padding:14px;background:var(--surface2);border:1.5px solid #E5A800;border-radius:var(--r-md);text-align:left;cursor:pointer;font-family:var(--font-sans)">
+          <div style="font-size:13px;font-weight:600;color:#7A5500;margin-bottom:3px">🧪 Sandbox mode</div>
+          <div style="font-size:11px;color:var(--text2)">See their experience, make test changes. Nothing saves to Supabase.</div>
+        </button>
+        <button onclick="enterVendorSandbox('${vendorId}',true)" style="padding:14px;background:var(--surface2);border:1.5px solid var(--terra);border-radius:var(--r-md);text-align:left;cursor:pointer;font-family:var(--font-sans)">
+          <div style="font-size:13px;font-weight:600;color:#7A2E10;margin-bottom:3px">✏️ Overwrite mode</div>
+          <div style="font-size:11px;color:var(--text2)">Changes save for real to their Supabase record. Use carefully.</div>
+        </button>
+        <button onclick="document.getElementById('adminModeSelector').remove()" style="padding:10px;background:transparent;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;color:var(--text2);cursor:pointer;font-family:var(--font-sans)">Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+function enterVendorSandbox(vendorId, overwrite) {
+  document.getElementById('adminModeSelector')?.remove();
+  const v = DATA.vendors.find(x => x.id === vendorId);
+  if(!v) return;
+
+  // Store original vendor data for revert on exit
+  ST.sandboxOriginalVendor = JSON.parse(JSON.stringify(v));
+  ST.sandboxVendorId = vendorId;
+  ST.sandboxMode = !overwrite;
+  ST.sandboxOverwrite = overwrite;
+
+  // Set vendor identity
+  ST.vendorId = vendorId;
+  ST.isProTrial = !v.pro && v.claimed;
+  ST.trialStart = ST.isProTrial ? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) : null;
+  ST.profileSetupComplete = true;
+  ST.role = 'vendor';
+  ST.tab = 'home';
+  ST.currentPage = null;
+
+  // Show persistent banner
+  const existing = document.getElementById('sandboxBanner');
+  if(existing) existing.remove();
+  const banner = document.createElement('div');
+  banner.id = 'sandboxBanner';
+  banner.style.cssText = `position:fixed;top:32px;left:0;right:0;z-index:9998;padding:6px 14px;display:flex;align-items:center;justify-content:space-between;font-size:12px;font-family:var(--font-sans);font-weight:500;${overwrite ? 'background:#C4622D;color:#fff;' : 'background:#E5A800;color:#3D2800;'}`;
+  banner.innerHTML = `
+    <span style="white-space:nowrap">${overwrite ? '✏️ Overwrite' : '🧪 Sandbox'} — <strong>${v.name}</strong></span>
+    <div style="display:flex;align-items:center;gap:4px;margin:0 8px">
+      <span style="font-size:10px;opacity:.7">View as:</span>
+      <button onclick="setSandboxTier('free')" id="sbTierFree" style="padding:2px 7px;border-radius:var(--r-pill);border:none;font-size:10px;cursor:pointer;font-weight:500;background:rgba(0,0,0,.25);color:inherit;font-family:var(--font-sans)">Free</button>
+      <button onclick="setSandboxTier('trial')" id="sbTierTrial" style="padding:2px 7px;border-radius:var(--r-pill);border:none;font-size:10px;cursor:pointer;font-weight:500;background:rgba(0,0,0,.25);color:inherit;font-family:var(--font-sans)">Pro Trial</button>
+      <button onclick="setSandboxTier('pro')" id="sbTierPro" style="padding:2px 7px;border-radius:var(--r-pill);border:none;font-size:10px;cursor:pointer;font-weight:500;background:rgba(0,0,0,.25);color:inherit;font-family:var(--font-sans)">Pro</button>
+    </div>
+    <button onclick="exitVendorSandbox()" style="padding:3px 10px;background:rgba(0,0,0,.2);color:inherit;border:none;border-radius:var(--r-pill);font-size:11px;cursor:pointer;font-weight:600;font-family:var(--font-sans);white-space:nowrap">Exit →</button>`;
+  document.body.appendChild(banner);
+
+  // Force full re-render after state is set
+  setTimeout(() => {
+    renderSidebar(); renderFilterStrip(); renderBottom(); renderCurrentPage();
+  }, 0);
+}
+
+function exitVendorSandbox() {
+  // Revert vendor data if in sandbox mode
+  if(ST.sandboxMode && ST.sandboxOriginalVendor) {
+    const idx = DATA.vendors.findIndex(x => x.id === ST.sandboxVendorId);
+    if(idx !== -1) DATA.vendors[idx] = JSON.parse(JSON.stringify(ST.sandboxOriginalVendor));
+  }
+  // Clear sandbox state
+  ST.sandboxMode = false;
+  ST.sandboxOverwrite = false;
+  ST.sandboxOriginalVendor = null;
+  ST.sandboxVendorId = null;
+  ST.vendorId = null;
+  ST.isProTrial = false;
+  ST.trialStart = null;
+  // Remove banner
+  document.getElementById('sandboxBanner')?.remove();
+  document.querySelector('.role-bar').style.marginTop = '';
+  // Clear search input
+  const input = document.getElementById('adminVendorSearchInput');
+  if(input) input.value = '';
+  // Return to admin
+  ST.role = 'admin';
+  ST.tab = 'home';
+  ST.currentPage = null;
+  document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.role-btn').forEach(b => { if(b.textContent === 'Admin') b.classList.add('active'); });
+  renderSidebar(); renderFilterStrip(); renderBottom(); renderCurrentPage();
+}
+
+function setSandboxTier(tier) {
+  const v = ST.vendorId ? DATA.vendors.find(x => x.id === ST.vendorId) : null;
+  if(!v) return;
+  // Update tier state
+  if(tier === 'free') {
+    v.pro = false; ST.isProTrial = false; ST.trialStart = null;
+  } else if(tier === 'trial') {
+    v.pro = false; ST.isProTrial = true; ST.trialStart = new Date(Date.now() - 30*24*60*60*1000);
+  } else if(tier === 'pro') {
+    v.pro = true; ST.isProTrial = false; ST.trialStart = null;
+  }
+  // Highlight active tier button
+  ['Free','Trial','Pro'].forEach(t => {
+    const btn = document.getElementById('sbTier' + t);
+    if(btn) btn.style.background = tier === t.toLowerCase() ? 'rgba(0,0,0,.5)' : 'rgba(0,0,0,.25)';
+  });
+  // Reset to dashboard view so tier change is visible immediately
+  ST.currentPage = null;
+  ST.tab = 'home';
+  renderSidebar(); renderFilterStrip(); renderBottom(); renderCurrentPage();
+}
 /* ── GLOBAL SEARCH ── */
 function positionSearchDropdown(inputEl, dropdownEl) {
   if(!inputEl || !dropdownEl) return;
@@ -1905,6 +2116,8 @@ function routeFromURL() {
     ST.currentId = vendorMatch[1];
     return;
   }
+  // Vendors join page
+  if(path === '/vendors/join') { ST.currentPage = 'vendors-join'; return; }
   // Tab routes
   const tabMap = {'/explore':'explore','/markets':'markets','/following':'following','/me':'me'};
   if(tabMap[path]) { ST.tab = tabMap[path]; ST.currentPage = null; }
@@ -1923,6 +2136,8 @@ function resetScroll() {
 }
 
 function navigate(page, id) {
+  ST.previousPage = ST.currentPage;
+  ST.previousId = ST.currentId;
   ST.currentPage = page; ST.currentId = id || null;
   const tabs = ['home','explore','markets','following','me','admin-ads','admin-settings'];
   if(tabs.includes(page)) ST.tab = page;
@@ -1947,6 +2162,7 @@ function renderCurrentPage() {
   if(p === 'market') return renderMarketDetail(ST.currentId);
   if(p === 'area-request') { updatePageMeta('Request Your Area | Windmill','Ask us to bring Windmill to your city.','/area-request'); return renderAreaRequest(); }
   if(p === 'vendors-list') { updatePageMeta('Browse Vendors | Windmill','Browse all local market vendors on Windmill.','/vendors'); return renderVendorsList(); }
+  if(p === 'vendors-join') { updatePageMeta('Join Windmill as a Vendor | Grow Your Farmers Market Business','Claim your free vendor listing on Windmill. Be found between markets, showcase your products, and connect with customers.','/vendors/join'); return renderVendorsJoin(); }
   if(p === 'demo-vendor-free') return renderDemoVendorFree();
   if(p === 'demo-vendor-pro') return renderDemoVendorPro();
   if(p === 'demo-operator-free') return renderDemoOperatorFree();
@@ -2343,7 +2559,7 @@ function renderHome() {
       const c = vc(i);
       const places = v.markets.slice(0,2).map(id=>{const m=getMarket(id);return m?m.city:'?'});
       h += `<div class="vendor-card" onclick="navigate('vendor','${v.id}')">
-        <div class="vendor-avatar" style="background:${c.bg};color:${c.c}">${initials(v.name)}</div>
+        <div class="vendor-avatar" style="background:${c.bg};color:${c.c};overflow:hidden">${v.photo ? `<img src="${v.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : initials(v.name)}</div>
         <div class="vendor-body">
           <div class="vendor-name">${v.name}</div>
           <div class="vendor-at"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${places.join(' · ')}${v.markets.length>2?' +'+(v.markets.length-2):''}</div>
@@ -2425,7 +2641,7 @@ function renderVendorsList() {
       const c = vc(i);
       const places = v.markets.slice(0,2).map(id=>{const m=getMarket(id);return m?m.city:'?'});
       h += `<div class="vendor-card" onclick="navigate('vendor','${v.id}')">
-        <div class="vendor-avatar" style="background:${c.bg};color:${c.c}">${initials(v.name)}</div>
+        <div class="vendor-avatar" style="background:${c.bg};color:${c.c};overflow:hidden">${v.photo ? `<img src="${v.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : initials(v.name)}</div>
         <div class="vendor-body">
           <div class="vendor-name">${v.name}</div>
           <div class="vendor-at"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${places.join(' · ')}${v.markets.length>2?' +'+(v.markets.length-2):''}</div>
@@ -3342,7 +3558,7 @@ function renderVendorProfile(id) {
   updatePageMeta(`${v.name} — ${v.category} | Windmill`, metaDesc, `/vendors/${slug}`);
   const c = vc(DATA.vendors.indexOf(v));
   const mCount = v.markets ? v.markets.filter(mid => getMarket(mid)).length : 0;
-  const isPro = v.pro;
+  const isPro = v.pro || (ST.sandboxMode && ST.isProTrial) || ST.isProTrial;
   const isClaimed = v.claimed;
 
   let h = `<div class="profile-page">
@@ -3350,7 +3566,7 @@ function renderVendorProfile(id) {
     <div class="market-hero">
       <div class="profile-back" onclick="goBack()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> ${t('back')}</div>
       <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:12px">
-        <div style="width:64px;height:64px;border-radius:14px;background:${c.bg};color:${c.c};display:flex;align-items:center;justify-content:center;font-family:var(--font-serif);font-size:22px;font-weight:600;flex-shrink:0">${initials(v.name)}</div>
+        <div style="width:64px;height:64px;border-radius:14px;background:${v.photo?'url('+v.photo+') center/cover no-repeat':c.bg};color:${c.c};display:flex;align-items:center;justify-content:center;font-family:var(--font-serif);font-size:22px;font-weight:600;flex-shrink:0;overflow:hidden">${v.photo?'':initials(v.name)}</div>
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px">
             <div class="profile-name">${v.name}</div>
@@ -3365,15 +3581,18 @@ function renderVendorProfile(id) {
         <button class="btn-follow" onclick="handleFollow(event,'vendor','${v.id}',this)" style="${isFollowing('vendor','${v.id}')?'background:var(--green);color:#fff;border-color:var(--green)':''}">${isFollowing('vendor','${v.id}')?t('following'):t('follow')}</button>
         <button onclick="shareProfile('${v.name}','${v.id}','vendor')" style="padding:7px 14px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:transparent;color:var(--text2);font-family:var(--font-sans)">📤 ${t('share')}</button>
       </div>
-      ${!isClaimed?`<div class="unclaimed-banner"><span style="font-size:16px">⚠️</span><div class="unclaimed-text">${t('unclaimed_text')}</div><button class="claim-btn" onclick="openModal('claimModal')">${t('claim_free')}</button></div>`:''}
+      ${(!isClaimed && !ST.sandboxMode)?`<div class="unclaimed-banner"><span style="font-size:16px">⚠️</span><div class="unclaimed-text">${t('unclaimed_text')}</div><button class="claim-btn" onclick="navigate('vendors-join')">${t('claim_free')}</button></div>`:''}
     </div>
 
     <!-- THIS WEEK'S UPDATE -->
-    ${isPro?`<div style="background:var(--surface);border-bottom:0.5px solid var(--border);padding:14px 16px">
+    ${(isPro || ST.isProTrial) ? `<div style="background:var(--surface);border-bottom:0.5px solid var(--border);padding:14px 16px">
       <div style="font-size:10px;font-weight:600;color:var(--green-dk);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📣 ${t('this_week')}</div>
-      <p style="font-size:13px;color:var(--text);line-height:1.5">${t('weekly_placeholder')}</p>
-    </div>`:`<div style="background:var(--surface);border-bottom:0.5px solid var(--border);padding:12px 16px;opacity:.5">
-      <div style="font-size:11px;color:var(--text3);display:flex;align-items:center;gap:6px">🔒 ${t('weekly_pro_lock')}</div>
+      ${v.weekly_update ? `<p style="font-size:13px;color:var(--text);line-height:1.5">${typeof v.weekly_update === 'object' ? v.weekly_update.text : v.weekly_update}</p>` : `<p style="font-size:13px;color:var(--text2);line-height:1.5;font-style:italic">No update posted yet this week.</p>`}
+    </div>` : `<div style="background:var(--surface);border-bottom:0.5px solid var(--border);padding:12px 16px">
+      <div style="font-size:11px;color:var(--text3);display:flex;align-items:center;justify-content:space-between">
+        <span style="display:flex;align-items:center;gap:6px">🔒 Weekly updates not enabled</span>
+        ${!isClaimed ? `<span style="color:var(--terra);font-size:11px;cursor:pointer" onclick="navigate('vendors-join')">Are you this vendor? Claim your listing →</span>` : `<span style="color:var(--terra);font-size:11px;cursor:pointer" onclick="navigate('vendors-join')">Unlock with Pro →</span>`}
+      </div>
     </div>`}
 
     <!-- SECTION NAV -->
@@ -3390,7 +3609,7 @@ function renderVendorProfile(id) {
     <div style="height:0;overflow:hidden;visibility:hidden" id="vnd-about"></div>
     <div class="profile-section">
       <div class="profile-section-title">${t('about_vendor')}</div>
-      ${v.description ? '<p style="font-size:13px;color:var(--text);line-height:1.6">'+v.description+'</p>' : '<p style="font-size:13px;color:var(--text2);line-height:1.6;font-style:italic">'+t('no_description')+(isClaimed?'':' <span style="color:var(--terra);cursor:pointer" onclick="openModal(\'claimModal\')">'+t('claim_listing')+'</span>')+'</p>'}
+      ${v.description ? '<p style="font-size:13px;color:var(--text);line-height:1.6">'+v.description+'</p>' : '<p style="font-size:13px;color:var(--text2);line-height:1.6;font-style:italic">'+t('no_description')+(isClaimed?'':' <span style="color:var(--terra);cursor:pointer" onclick="navigate(\'vendors-join\')">'+t('claim_listing')+'</span>')+'</p>'}
     </div>
 
     <!-- CONTACT -->
@@ -3433,7 +3652,17 @@ function renderVendorProfile(id) {
     <div style="height:0;overflow:hidden;visibility:hidden" id="vnd-photos"></div>
     <div class="profile-section">
       <div class="profile-section-title">${t('photos')}</div>
-      ${isPro?`<div class="photo-grid">${[1,2,3,4,5,6].map(()=>`<div class="photo-slot"><div class="photo-slot-text">${t('no_photos')}</div></div>`).join('')}</div>`:`
+      ${isPro ? (() => {
+        const gallery = v.gallery || [];
+        if(gallery.length === 0) return `<p style="font-size:13px;color:var(--text2);font-style:italic">No photos yet.</p>`;
+        return `<div class="photo-grid">${gallery.map(photo => {
+          const url = typeof photo === 'object' ? photo.url : photo;
+          const caption = typeof photo === 'object' ? photo.caption : '';
+          return `<div class="photo-slot" style="background:url(${url}) center/cover no-repeat;position:relative">
+            ${caption ? `<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.5);color:#fff;font-size:10px;padding:4px 6px;line-height:1.3">${caption}</div>` : ''}
+          </div>`;
+        }).join('')}</div>`;
+      })() : `
       <div style="background:var(--amber-lt);border:0.5px solid #F0D090;border-radius:var(--r-md);padding:12px 14px;display:flex;align-items:center;gap:10px">
         <span style="font-size:20px">🔒</span>
         <div><div style="font-size:12px;font-weight:500;color:#7A4E08">${t('gallery_pro')}</div><div style="font-size:11px;color:var(--amber)">${t('gallery_pro_sub')}</div></div>
@@ -3586,7 +3815,7 @@ function renderMarketDetail(id) {
     <div class="vendor-grid">${mvs.map((v,i)=>{
       const c=vc(i);
       return `<div class="vendor-grid-card" onclick="navigate('vendor','${v.id}')">
-        <div class="vendor-grid-avatar" style="background:${c.bg};color:${c.c}">${initials(v.name)}</div>
+        <div class="vendor-grid-avatar" style="background:${v.photo?'url('+v.photo+') center/cover no-repeat':c.bg};color:${c.c};overflow:hidden">${v.photo?'':initials(v.name)}</div>
         <div class="vendor-grid-name">${v.name}</div>
         <div class="vendor-grid-cat">${v.category}</div>
         ${!v.claimed?`<div class="vendor-grid-unclaimed">${t('not_yet_claimed')}</div>`:''}
@@ -3611,7 +3840,7 @@ function renderMarketDetail(id) {
         <div style="font-size:18px;margin-bottom:6px">🏪</div>
         <div style="font-size:13px;font-weight:500;color:#7A2E10;margin-bottom:4px">${t('are_you_vendor')}</div>
         <div style="font-size:12px;color:var(--terra-mid);margin-bottom:12px">${t('claim_vendor_sub')}</div>
-        <button onclick="openModal('claimModal')" style="padding:8px 20px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500">${t('claim_cta')}</button>
+        <button onclick="navigate('vendors-join')" style="padding:8px 20px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500">${t('claim_cta')}</button>
       </div>
       <div style="text-align:center;margin-top:16px;padding:10px;background:var(--surface2);border:0.5px solid var(--border);border-radius:var(--r-md)">
         <span style="font-size:12px;color:var(--text2)">${window.innerWidth < 768 ? 'Viewing on mobile · ' : 'Viewing on desktop · '}</span>
@@ -3624,6 +3853,499 @@ function renderMarketDetail(id) {
 }
 
 /* ── AREA REQUEST PAGE ── */
+/* ── VENDORS JOIN PAGE ── */
+function renderVendorsJoin() {
+  hideFilterUI();
+  const lang = ST.lang || 'en';
+  const content = {
+    en: {
+      hero_title: "Grow your farmers market business — beyond the market",
+      hero_sub: "Your own professional page. Your customers. Your schedule. All in one place.",
+      cta_pro: "Join Pro Free — 6 Months on Us",
+      cta_free: "Start with a free profile",
+      no_card: "No credit card needed. No commitment.",
+      trusted: "Trusted by vendors across Lee County farmers markets",
+      vp1_title: "Be findable between markets",
+      vp1_body: "Your customers can find you, follow you, and see where you'll be next — even on days you're not selling.",
+      vp2_title: "Easier than posting to Instagram",
+      vp2_body: "Set up in minutes, update in seconds, right from your phone. No tech skills needed.",
+      vp3_title: "Your own mini-website, built for farmers markets",
+      vp3_body: "Your story, photos, products, and market schedule — all in one place. Share it like a link. Update it like a social post.",
+      vp4_title: "Get featured front and center",
+      vp4_body: "Pro vendors appear in the Spotlight — the first thing shoppers see when they open Windmill.",
+      demo_label: "See what a Pro page looks like →",
+      free_label: "Free",
+      pro_label: "Pro",
+      feature_profile: "Public profile page",
+      feature_schedule: "Your market schedule",
+      feature_followers: "Followers",
+      feature_photos: "Profile photos",
+      feature_products: "Product catalog",
+      feature_updates: "Weekly updates to followers",
+      feature_fb: "Post to Facebook from Windmill",
+      feature_spotlight: "Spotlight featured placement",
+      feature_messaging: "Customer messaging",
+      feature_analytics: "Analytics & profile views",
+      price_free: "Free",
+      price_pro: "Free for 6 months, then $9/mo",
+      founding_title: "Be a Windmill Founding Vendor",
+      founding_body: "We're just getting started in Southwest Florida. The first vendors who join get 6 months of Pro completely free — no card, no commitment. Help us build something great for your community.",
+      founding_cta: "Claim your founding spot",
+      how_title: "How it works",
+      step1_title: "You may already be on Windmill",
+      step1_body: "Search for your business. If you've sold at a local market, your listing may already exist.",
+      step2_title: "Claim it as yours",
+      step2_body: "Tell us it's your business. We verify and approve within 24 hours.",
+      step3_title: "Start growing",
+      step3_body: "Update your profile, post your schedule, reach your customers.",
+      faq_title: "Questions we hear a lot",
+      faq1_q: "What is Windmill?",
+      faq1_a: "Windmill is a local marketplace that connects shoppers to farmers market vendors in their area. Shoppers use Windmill to discover markets, find vendors, and follow their favorites. As a vendor, your Windmill profile is how those shoppers find you — even between markets.",
+      faq2_q: "Is this really free?",
+      faq2_a: "Yes. A basic profile is free with no time limit. Pro is free for your first 6 months as a founding vendor — no credit card needed.",
+      faq3_q: "What happens after 6 months?",
+      faq3_a: "After 6 months your account moves to the free tier automatically — no charge, no surprise. If you want to keep Pro features, it's $9/month. We'll remind you before anything changes.",
+      faq4_q: "How do I know nobody else can claim my listing?",
+      faq4_a: "Every claim is manually reviewed and verified by our team before approval. We confirm you're the real business owner before activating anything.",
+      faq5_q: "I'm not very tech savvy — how hard is this to set up?",
+      faq5_a: "If you can post to Facebook, you can do this. Setup takes about 5 minutes. Updates take seconds.",
+      faq6_q: "What markets are on Windmill right now?",
+      faq6_a: "We're live with markets across Lee County including Lakes Park, Babcock Ranch, Coconut Point, Fort Myers Beach, Cape Coral, and more.",
+      faq7_q: "I already have a website or social media — why do I need this?",
+      faq7_a: "Windmill isn't a replacement — it's a discovery layer. Shoppers use Windmill to find vendors at their local market. Your Windmill profile links to your website and socials, sending you more traffic.",
+      faq8_q: "Can I remove my listing if I change my mind?",
+      faq8_a: "Unclaimed listings show basic public information — your business name, category, and which markets you attend. That's already public information. Claim your listing and you control everything from there.",
+      footer_q: "Questions? We're real people.",
+      footer_signin: "Already have an account?",
+      footer_signin_link: "Sign in",
+      back: "← Back",
+      claim_modal_title: "Claim your listing",
+      claim_modal_sub: "Search for your business below, or enter your details to get started.",
+      claim_name_placeholder: "Search for your business...",
+      claim_your_name: "Your name",
+      claim_email: "Email address",
+      claim_phone: "Phone number",
+      claim_message: "Tell us about your business (optional)",
+      claim_submit: "Request to claim — it's free",
+      claim_note: "We'll verify and get back to you within 24 hours.",
+    },
+    es: {
+      hero_title: "Haz crecer tu negocio en el mercado — más allá del mercado",
+      hero_sub: "Tu propia página profesional. Tus clientes. Tu horario. Todo en un solo lugar.",
+      cta_pro: "Únete a Pro Gratis — 6 Meses de Regalo",
+      cta_free: "Comienza con un perfil gratuito",
+      no_card: "Sin tarjeta de crédito. Sin compromiso.",
+      trusted: "Usado por vendedores en los mercados de Lee County",
+      vp1_title: "Sé encontrado entre mercados",
+      vp1_body: "Tus clientes pueden encontrarte, seguirte y ver dónde estarás — incluso los días que no vendes.",
+      vp2_title: "Más fácil que publicar en Instagram",
+      vp2_body: "Configura en minutos, actualiza en segundos, desde tu teléfono. Sin conocimientos técnicos.",
+      vp3_title: "Tu propio mini-sitio web, hecho para mercados",
+      vp3_body: "Tu historia, fotos, productos y horario — todo en un solo lugar. Compártelo como un enlace.",
+      vp4_title: "Aparece al frente y al centro",
+      vp4_body: "Los vendedores Pro aparecen en el Spotlight — lo primero que ven los compradores al abrir Windmill.",
+      demo_label: "Ver cómo se ve una página Pro →",
+      free_label: "Gratis",
+      pro_label: "Pro",
+      feature_profile: "Página de perfil pública",
+      feature_schedule: "Tu horario en mercados",
+      feature_followers: "Seguidores",
+      feature_photos: "Fotos de perfil",
+      feature_products: "Catálogo de productos",
+      feature_updates: "Actualizaciones semanales",
+      feature_fb: "Publicar en Facebook desde Windmill",
+      feature_spotlight: "Destacado en el Spotlight",
+      feature_messaging: "Mensajes de clientes",
+      feature_analytics: "Analíticas y vistas",
+      price_free: "Gratis",
+      price_pro: "Gratis 6 meses, luego $9/mes",
+      founding_title: "Sé un Vendedor Fundador de Windmill",
+      founding_body: "Estamos comenzando en el suroeste de Florida. Los primeros vendedores obtienen 6 meses de Pro completamente gratis — sin tarjeta, sin compromiso.",
+      founding_cta: "Reclama tu lugar fundador",
+      how_title: "Cómo funciona",
+      step1_title: "Es posible que ya estés en Windmill",
+      step1_body: "Busca tu negocio. Si has vendido en un mercado local, tu perfil puede que ya exista.",
+      step2_title: "Reclámalo como tuyo",
+      step2_body: "Cuéntanos que es tu negocio. Verificamos y aprobamos en 24 horas.",
+      step3_title: "Empieza a crecer",
+      step3_body: "Actualiza tu perfil, publica tu horario, llega a tus clientes.",
+      faq_title: "Preguntas frecuentes",
+      faq1_q: "¿Qué es Windmill?",
+      faq1_a: "Windmill es un mercado local que conecta a los compradores con los vendedores de mercados de agricultores. Tu perfil de Windmill es como los compradores te encuentran — incluso entre mercados.",
+      faq2_q: "¿Es realmente gratis?",
+      faq2_a: "Sí. Un perfil básico es gratis sin límite de tiempo. Pro es gratis los primeros 6 meses.",
+      faq3_q: "¿Qué pasa después de 6 meses?",
+      faq3_a: "Después de 6 meses tu cuenta pasa al nivel gratuito automáticamente — sin cargo, sin sorpresas. Si quieres mantener Pro, son $9/mes. Te avisaremos antes de cualquier cambio.",
+      faq4_q: "¿Cómo sé que nadie más puede reclamar mi perfil?",
+      faq4_a: "Cada solicitud es revisada manualmente por nuestro equipo antes de ser aprobada.",
+      faq5_q: "No soy muy técnico — ¿qué tan difícil es configurarlo?",
+      faq5_a: "Si puedes publicar en Facebook, puedes hacer esto. La configuración toma unos 5 minutos.",
+      faq6_q: "¿Qué mercados están en Windmill ahora mismo?",
+      faq6_a: "Estamos en vivo con mercados en todo Lee County incluyendo Lakes Park, Babcock Ranch, Coconut Point y más.",
+      faq7_q: "Ya tengo un sitio web o redes sociales — ¿por qué necesito esto?",
+      faq7_a: "Windmill no es un reemplazo — es una capa de descubrimiento. Tu perfil enlaza a tu sitio web, enviándote más tráfico.",
+      faq8_q: "¿Puedo eliminar mi perfil si cambio de opinión?",
+      faq8_a: "Los perfiles sin reclamar muestran información pública básica. Reclama el tuyo y controlas todo desde ahí.",
+      footer_q: "¿Preguntas? Somos personas reales.",
+      footer_signin: "¿Ya tienes una cuenta?",
+      footer_signin_link: "Iniciar sesión",
+      back: "← Volver",
+      claim_modal_title: "Reclama tu perfil",
+      claim_modal_sub: "Busca tu negocio o ingresa tus datos para comenzar.",
+      claim_name_placeholder: "Busca tu negocio...",
+      claim_your_name: "Tu nombre",
+      claim_email: "Correo electrónico",
+      claim_phone: "Teléfono",
+      claim_message: "Cuéntanos sobre tu negocio (opcional)",
+      claim_submit: "Solicitar reclamación — es gratis",
+      claim_note: "Verificaremos y te responderemos en 24 horas.",
+    },
+    pt: {
+      hero_title: "Expanda seu negócio no mercado — além do mercado",
+      hero_sub: "Sua própria página profissional. Seus clientes. Seu horário. Tudo em um só lugar.",
+      cta_pro: "Junte-se ao Pro Grátis — 6 Meses de Presente",
+      cta_free: "Comece com um perfil gratuito",
+      no_card: "Sem cartão de crédito. Sem compromisso.",
+      trusted: "Usado por vendedores nos mercados do Lee County",
+      vp1_title: "Seja encontrado entre os mercados",
+      vp1_body: "Seus clientes podem encontrá-lo, segui-lo e ver onde você estará — mesmo nos dias em que não está vendendo.",
+      vp2_title: "Mais fácil do que postar no Instagram",
+      vp2_body: "Configure em minutos, atualize em segundos, pelo seu celular. Sem conhecimento técnico.",
+      vp3_title: "Seu próprio mini-site, feito para feiras",
+      vp3_body: "Sua história, fotos, produtos e agenda — tudo em um lugar. Compartilhe como um link.",
+      vp4_title: "Apareça em destaque",
+      vp4_body: "Vendedores Pro aparecem no Spotlight — a primeira coisa que os compradores veem ao abrir o Windmill.",
+      demo_label: "Veja como é uma página Pro →",
+      free_label: "Grátis",
+      pro_label: "Pro",
+      feature_profile: "Página de perfil pública",
+      feature_schedule: "Sua agenda nos mercados",
+      feature_followers: "Seguidores",
+      feature_photos: "Fotos de perfil",
+      feature_products: "Catálogo de produtos",
+      feature_updates: "Atualizações semanais",
+      feature_fb: "Publicar no Facebook pelo Windmill",
+      feature_spotlight: "Destaque no Spotlight",
+      feature_messaging: "Mensagens de clientes",
+      feature_analytics: "Análises e visualizações",
+      price_free: "Grátis",
+      price_pro: "Grátis por 6 meses, depois $9/mês",
+      founding_title: "Seja um Vendedor Fundador do Windmill",
+      founding_body: "Estamos começando no sudoeste da Flórida. Os primeiros vendedores recebem 6 meses de Pro completamente grátis — sem cartão, sem compromisso.",
+      founding_cta: "Garanta sua vaga fundadora",
+      how_title: "Como funciona",
+      step1_title: "Você pode já estar no Windmill",
+      step1_body: "Procure seu negócio. Se você vendeu em um mercado local, seu perfil pode já existir.",
+      step2_title: "Reivindique como seu",
+      step2_body: "Diga-nos que é seu negócio. Verificamos e aprovamos em 24 horas.",
+      step3_title: "Comece a crescer",
+      step3_body: "Atualize seu perfil, publique sua agenda, alcance seus clientes.",
+      faq_title: "Perguntas frequentes",
+      faq1_q: "O que é o Windmill?",
+      faq1_a: "Windmill é um mercado local que conecta compradores a vendedores de feiras. Seu perfil no Windmill é como os compradores te encontram — mesmo entre as feiras.",
+      faq2_q: "É realmente grátis?",
+      faq2_a: "Sim. Um perfil básico é grátis sem limite de tempo. O Pro é grátis pelos primeiros 6 meses.",
+      faq3_q: "O que acontece após 6 meses?",
+      faq3_a: "Após 6 meses sua conta passa para o nível gratuito automaticamente — sem cobrança, sem surpresa. Se quiser manter o Pro, são $9/mês. Avisaremos antes de qualquer mudança.",
+      faq4_q: "Como sei que ninguém mais pode reivindicar meu perfil?",
+      faq4_a: "Cada solicitação é revisada manualmente pela nossa equipe antes de ser aprovada.",
+      faq5_q: "Não sou muito técnico — é difícil configurar?",
+      faq5_a: "Se você consegue postar no Facebook, consegue fazer isso. A configuração leva cerca de 5 minutos.",
+      faq6_q: "Quais mercados estão no Windmill agora?",
+      faq6_a: "Estamos no ar com mercados em todo o Lee County incluindo Lakes Park, Babcock Ranch, Coconut Point e mais.",
+      faq7_q: "Já tenho site ou redes sociais — por que preciso disso?",
+      faq7_a: "O Windmill não é um substituto — é uma camada de descoberta. Seu perfil linka para seu site, enviando mais tráfego.",
+      faq8_q: "Posso remover meu perfil se mudar de ideia?",
+      faq8_a: "Perfis não reivindicados mostram informações públicas básicas. Reivindique o seu e você controla tudo a partir daí.",
+      footer_q: "Dúvidas? Somos pessoas reais.",
+      footer_signin: "Já tem uma conta?",
+      footer_signin_link: "Entrar",
+      back: "← Voltar",
+      claim_modal_title: "Reivindique seu perfil",
+      claim_modal_sub: "Procure seu negócio ou insira seus dados para começar.",
+      claim_name_placeholder: "Procure seu negócio...",
+      claim_your_name: "Seu nome",
+      claim_email: "E-mail",
+      claim_phone: "Telefone",
+      claim_message: "Conte-nos sobre seu negócio (opcional)",
+      claim_submit: "Solicitar reivindicação — é grátis",
+      claim_note: "Verificaremos e responderemos em 24 horas.",
+    }
+  };
+  const c = content[lang] || content.en;
+
+  // Build vendor search suggestions
+  const unclaimedVendors = DATA.vendors.filter(v => !v.claimed);
+
+  document.getElementById('scrollBody').innerHTML = `
+  <div style="font-family:var(--font-sans);max-width:680px;margin:0 auto;padding-bottom:60px">
+
+    <!-- BACK BUTTON -->
+    <div style="padding:12px 16px 0">
+      <button onclick="goBack()" style="background:none;border:none;color:var(--terra);font-size:13px;cursor:pointer;font-family:var(--font-sans);padding:0">${c.back}</button>
+    </div>
+
+    <!-- LANGUAGE TOGGLE -->
+    <div style="display:flex;justify-content:flex-end;padding:8px 16px 0;gap:6px">
+      ${['en','es','pt'].map(l=>`<button onclick="ST.lang='${l}';renderVendorsJoin()" style="padding:4px 10px;border-radius:var(--r-pill);border:0.5px solid ${(ST.lang||'en')===l?'var(--green)':'var(--border)'};background:${(ST.lang||'en')===l?'var(--green)':'var(--surface)'};color:${(ST.lang||'en')===l?'#fff':'var(--text2)'};font-size:11px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">${l.toUpperCase()}</button>`).join('')}
+    </div>
+
+    <!-- HERO -->
+    <div style="padding:32px 20px 28px;text-align:center;background:linear-gradient(160deg,var(--green-lt) 0%,var(--terra-lt) 100%);margin:12px 16px 0;border-radius:var(--r-lg);border:0.5px solid var(--border)">
+      <div style="font-size:13px;font-weight:700;letter-spacing:.08em;color:var(--green-dk);text-transform:uppercase;margin-bottom:10px">🌾 Windmill for Vendors</div>
+      <h1 style="font-family:var(--font-serif);font-size:22px;font-weight:600;color:var(--text);line-height:1.35;margin:0 0 12px">${c.hero_title}</h1>
+      <p style="font-size:14px;color:var(--text2);line-height:1.6;margin:0 0 24px">${c.hero_sub}</p>
+      <button onclick="document.getElementById('joinClaimForm').scrollIntoView({behavior:'smooth'})" style="width:100%;padding:14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:15px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:10px">${c.cta_pro}</button>
+      <button onclick="document.getElementById('joinClaimForm').scrollIntoView({behavior:'smooth'})" style="width:100%;padding:12px;background:transparent;color:var(--green-dk);border:1.5px solid var(--green);border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:500;font-family:var(--font-sans);margin-bottom:12px">${c.cta_free}</button>
+      <div style="font-size:11px;color:var(--text3)">${c.no_card}</div>
+    </div>
+
+    <!-- TRUSTED BY -->
+    <div style="text-align:center;padding:16px 20px;font-size:12px;color:var(--text3)">${c.trusted}</div>
+
+    <!-- VALUE PROPS -->
+    <div style="padding:0 16px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
+      ${[
+        {icon:'🌱',title:c.vp1_title,body:c.vp1_body},
+        {icon:'📱',title:c.vp2_title,body:c.vp2_body},
+        {icon:'🌐',title:c.vp3_title,body:c.vp3_body},
+        {icon:'⭐',title:c.vp4_title,body:c.vp4_body}
+      ].map(vp=>`
+        <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px">
+          <div style="font-size:22px;margin-bottom:8px">${vp.icon}</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;line-height:1.3">${vp.title}</div>
+          <div style="font-size:12px;color:var(--text2);line-height:1.5">${vp.body}</div>
+        </div>`).join('')}
+    </div>
+
+    <!-- DEMO LINK -->
+    <div style="margin:0 16px 24px">
+      <div style="font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--text3);text-transform:uppercase;margin-bottom:10px;text-align:center">See a real Pro page</div>
+      <div style="background:var(--surface);border:1.5px solid var(--green);border-radius:var(--r-lg);overflow:hidden;cursor:pointer" onclick="navigate('demo-vendor-pro')">
+        <div style="height:90px;background:linear-gradient(135deg,#2D5016 0%,#4A7C2F 50%,#6B9E45 100%);display:flex;align-items:center;justify-content:center;font-size:40px">👑</div>
+        <div style="padding:14px 16px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <div style="font-size:14px;font-weight:600;color:var(--text)">The Empanada Queen</div>
+            <span style="font-size:10px;padding:2px 7px;background:var(--green);color:#fff;border-radius:var(--r-pill);font-weight:500">✓ Pro</span>
+          </div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:8px">Prepared Food · Fort Myers</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+            <span style="font-size:11px;padding:3px 8px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill)">Lakes Park</span>
+            <span style="font-size:11px;padding:3px 8px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill)">Babcock Ranch</span>
+            <span style="font-size:11px;padding:3px 8px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill)">+6 markets</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div style="font-size:11px;color:var(--text3);font-style:italic">Tap to explore this Pro page</div>
+            <span style="font-size:12px;color:var(--terra);font-weight:600">${c.demo_label}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CTA REPEAT 1 -->
+    <div style="padding:0 16px;margin-bottom:28px">
+      <button onclick="document.getElementById('joinClaimForm').scrollIntoView({behavior:'smooth'})" style="width:100%;padding:13px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">${c.cta_pro}</button>
+      <div style="text-align:center;margin-top:8px;font-size:11px;color:var(--text3)">${c.no_card}</div>
+    </div>
+
+    <!-- FREE vs PRO TABLE -->
+    <div style="margin:0 16px 28px;border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;background:var(--surface2);border-bottom:0.5px solid var(--border)">
+        <div style="padding:10px 12px;font-size:12px;font-weight:600;color:var(--text2)">Feature</div>
+        <div style="padding:10px 12px;font-size:12px;font-weight:600;color:var(--text);text-align:center;border-left:0.5px solid var(--border)">${c.free_label}</div>
+        <div style="padding:10px 12px;font-size:12px;font-weight:600;color:var(--green-dk);text-align:center;border-left:0.5px solid var(--border)">⭐ ${c.pro_label}</div>
+      </div>
+      ${[
+        [c.feature_profile, true, true],
+        [c.feature_schedule, true, true],
+        [c.feature_followers, true, true],
+        [c.feature_photos, true, true],
+        [c.feature_products, false, true],
+        [c.feature_updates, false, true],
+        [c.feature_fb, false, true],
+        [c.feature_spotlight, false, true],
+        [c.feature_messaging, false, true],
+        [c.feature_analytics, false, true],
+      ].map((row,i)=>`
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-bottom:0.5px solid var(--border);background:${i%2===0?'var(--surface)':'var(--bg)'}">
+          <div style="padding:9px 12px;font-size:12px;color:var(--text2)">${row[0]}</div>
+          <div style="padding:9px 12px;text-align:center;border-left:0.5px solid var(--border);font-size:13px">${row[1]?'✅':'—'}</div>
+          <div style="padding:9px 12px;text-align:center;border-left:0.5px solid var(--border);font-size:13px">${row[2]?'✅':'—'}</div>
+        </div>`).join('')}
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;background:var(--green-lt)">
+        <div style="padding:10px 12px;font-size:12px;font-weight:600;color:var(--text)">Price</div>
+        <div style="padding:10px 12px;text-align:center;border-left:0.5px solid var(--border);font-size:12px;font-weight:600;color:var(--text)">${c.price_free}</div>
+        <div style="padding:10px 12px;text-align:center;border-left:0.5px solid var(--border);font-size:11px;font-weight:600;color:var(--green-dk)">${c.price_pro}</div>
+      </div>
+    </div>
+
+    <!-- FOUNDING MEMBER BAND -->
+    <div style="margin:0 16px 28px;background:var(--green);border-radius:var(--r-lg);padding:24px 20px;text-align:center">
+      <div style="font-size:24px;margin-bottom:10px">🌾</div>
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:#fff;margin-bottom:10px;line-height:1.3">${c.founding_title}</div>
+      <p style="font-size:13px;color:rgba(255,255,255,0.85);line-height:1.6;margin:0 0 20px">${c.founding_body}</p>
+      <button onclick="document.getElementById('joinClaimForm').scrollIntoView({behavior:'smooth'})" style="padding:13px 28px;background:#fff;color:var(--green-dk);border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">${c.founding_cta}</button>
+      <div style="margin-top:10px;font-size:11px;color:rgba(255,255,255,0.7)">${c.no_card}</div>
+    </div>
+
+    <!-- HOW IT WORKS -->
+    <div style="padding:0 16px;margin-bottom:28px">
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:16px;text-align:center">${c.how_title}</div>
+      ${[
+        {num:'1',title:c.step1_title,body:c.step1_body},
+        {num:'2',title:c.step2_title,body:c.step2_body},
+        {num:'3',title:c.step3_title,body:c.step3_body}
+      ].map(s=>`
+        <div style="display:flex;gap:14px;margin-bottom:16px;align-items:flex-start">
+          <div style="width:32px;height:32px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0">${s.num}</div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px">${s.title}</div>
+            <div style="font-size:12px;color:var(--text2);line-height:1.5">${s.body}</div>
+          </div>
+        </div>`).join('')}
+    </div>
+
+    <!-- CLAIM FORM -->
+    <div id="joinClaimForm" style="margin:0 16px 28px;background:var(--surface);border:1.5px solid var(--green);border-radius:var(--r-lg);padding:24px 20px">
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:6px;text-align:center">${c.claim_modal_title}</div>
+      <div style="font-size:12px;color:var(--text2);text-align:center;margin-bottom:20px;line-height:1.5">${c.claim_modal_sub}</div>
+
+      <!-- Vendor search with predictive dropdown -->
+      <div style="position:relative;margin-bottom:14px">
+        <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px">Business name</div>
+        <input id="joinVendorSearch" type="text" placeholder="${c.claim_name_placeholder}"
+          style="width:100%;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none"
+          oninput="renderVendorJoinSuggestions(this.value)"
+          autocomplete="off">
+        <div id="joinVendorSuggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:0.5px solid var(--border-med);border-radius:0 0 var(--r-md) var(--r-md);z-index:100;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.1)"></div>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px">${c.claim_your_name}</div>
+        <input id="joinYourName" type="text" placeholder="Maria Garcia"
+          style="width:100%;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none">
+      </div>
+      <div style="margin-bottom:14px">
+        <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px">${c.claim_email}</div>
+        <input id="joinEmail" type="email" placeholder="you@email.com"
+          style="width:100%;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none">
+      </div>
+      <div style="margin-bottom:14px">
+        <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px">${c.claim_phone}</div>
+        <input id="joinPhone" type="tel" placeholder="239-555-0100"
+          style="width:100%;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none">
+      </div>
+      <div style="margin-bottom:20px">
+        <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px">${c.claim_message}</div>
+        <textarea id="joinMessage" placeholder="e.g. I sell honey at Lakes Park every Wednesday"
+          style="width:100%;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none;resize:vertical;min-height:80px"></textarea>
+      </div>
+      <button onclick="submitVendorJoinRequest()" style="width:100%;padding:14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:10px">${c.claim_submit}</button>
+      <div style="text-align:center;font-size:11px;color:var(--text3)">${c.claim_note}</div>
+    </div>
+
+    <!-- FAQ -->
+    <div style="padding:0 16px;margin-bottom:28px">
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:16px;text-align:center">${c.faq_title}</div>
+      ${[
+        [c.faq1_q, c.faq1_a],
+        [c.faq2_q, c.faq2_a],
+        [c.faq3_q, c.faq3_a],
+        [c.faq4_q, c.faq4_a],
+        [c.faq5_q, c.faq5_a],
+        [c.faq6_q, c.faq6_a],
+        [c.faq7_q, c.faq7_a],
+        [c.faq8_q, c.faq8_a],
+      ].map((faq,i)=>`
+        <div style="border-bottom:0.5px solid var(--border);padding:14px 0" onclick="this.querySelector('.faq-ans').style.display=this.querySelector('.faq-ans').style.display==='block'?'none':'block'">
+          <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer">
+            <div style="font-size:13px;font-weight:500;color:var(--text);line-height:1.4;padding-right:12px">${faq[0]}</div>
+            <div style="font-size:16px;color:var(--text3);flex-shrink:0">＋</div>
+          </div>
+          <div class="faq-ans" style="display:none;font-size:12px;color:var(--text2);line-height:1.6;margin-top:8px">${faq[1]}</div>
+        </div>`).join('')}
+    </div>
+
+    <!-- FINAL CTA -->
+    <div style="padding:0 16px;margin-bottom:28px;text-align:center">
+      <button onclick="document.getElementById('joinClaimForm').scrollIntoView({behavior:'smooth'})" style="width:100%;padding:14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:15px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:8px">${c.cta_pro}</button>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:16px">${c.no_card}</div>
+    </div>
+
+    <!-- FOOTER -->
+    <div style="padding:20px 16px;border-top:0.5px solid var(--border);text-align:center">
+      <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">${c.footer_q}</div>
+      <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
+      <div style="margin-top:12px;font-size:12px;color:var(--text3)">${c.footer_signin} <span style="color:var(--terra);cursor:pointer" onclick="navigate('me')">${c.footer_signin_link}</span></div>
+    </div>
+
+  </div>`;
+}
+
+function renderVendorJoinSuggestions(q) {
+  const box = document.getElementById('joinVendorSuggestions');
+  const input = document.getElementById('joinVendorSearch');
+  if(!box || !input) return;
+  if(!q || q.length < 2) { box.style.display = 'none'; return; }
+  const matches = DATA.vendors.filter(v => v.name.toLowerCase().includes(q.toLowerCase())).slice(0, 6);
+  if(!matches.length) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.innerHTML = matches.map(v => `
+    <div onclick="document.getElementById('joinVendorSearch').value='${v.name.replace(/'/g,"\\'")}';document.getElementById('joinVendorSuggestions').style.display='none'"
+      style="padding:10px 12px;font-size:13px;color:var(--text);cursor:pointer;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:8px"
+      onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+      <span style="font-size:16px">🏪</span>
+      <div>
+        <div style="font-weight:500">${v.name}</div>
+        <div style="font-size:11px;color:var(--text3)">${v.category} · ${v.claimed ? 'Claimed' : 'Unclaimed'}</div>
+      </div>
+    </div>`).join('');
+}
+
+function submitVendorJoinRequest() {
+  const businessName = document.getElementById('joinVendorSearch')?.value?.trim();
+  const yourName = document.getElementById('joinYourName')?.value?.trim();
+  const email = document.getElementById('joinEmail')?.value?.trim();
+  const phone = document.getElementById('joinPhone')?.value?.trim();
+  const message = document.getElementById('joinMessage')?.value?.trim();
+
+  if(!businessName || !yourName || !email) {
+    alert('Please fill in your business name, your name, and email address.');
+    return;
+  }
+
+  // Add to admin claims queue
+  const newClaim = {
+    id: 'c' + Date.now(),
+    vendorId: businessName.toLowerCase().replace(/\s+/g,'-'),
+    vendorName: businessName,
+    claimant: yourName,
+    email: email,
+    phone: phone || '',
+    message: message || '',
+    date: new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}),
+    status: 'pending',
+    proRequested: true
+  };
+  ST.adminClaims.unshift(newClaim);
+
+  // Show confirmation
+  const form = document.getElementById('joinClaimForm');
+  if(form) {
+    form.innerHTML = `
+      <div style="text-align:center;padding:20px 0">
+        <div style="font-size:48px;margin-bottom:16px">🌾</div>
+        <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:10px">You're on your way!</div>
+        <p style="font-size:13px;color:var(--text2);line-height:1.6;margin:0 0 8px">We've received your request for <strong>${businessName}</strong>.</p>
+        <p style="font-size:13px;color:var(--text2);line-height:1.6;margin:0 0 20px">We'll verify and get back to you at <strong>${email}</strong> within 24 hours.</p>
+        <div style="background:var(--green-lt);border-radius:var(--r-md);padding:12px;font-size:12px;color:var(--green-dk);line-height:1.6">
+          ✓ Free profile<br>✓ 6 months Pro free<br>✓ No credit card needed
+        </div>
+      </div>`;
+    form.scrollIntoView({behavior:'smooth'});
+  }
+}
+
 function renderAreaRequest() {
   hideFilterUI();
   document.getElementById('scrollBody').innerHTML = `<div class="area-page">
@@ -3673,7 +4395,7 @@ function renderFollowing() {
         const c = vc(i);
         const places = v.markets.slice(0,2).map(id=>{const m=getMarket(id);return m?m.city:'?'});
         h += `<div class="vendor-card" onclick="navigate('vendor','${v.id}')">
-          <div class="vendor-avatar" style="background:${c.bg};color:${c.c}">${initials(v.name)}</div>
+          <div class="vendor-avatar" style="background:${c.bg};color:${c.c};overflow:hidden">${v.photo?`<img src="${v.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`:initials(v.name)}</div>
           <div class="vendor-body">
             <div class="vendor-name">${v.name}</div>
             <div class="vendor-at"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${places.join(' · ')}</div>
@@ -3875,37 +4597,345 @@ function renderMe() {
 
 
 /* ── VENDOR DASHBOARD ── */
+/* ── VENDOR ONBOARDING MODAL ── */
+function showVendorOnboarding(step) {
+  step = step || 1;
+  const vendorId = ST.vendorId;
+  const v = vendorId ? DATA.vendors.find(x => x.id === vendorId) : null;
+  const isPro = v?.pro || ST.isProTrial;
+  const name = ST.user?.name?.split(' ')[0] || 'there';
+
+  const steps = [
+    {
+      icon: '🌾',
+      title: `Welcome to Windmill, ${name}!`,
+      sub: "Let's get your profile set up. It takes about 5 minutes.",
+      content: `
+        <div style="background:var(--green-lt);border-radius:var(--r-md);padding:14px;margin-bottom:16px">
+          <div style="font-size:12px;font-weight:600;color:var(--green-dk);margin-bottom:8px">Here's what we'll set up:</div>
+          <div style="font-size:12px;color:var(--green-dk);line-height:2">
+            ① Your cover photo<br>
+            ② Your story<br>
+            ③ Your ${isPro ? 'links (website, Instagram, Facebook)' : 'link (website, Instagram, or Facebook)'}
+          </div>
+        </div>
+        ${isPro ? `<div style="background:var(--green);border-radius:var(--r-md);padding:12px;text-align:center">
+          <div style="font-size:12px;font-weight:600;color:#fff">🌟 You're on Pro — all features unlocked</div>
+        </div>` : ''}`,
+      nextLabel: "Let's go →"
+    },
+    {
+      icon: '📷',
+      title: 'Add your cover photo',
+      sub: 'A great photo is the first thing customers notice.',
+      content: `
+        <div style="width:100%;height:130px;background:${v?.photo?'url('+v.photo+') center/cover no-repeat':'var(--surface2)'};border-radius:var(--r-md);border:0.5px dashed var(--border-med);display:flex;align-items:center;justify-content:center;cursor:pointer;margin-bottom:12px;position:relative;overflow:hidden" onclick="document.getElementById('onboardPhotoInput').click()">
+          ${!v?.photo ? `<div style="text-align:center"><div style="font-size:28px;margin-bottom:4px">📷</div><div style="font-size:12px;color:var(--text3)">Tap to add photo</div></div>` : `<div style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.5);color:#fff;font-size:11px;padding:4px 8px;border-radius:var(--r-pill)">Change photo</div>`}
+        </div>
+        <input type="file" id="onboardPhotoInput" accept="image/*" style="display:none" onchange="previewOnboardPhoto(this)">
+        <div style="font-size:11px;color:var(--text3);text-align:center">Max 5MB · You can change this anytime</div>`,
+      nextLabel: 'Next →',
+      skipLabel: 'Skip for now'
+    },
+    {
+      icon: '✍️',
+      title: 'Tell your story',
+      sub: 'Why do you do what you do? Customers love the personal touch.',
+      content: `
+        <textarea id="onboardDescription" placeholder="e.g. Born in Oaxaca, growing herbs in Fort Myers since 2019. Everything is grown without pesticides and harvested the morning of the market..." style="width:100%;min-height:120px;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none;resize:vertical;line-height:1.6">${v?.description||''}</textarea>
+        <div style="font-size:11px;color:var(--text3);margin-top:6px">Keep it short and personal — 2-3 sentences is perfect</div>`,
+      nextLabel: 'Next →',
+      skipLabel: 'Skip for now'
+    },
+    {
+      icon: '🔗',
+      title: isPro ? 'Add your links' : 'Add your link',
+      sub: isPro ? 'Connect your website, Instagram, and Facebook.' : 'Pick one link to share with customers.',
+      content: isPro ? `
+        <div class="form-field"><label class="form-label">Website</label><input class="form-input" id="onboardWebsite" value="${v?.website||''}" placeholder="https://yoursite.com" type="url"></div>
+        <div class="form-field"><label class="form-label">Instagram</label><input class="form-input" id="onboardInstagram" value="${v?.instagram||''}" placeholder="https://instagram.com/yourhandle"></div>
+        <div class="form-field"><label class="form-label">Facebook</label><input class="form-input" id="onboardFacebook" value="${v?.facebook||''}" placeholder="https://facebook.com/yourpage"></div>` : `
+        <div class="form-field">
+          <label class="form-label">Link type</label>
+          <select class="form-input" id="onboardSocialType" style="cursor:pointer">
+            <option value="website">Website</option>
+            <option value="instagram">Instagram</option>
+            <option value="facebook">Facebook</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">URL</label>
+          <input class="form-input" id="onboardSocialValue" value="${v?.website||v?.instagram||v?.facebook||''}" placeholder="https://...">
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">Upgrade to Pro to add all three links</div>`,
+      nextLabel: "Finish setup ✓",
+      skipLabel: 'Skip for now'
+    }
+  ];
+
+  const s = steps[step - 1];
+  const total = steps.length;
+
+  // Progress dots
+  const dots = Array.from({length: total}, (_,i) => 
+    `<div style="width:8px;height:8px;border-radius:50%;background:${i+1===step?'var(--green)':'var(--border-med)'}"></div>`
+  ).join('');
+
+  const overlay = document.getElementById('vendorOnboardingOverlay') || (() => {
+    const el = document.createElement('div');
+    el.id = 'vendorOnboardingOverlay';
+    el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+    document.body.appendChild(el);
+    return el;
+  })();
+
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border-radius:var(--r-lg);width:100%;max-width:440px;padding:28px 24px;position:relative;max-height:90vh;overflow-y:auto">
+      <button onclick="skipVendorOnboarding()" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3);line-height:1">×</button>
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:36px;margin-bottom:10px">${s.icon}</div>
+        <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:6px">${s.title}</div>
+        <div style="font-size:13px;color:var(--text2)">${s.sub}</div>
+      </div>
+      ${s.content}
+      <div style="margin-top:20px">
+        <button onclick="vendorOnboardingNext(${step})" style="width:100%;padding:13px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:8px">${s.nextLabel}</button>
+        ${s.skipLabel ? `<button onclick="vendorOnboardingSkipStep(${step})" style="width:100%;padding:10px;background:transparent;color:var(--text3);border:none;font-size:13px;cursor:pointer;font-family:var(--font-sans)">${s.skipLabel}</button>` : ''}
+      </div>
+      <div style="display:flex;justify-content:center;gap:6px;margin-top:16px">${dots}</div>
+      <div style="text-align:center;margin-top:8px;font-size:11px;color:var(--text3)">Step ${step} of ${total}</div>
+    </div>`;
+  overlay.style.display = 'flex';
+}
+
+function previewOnboardPhoto(input) {
+  const file = input.files[0];
+  if(!file) return;
+  if(file.size > 5 * 1024 * 1024) { alert('Photo must be under 5MB'); return; }
+  ST.pendingCoverPhotoFile = file;
+  const previewUrl = URL.createObjectURL(file);
+  ST.pendingCoverPhoto = previewUrl;
+  const container = input.previousElementSibling;
+  if(container) {
+    container.style.background = `url(${previewUrl}) center/cover no-repeat`;
+    container.innerHTML = `<div style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.5);color:#fff;font-size:11px;padding:4px 8px;border-radius:var(--r-pill)">Change photo</div>`;
+  }
+}
+
+async function addGalleryPhoto(input) {
+  const file = input.files[0];
+  if(!file) return;
+  if(file.size > 5 * 1024 * 1024) { alert('Photo must be under 5MB'); return; }
+  const vendorId = ST.vendorId;
+  const v = vendorId ? DATA.vendors.find(x => x.id === vendorId) : null;
+  if(!v) return;
+  if(!v.gallery) v.gallery = [];
+  const maxPhotos = v.pro ? 10 : 5;
+  if(v.gallery.length >= maxPhotos) { alert(`Maximum ${maxPhotos} photos reached`); return; }
+  const btn = document.querySelector('button[onclick*="galleryPhotoInput"]');
+  if(btn) { btn.textContent = 'Uploading...'; btn.disabled = true; }
+  try {
+    let photoUrl;
+    if(supabaseClient) {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `gallery/${vendorId}/${Date.now()}.${ext}`;
+      photoUrl = await uploadToStorage(file, path);
+    } else {
+      photoUrl = URL.createObjectURL(file);
+    }
+    v.gallery.push({ url: photoUrl, caption: '' });
+    if(supabaseClient) await dbSaveVendor(v);
+    renderVendorProfileEdit();
+  } catch(e) {
+    console.warn('Gallery upload failed:', e);
+    alert('Upload failed — please try again');
+    renderVendorProfileEdit();
+  }
+}
+
+function deleteGalleryPhoto(idx) {
+  const v = ST.vendorId ? DATA.vendors.find(x => x.id === ST.vendorId) : null;
+  if(!v || !v.gallery) return;
+  v.gallery.splice(idx, 1);
+  if(supabaseClient) dbSaveVendor(v);
+  renderVendorProfileEdit();
+}
+
+function updateGalleryCaption(idx, caption) {
+  const v = ST.vendorId ? DATA.vendors.find(x => x.id === ST.vendorId) : null;
+  if(!v || !v.gallery || !v.gallery[idx]) return;
+  if(typeof v.gallery[idx] === 'string') {
+    v.gallery[idx] = { url: v.gallery[idx], caption };
+  } else {
+    v.gallery[idx].caption = caption;
+  }
+  clearTimeout(ST._captionSaveTimer);
+  ST._captionSaveTimer = setTimeout(() => { if(supabaseClient) dbSaveVendor(v); }, 2000);
+}
+
+async function vendorOnboardingNext(step) {
+  const vendorId = ST.vendorId;
+  const v = vendorId ? DATA.vendors.find(x => x.id === vendorId) : null;
+  const isPro = v?.pro || ST.isProTrial;
+
+  // Save data from current step
+  if(step === 2 && ST.pendingCoverPhoto) {
+    if(v) v.photo = ST.pendingCoverPhoto;
+    ST.pendingCoverPhoto = null;
+  }
+  if(step === 3) {
+    const desc = document.getElementById('onboardDescription')?.value?.trim();
+    if(v && desc) v.description = desc;
+  }
+  if(step === 4) {
+    if(isPro) {
+      if(v) {
+        v.website = document.getElementById('onboardWebsite')?.value?.trim() || '';
+        v.instagram = document.getElementById('onboardInstagram')?.value?.trim() || '';
+        v.facebook = document.getElementById('onboardFacebook')?.value?.trim() || '';
+      }
+    } else {
+      const type = document.getElementById('onboardSocialType')?.value;
+      const val = document.getElementById('onboardSocialValue')?.value?.trim() || '';
+      if(v) {
+        v.website = type === 'website' ? val : '';
+        v.instagram = type === 'instagram' ? val : '';
+        v.facebook = type === 'facebook' ? val : '';
+      }
+    }
+    // Final step — save to Supabase and mark complete
+    await completeVendorOnboarding(v);
+    return;
+  }
+  showVendorOnboarding(step + 1);
+}
+
+function vendorOnboardingSkipStep(step) {
+  if(step >= 4) { completeVendorOnboarding(); return; }
+  showVendorOnboarding(step + 1);
+}
+
+async function completeVendorOnboarding(v) {
+  // Save vendor data
+  if(v && supabaseClient) {
+    try { await dbSaveVendor(v); } catch(e) { console.warn('Save failed:', e); }
+  }
+  // Mark setup complete on user record
+  if(supabaseClient && ST.user) {
+    try {
+      await supabaseClient.from('users').update({ profile_setup_complete: true }).eq('id', ST.user.id);
+      ST.profileSetupComplete = true;
+    } catch(e) { console.warn('Could not mark setup complete:', e); }
+  }
+  skipVendorOnboarding();
+  // Show success toast
+  const toast = document.createElement('div');
+  toast.textContent = 'Profile set up! ✓';
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+  // Re-render dashboard with updated data
+  renderVendorDash();
+}
+
+function skipVendorOnboarding() {
+  const overlay = document.getElementById('vendorOnboardingOverlay');
+  if(overlay) overlay.style.display = 'none';
+}
+
+/* ── VENDOR DASHBOARD ── */
 async function renderVendorDash() {
   hideFilterUI();
-  // Load follower count from Supabase for demo vendor
+
+  const vendorId = ST.vendorId;
+  const v = vendorId ? DATA.vendors.find(x => x.id === vendorId) : null;
+  const isPro = v?.pro || ST.isProTrial;
+  const isFreeTrial = ST.isProTrial && !v?.pro;
+
+  // Load real follower count from Supabase
   let followerCount = 0;
-  const demoVendorId = 'the-empanada-queen';
-  if(supabaseClient) {
-    const { count } = await supabaseClient.from('follows').select('*', {count:'exact',head:true}).eq('vendor_id', demoVendorId);
+  if(supabaseClient && vendorId) {
+    const { count } = await supabaseClient.from('follows').select('*', {count:'exact',head:true}).eq('vendor_id', vendorId);
     followerCount = count || 0;
   }
+
+  // Trial badge
+  let trialBadge = '';
+  if(isFreeTrial && ST.trialStart) {
+    const sixMonthsLater = new Date(ST.trialStart);
+    sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+    const daysLeft = Math.ceil((sixMonthsLater - new Date()) / (1000 * 60 * 60 * 24));
+    trialBadge = `<div style="background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-md);padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:18px">🌟</span>
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--green-dk)">Pro features unlocked — founding vendor trial</div>
+        <div style="font-size:11px;color:var(--green-dk);opacity:.8">${daysLeft} days remaining · No card needed</div>
+      </div>
+    </div>`;
+  }
+
+  const tierLabel = isPro
+    ? `<span style="color:var(--green-dk);font-weight:500">Pro${isFreeTrial?' (Free Trial)':''}</span>`
+    : `Free tier · <span style="color:var(--terra);cursor:pointer" onclick="navigate('vendors-join')">${t('upgrade_pro')} — $9/mo</span>`;
+
+  const marketCount = v?.markets?.length || 0;
+  const productCount = v?.products?.length || 0;
+
+  // Quick action cards
+  const actions = [
+    { icon:'👤', label:'Edit Profile', sub:'Photo, story, links', tab:'explore' },
+    { icon:'📅', label:'My Schedule', sub:`${marketCount} market${marketCount!==1?'s':''}`, tab:'markets' },
+    { icon:'📦', label:'Products', sub: isPro ? `${productCount} listed` : '🔒 Pro feature', tab:'following', locked: !isPro },
+    { icon:'📢', label:'Post Update', sub: isPro ? 'Reach your followers' : '🔒 Pro feature', tab:null, locked: !isPro, action: isPro ? 'showWeeklyUpdateModal()' : "navigate('vendors-join')" },
+  ];
+
   document.getElementById('scrollBody').innerHTML = `<div class="vendor-dash">
-    <div class="dash-title">${t('dashboard')}</div>
-    <div class="dash-sub">${t('free_tier')} · <span style="color:var(--terra);cursor:pointer">${t('upgrade_pro')} — $9/mo</span></div>
-    <div class="dash-ad"><div><div class="ad-label">${t('ad_label')}</div><div class="ad-text">${t('ad_text')}</div></div><div class="ad-placeholder">📢</div></div>
-    <div class="upgrade-banner"><span style="font-size:20px">⭐</span><div class="upgrade-text">${t('upgrade_banner')} <strong>$9/mo · ${t('first_month_free')}</strong></div><button class="upgrade-btn">${t('start_free_trial')}</button></div>
+    <div class="dash-title">Vendor Dashboard</div>
+    <div class="dash-sub">${tierLabel}</div>
+    ${trialBadge}
+    ${!isPro ? `<div class="dash-ad"><div><div class="ad-label">${t('ad_label')}</div><div class="ad-text">${t('ad_text')}</div></div><div class="ad-placeholder">📢</div></div>
+    <div class="upgrade-banner"><span style="font-size:20px">⭐</span><div class="upgrade-text">${t('upgrade_banner')} <strong>$9/mo · ${t('first_month_free')}</strong></div><button class="upgrade-btn" onclick="navigate('vendors-join')">${t('start_free_trial')}</button></div>` : ''}
+
+    <!-- STATS -->
     <div class="dash-grid">
       <div class="dash-card"><div class="dash-card-num">0</div><div class="dash-card-label">${t('profile_views')}</div></div>
       <div class="dash-card"><div class="dash-card-num">${followerCount}</div><div class="dash-card-label">${t('followers')}</div></div>
-      <div class="dash-card"><div class="dash-card-num">0</div><div class="dash-card-label">${t('markets_label')}</div></div>
-      <div class="dash-card"><div class="dash-card-num">0</div><div class="dash-card-label">${t('my_products')}</div></div>
+      <div class="dash-card"><div class="dash-card-num">${marketCount}</div><div class="dash-card-label">${t('markets_label')}</div></div>
+      <div class="dash-card"><div class="dash-card-num">${productCount}</div><div class="dash-card-label">${t('my_products')}</div></div>
     </div>
+
+    <!-- QUICK ACTIONS -->
     <div class="dash-section">
-      <div class="dash-section-title">${t('complete_profile')} <span class="dash-section-btn">${t('edit')}</span></div>
-      ${[[t('add_photo'),t('add_photo')],[t('write_story'),t('edit')],[t('connect_instagram'),'(Pro)'],[t('list_schedule'),t('edit')],[t('add_products'),t('edit')]].map(([text,action])=>`
-        <div class="checklist-item"><div class="check-icon todo">○</div><div class="check-text">${text}</div><span class="check-action">${action}</span></div>`).join('')}
+      <div class="dash-section-title">Quick actions</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        ${actions.map(a=>`
+          <div onclick="${a.action || `navigate('${a.tab}')`}" style="background:${a.locked?'var(--surface2)':'var(--surface)'};border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px;cursor:pointer;opacity:${a.locked?.7:1}">
+            <div style="font-size:22px;margin-bottom:6px">${a.icon}</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px">${a.label}</div>
+            <div style="font-size:11px;color:var(--text3)">${a.sub}</div>
+          </div>`).join('')}
+      </div>
     </div>
-    <div class="dash-ad"><div><div class="ad-label">${t('ad_label')}</div><div class="ad-text">${t('ad_text')}</div></div><div class="ad-placeholder">📢</div></div>
-    <div class="dash-section">
-      <div class="dash-section-title">${t('weekly_update')} <span class="dash-section-btn">${t('post_update')}</span></div>
-      <p style="font-size:13px;color:var(--text2);margin-bottom:12px">${t('weekly_update_sub')}</p>
-      <button style="width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500">${t('post_update')}</button>
-    </div>
+
+    <!-- SETUP PROMPT (only if not complete) -->
+    ${!ST.profileSetupComplete ? `
+    <div class="dash-section" style="background:var(--terra-lt);border:0.5px solid #ECC4B0;border-radius:var(--r-md);padding:16px">
+      <div style="font-size:13px;font-weight:600;color:#7A2E10;margin-bottom:6px">Complete your profile setup</div>
+      <div style="font-size:12px;color:var(--terra-mid);margin-bottom:12px;line-height:1.5">Add your photo, story, and link so customers can find and connect with you.</div>
+      <button onclick="showVendorOnboarding(1)" style="width:100%;padding:10px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Finish setup — 5 minutes</button>
+    </div>` : ''}
+
+    <!-- VIEW PUBLIC PROFILE -->
+    ${v ? `<div class="dash-section">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-size:13px;font-weight:500;color:var(--text)">Your public profile</div>
+          <div style="font-size:12px;color:var(--text3)">See how customers see your page</div>
+        </div>
+        <button onclick="navigate('vendor', ST.vendorId)" style="padding:7px 14px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-family:var(--font-sans)">View →</button>
+      </div>
+    </div>` : ''}
+
   </div>`;
 }
 
@@ -4540,7 +5570,7 @@ function renderAuthModal(mode, prefillRole) {
       New to Windmill? <span style="color:var(--terra);cursor:pointer" onclick="renderAuthModal('signup')">Create free account</span>
     </div>
     <div style="text-align:center;margin-top:10px;font-size:11px;color:var(--text3)">
-      Vendor? <span style="color:var(--terra);cursor:pointer" onclick="closeModal('signinModal');openModal('claimModal')">Claim your listing →</span>
+      Vendor? <span style="color:var(--terra);cursor:pointer" onclick="closeModal('signinModal');navigate('vendors-join')">Claim your listing →</span>
     </div>`;
 }
 
@@ -4659,7 +5689,16 @@ async function authSignOut() {
   if(supabaseClient) await supabaseClient.auth.signOut();
   ST.user = null;
   ST.follows = [];
-  if(ST.devMode) { ST.role = 'customer'; }
+  ST.vendorId = null;
+  ST.isProTrial = false;
+  ST.trialStart = null;
+  ST.profileSetupComplete = false;
+  // Clear dev mode on logout for security
+  ST.devMode = false;
+  localStorage.setItem('windmill_dev', 'false');
+  ST.role = 'customer';
+  const rb = document.querySelector('.role-bar');
+  if(rb) rb.classList.add('hidden');
   // Restore desktop sign-in button
   const btn = document.getElementById('desktopSigninBtn');
   if(btn) { btn.textContent = 'Sign in'; btn.onclick = () => openSignIn(); }
@@ -4678,6 +5717,21 @@ async function onAuthSuccess(user) {
   const role = profile?.role || user.user_metadata?.role || 'customer';
 
   ST.user = { id: user.id, email: user.email, name, role };
+
+  // Store vendor/operator identity and trial info
+  ST.vendorId = profile?.vendor_id || null;
+  ST.operatorId = profile?.operator_id || null;
+  ST.trialStart = profile?.trial_start ? new Date(profile.trial_start) : null;
+  ST.profileSetupComplete = profile?.profile_setup_complete || false;
+
+  // Determine if vendor is on active Pro trial (within 6 months of trial_start)
+  if(ST.trialStart) {
+    const sixMonthsLater = new Date(ST.trialStart);
+    sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+    ST.isProTrial = new Date() < sixMonthsLater;
+  } else {
+    ST.isProTrial = false;
+  }
 
   // Auto-create users table row if it doesn't exist (Google/OAuth sign-ins)
   if(!profile) {
@@ -4711,6 +5765,11 @@ async function onAuthSuccess(user) {
     btn.onclick = () => { ST.tab='me'; renderCurrentPage(); renderBottom(); };
   }
   renderMe();
+
+  // Show onboarding modal for new vendors who haven't completed setup
+  if(role === 'vendor' && !ST.profileSetupComplete && ST.vendorId) {
+    setTimeout(() => showVendorOnboarding(), 800);
+  }
 
   // Show welcome toast
   const toast = document.createElement('div');
@@ -4813,8 +5872,28 @@ function submitAreaRequest() {
 }
 
 /* ── SUPABASE WRITE HELPERS ── */
+/* ── SUPABASE STORAGE UPLOAD ── */
+async function uploadToStorage(file, path) {
+  if(!supabaseClient) throw new Error('Supabase not connected');
+  const { data, error } = await supabaseClient.storage
+    .from('vendor-photos')
+    .upload(path, file, { upsert: true, contentType: file.type });
+  if(error) throw error;
+  const { data: urlData } = supabaseClient.storage
+    .from('vendor-photos')
+    .getPublicUrl(path);
+  return urlData.publicUrl;
+}
+
 async function dbSaveVendor(vendor) {
   if(!supabaseClient) return;
+  // Sandbox mode — update local data only, don't write to Supabase
+  if(ST.sandboxMode) {
+    const idx = DATA.vendors.findIndex(x => x.id === vendor.id);
+    if(idx !== -1) Object.assign(DATA.vendors[idx], vendor);
+    console.log('🧪 Sandbox: vendor updated locally only (not saved to Supabase)');
+    return;
+  }
   try {
     const { markets, ...vendorData } = vendor;
     const { error } = await supabaseClient.from('vendors').upsert(vendorData);
@@ -4990,18 +6069,44 @@ function adminToggleMarketPublished(id, el) {
 }
 
 /* Claims */
-function adminApproveClaim(claimId) {
+async function adminApproveClaim(claimId) {
   const c = ST.adminClaims.find(x=>x.id===claimId);
   if(!c) return;
   c.status = 'approved';
+
+  // Mark vendor as claimed in local data
   const v = DATA.vendors.find(x=>x.id===c.vendorId);
   if(v) v.claimed = true;
+
+  // Set vendor_id, role, and trial_start on the user in Supabase
+  if(supabaseClient && c.email) {
+    const trialStart = new Date().toISOString();
+    try {
+      // Find user by email and update their record
+      const { data: userRecord } = await supabaseClient
+        .from('users')
+        .select('id')
+        .eq('email', c.email)
+        .single();
+
+      if(userRecord) {
+        await supabaseClient.from('users').update({
+          role: 'vendor',
+          vendor_id: c.vendorId,
+          trial_start: trialStart
+        }).eq('id', userRecord.id);
+      }
+    } catch(e) {
+      console.warn('Could not update user record on approval:', e);
+    }
+  }
+
   // Add confirmation message to inbox
   ST.adminMessages.unshift({
     id:'auto_'+Date.now(),
     from:c.claimant, role:'Vendor',
     subject:'Claim approved: '+c.vendorName,
-    body:`Your claim for "${c.vendorName}" has been approved. You can now manage your listing.`,
+    body:`Your claim for "${c.vendorName}" has been approved. You now have 6 months of Pro free. Log in to manage your listing.`,
     date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
     read:true, resolved:true, replies:[], isSystem:true
   });
@@ -5405,48 +6510,320 @@ function freePageHeader() {
   return `${adUnit()}<div class="upgrade-banner" style="margin:0 0 16px"><span style="font-size:18px">⭐</span><div class="upgrade-text">Upgrade to <strong>Pro</strong> to remove ads and unlock all features. <strong>$9/mo · First month free</strong></div><button class="upgrade-btn" onclick="alert('$9/mo — first month free')">Upgrade</button></div>`;
 }
 
+function showWeeklyUpdateModal() {
+  const v = ST.vendorId ? DATA.vendors.find(x => x.id === ST.vendorId) : null;
+  const existing = v?.weekly_update ? (typeof v.weekly_update === 'object' ? v.weekly_update.text : v.weekly_update) : '';
+
+  const overlay = document.createElement('div');
+  overlay.id = 'weeklyUpdateOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:flex-end;justify-content:center;padding:16px';
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border-radius:var(--r-lg) var(--r-lg) 0 0;width:100%;max-width:480px;padding:24px 20px 32px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div style="font-family:var(--font-serif);font-size:17px;font-weight:600;color:var(--text)">📣 This week's update</div>
+        <button onclick="document.getElementById('weeklyUpdateOverlay').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3)">×</button>
+      </div>
+      <textarea id="weeklyUpdateText" placeholder="What are you bringing this week? Any specials, new items, or market appearances to share with your followers..." style="width:100%;min-height:120px;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none;resize:vertical;line-height:1.6;margin-bottom:12px">${existing}</textarea>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;background:var(--surface2);border:0.5px solid var(--border);border-radius:var(--r-md);margin-bottom:16px;opacity:.6">
+        <input type="checkbox" disabled style="width:16px;height:16px;accent-color:#1877F2;cursor:not-allowed">
+        <div>
+          <div style="font-size:13px;font-weight:500;color:var(--text)">📘 Also post to Facebook</div>
+          <div style="font-size:11px;color:var(--text3)">Coming soon — Facebook API integration in progress</div>
+        </div>
+      </label>
+      <button onclick="saveWeeklyUpdate()" style="width:100%;padding:13px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Post update</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(() => document.getElementById('weeklyUpdateText')?.focus(), 100);
+}
+
+async function saveWeeklyUpdate() {
+  const text = document.getElementById('weeklyUpdateText')?.value?.trim();
+  if(!text) { alert('Please write something first.'); return; }
+  const v = ST.vendorId ? DATA.vendors.find(x => x.id === ST.vendorId) : null;
+  if(!v) return;
+  v.weekly_update = { text, date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) };
+  if(supabaseClient) await dbSaveVendor(v);
+  document.getElementById('weeklyUpdateOverlay')?.remove();
+  const toast = document.createElement('div');
+  toast.textContent = 'Update posted ✓';
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+function collapseSection(id) {
+  const body = document.getElementById('cs_' + id);
+  const icon = document.getElementById('ci_' + id);
+  if(!body || !icon) return;
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  icon.textContent = isOpen ? '＋' : '－';
+}
+
+function collapsibleSection(id, title, content, badge, defaultOpen) {
+  const open = defaultOpen !== false;
+  return `<div class="dash-section" style="padding:0;overflow:hidden">
+    <div onclick="collapseSection('${id}')" style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;background:var(--surface);border-radius:var(--r-md)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="font-size:13px;font-weight:600;color:var(--text)">${title}</div>
+        ${badge || ''}
+      </div>
+      <div id="ci_${id}" style="font-size:18px;color:var(--text3);line-height:1;font-weight:300">${open ? '－' : '＋'}</div>
+    </div>
+    <div id="cs_${id}" style="display:${open ? 'block' : 'none'};padding:0 0 4px">
+      ${content}
+    </div>
+  </div>`;
+}
+
 function renderVendorProfileEdit() {
   hideFilterUI();
-  document.getElementById('scrollBody').innerHTML=`<div class="vendor-dash">
-    ${freePageHeader()}
-    <div class="dash-title">My Profile</div><div class="dash-sub">How customers see you on Windmill</div>
-    <div class="dash-section">
-      <div class="dash-section-title">Basic Info <span class="dash-section-btn">Save</span></div>
-      <div class="form-field"><label class="form-label">Business name</label><input class="form-input" placeholder="Your business name"></div>
-      <div class="form-field"><label class="form-label">Category</label><input class="form-input" placeholder="e.g. Baked Goods"></div>
-      <div class="form-field"><label class="form-label">Email</label><input class="form-input" type="email" placeholder="your@email.com"></div>
-      <div class="form-field"><label class="form-label">Website</label><input class="form-input" type="url" placeholder="https://yoursite.com"></div>
-      <div class="form-field"><label class="form-label">Your story</label><textarea class="form-textarea" placeholder="Tell customers about your business..."></textarea></div>
-      <button class="btn-primary" onclick="alert('Saves to Supabase in Phase 2')">Save changes</button>
+  const vendorId = ST.vendorId;
+  const v = vendorId ? DATA.vendors.find(x => x.id === vendorId) : null;
+  const isPro = v?.pro || ST.isProTrial;
+
+  // Determine existing social link type and value
+  let socialType = 'website';
+  let socialValue = '';
+  if(v?.website) { socialType = 'website'; socialValue = v.website; }
+  else if(v?.instagram) { socialType = 'instagram'; socialValue = v.instagram; }
+  else if(v?.facebook) { socialType = 'facebook'; socialValue = v.facebook; }
+
+  const categories = ['Baked Goods','Produce','Honey & Preserves','Plants & Herbs','Crafts & Art','Dairy & Eggs','Seafood','Prepared Food','Coffee & Drinks','Flowers','Health & Wellness','Jewelry','Food Trucks','Juice & Drinks','Meat & Poultry','Other'];
+
+  // Build section content strings
+  const photoContent = `
+    <div style="padding:0 0 12px">
+      <div style="width:100%;height:140px;background:${v?.photo?'url('+v.photo+') center/cover no-repeat':'var(--surface2)'};border-radius:var(--r-md);border:0.5px dashed var(--border-med);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;overflow:hidden;margin-bottom:8px" onclick="document.getElementById('profilePhotoInput').click()">
+        ${!v?.photo ? `<div style="text-align:center"><div style="font-size:28px;margin-bottom:6px">📷</div><div style="font-size:12px;color:var(--text3)">Tap to add your photo</div></div>` : `<div style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.5);color:#fff;font-size:11px;padding:4px 8px;border-radius:var(--r-pill)">Change photo</div>`}
+      </div>
+      <input type="file" id="profilePhotoInput" accept="image/jpeg,image/png,image/webp,image/heic" style="display:none" onchange="previewCoverPhoto(this)">
+      <div style="font-size:11px;color:var(--text3);text-align:center">Appears on your cards and profile page · Max 5MB</div>
+    </div>`;
+
+  const basicContent = `
+    <div style="padding:0 0 12px">
+      <div class="form-field"><label class="form-label">Business name</label><input class="form-input" id="ve_name" value="${v?.name||''}" placeholder="Your business name"></div>
+      <div class="form-field"><label class="form-label">Category</label><select class="form-input" id="ve_category" style="cursor:pointer">${categories.map(cat=>`<option value="${cat}" ${v?.category===cat?'selected':''}>${cat}</option>`).join('')}</select></div>
+      <div class="form-field"><label class="form-label">Your story</label><textarea class="form-textarea" id="ve_description" placeholder="Tell customers about your business, your story, what makes you special...">${v?.description||''}</textarea></div>
+    </div>`;
+
+  const linksContent = `
+    <div style="padding:0 0 12px">
+      ${isPro ? `
+      <div class="form-field"><label class="form-label">Website</label><input class="form-input" id="ve_website" value="${v?.website||''}" placeholder="https://yoursite.com" type="url"></div>
+      <div class="form-field"><label class="form-label">Instagram</label><input class="form-input" id="ve_instagram" value="${v?.instagram||''}" placeholder="https://instagram.com/yourhandle"></div>
+      <div class="form-field"><label class="form-label">Facebook</label><input class="form-input" id="ve_facebook" value="${v?.facebook||''}" placeholder="https://facebook.com/yourpage"></div>` : `
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Choose one link to share with customers. Upgrade to Pro to add all three.</div>
+      <div class="form-field"><label class="form-label">Link type</label><select class="form-input" id="ve_social_type" style="cursor:pointer" onchange="document.getElementById('ve_social_value').placeholder=this.value==='website'?'https://yoursite.com':this.value==='instagram'?'https://instagram.com/yourhandle':'https://facebook.com/yourpage'"><option value="website" ${socialType==='website'?'selected':''}>Website</option><option value="instagram" ${socialType==='instagram'?'selected':''}>Instagram</option><option value="facebook" ${socialType==='facebook'?'selected':''}>Facebook</option></select></div>
+      <div class="form-field"><label class="form-label">URL</label><input class="form-input" id="ve_social_value" value="${socialValue}" placeholder="${socialType==='website'?'https://yoursite.com':socialType==='instagram'?'https://instagram.com/yourhandle':'https://facebook.com/yourpage'}"></div>`}
+    </div>`;
+
+  const scheduleContent = `
+    <div style="padding:0 0 12px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Which markets do you attend?</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${DATA.markets.filter(m=>m.published!==false).map(m=>`
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md)">
+            <input type="checkbox" id="ve_market_${m.id}" ${v?.markets?.includes(m.id)?'checked':''} style="width:16px;height:16px;accent-color:var(--green);cursor:pointer">
+            <div style="flex:1"><div style="font-size:13px;font-weight:500;color:var(--text)">${m.name}</div><div style="font-size:11px;color:var(--text3)">${m.day_of_week}s · ${formatTimeRange(m.start_time,m.end_time)} · ${m.city}</div></div>
+          </label>`).join('')}
+      </div>
+    </div>`;
+
+  const gallery = v?.gallery || [];
+  const maxPhotos = v?.pro ? 10 : 5;
+  const galleryContent = isPro ? `
+    <div style="padding:0 0 12px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">${gallery.length} of ${maxPhotos} photos · Shown on your public profile</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        ${gallery.map((photo,idx)=>{const url=typeof photo==='object'?photo.url:photo;const cap=typeof photo==='object'?(photo.caption||''):'';return `<div style="border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;background:var(--surface)"><div style="height:100px;background:url(${url}) center/cover no-repeat;position:relative"><button onclick="deleteGalleryPhoto(${idx})" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:13px;cursor:pointer;line-height:1">×</button></div><div style="padding:6px 8px"><input type="text" value="${cap}" placeholder="Add a caption..." onchange="updateGalleryCaption(${idx},this.value)" style="width:100%;border:none;background:transparent;font-size:11px;color:var(--text2);font-family:var(--font-sans);outline:none;box-sizing:border-box"><div style="margin-top:4px;font-size:10px;color:var(--text3)">📘 Share to Facebook — coming soon</div></div></div>`;}).join('')}
+      </div>
+      ${gallery.length < maxPhotos ? `<button onclick="document.getElementById('galleryPhotoInput').click()" style="width:100%;padding:10px;background:var(--surface2);color:var(--text2);border:0.5px dashed var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans)">+ Add photo (${gallery.length}/${maxPhotos})</button><input type="file" id="galleryPhotoInput" accept="image/jpeg,image/png,image/webp,image/heic" style="display:none" onchange="addGalleryPhoto(this)">` : `<div style="text-align:center;font-size:12px;color:var(--text3);padding:8px">${v?.pro?'Maximum 10 photos reached':'Maximum 5 photos reached · Upgrade to Pro for 10 photos'}</div>`}
+    </div>` : `<div style="padding:0 0 12px"><div class="pro-lock"><span style="font-size:20px">🔒</span><div class="pro-lock-text"><div class="pro-lock-title">Photo Gallery is a Pro feature</div><div class="pro-lock-sub">Add up to 5 photos during your free trial.</div></div><button class="pro-lock-btn" onclick="navigate('vendors-join')">Upgrade</button></div></div>`;
+
+  const brandingContent = `<div style="padding:0 0 12px">${isPro?`<div style="background:var(--surface2);border-radius:var(--r-md);padding:16px;text-align:center"><div style="font-size:24px;margin-bottom:8px">🎨</div><div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:4px">Branding tools coming soon</div><div style="font-size:12px;color:var(--text2)">Logo upload, brand colors — included in your Pro plan.</div></div>`:`<div class="pro-lock"><span style="font-size:20px">🔒</span><div class="pro-lock-text"><div class="pro-lock-title">Branding is a Pro feature</div><div class="pro-lock-sub">Add your logo and brand colors.</div></div><button class="pro-lock-btn" onclick="navigate('vendors-join')">Upgrade</button></div>`}</div>`;
+
+  const igContent = `<div style="padding:0 0 12px">${isPro?`<div style="background:var(--surface2);border-radius:var(--r-md);padding:16px;text-align:center"><div style="font-size:24px;margin-bottom:8px">📸</div><div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:4px">Instagram feed coming soon</div><div style="font-size:12px;color:var(--text2)">Auto-pull your latest posts — included in your Pro plan.</div></div>`:`<div class="pro-lock"><span style="font-size:20px">🔒</span><div class="pro-lock-text"><div class="pro-lock-title">Instagram Feed is a Pro feature</div><div class="pro-lock-sub">Auto-pull your latest Instagram posts.</div></div><button class="pro-lock-btn" onclick="navigate('vendors-join')">Upgrade</button></div>`}</div>`;
+
+  const proBadge = `<span style="font-size:10px;padding:2px 8px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill);font-weight:500">✓ Pro</span>`;
+  const lockBadge = `<span style="font-size:10px;color:var(--text3)">🔒 Pro</span>`;
+
+  document.getElementById('scrollBody').innerHTML = `<div class="vendor-dash">
+    ${!isPro ? freePageHeader() : ''}
+    <div class="dash-title">My Profile</div>
+    <div class="dash-sub">How customers see you on Windmill</div>
+
+    ${collapsibleSection('photo','Profile Photo', photoContent, '', true)}
+    ${collapsibleSection('basic','Basic Info', basicContent, '', false)}
+    ${collapsibleSection('links', isPro?'Links & Social':'Your Link', linksContent, isPro?proBadge:'', false)}
+    ${collapsibleSection('schedule','Market Schedule', scheduleContent, '', false)}
+    ${collapsibleSection('gallery','Photo Gallery', galleryContent, isPro?proBadge:lockBadge, false)}
+    ${collapsibleSection('branding','Branding', brandingContent, isPro?proBadge:lockBadge, false)}
+    ${collapsibleSection('ig','Instagram Feed', igContent, isPro?proBadge:lockBadge, false)}
+
+    <div style="padding:8px 0 32px">
+      <button onclick="saveVendorProfile()" style="width:100%;padding:14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:15px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Save changes</button>
+      <div style="text-align:center;margin-top:10px">
+        <span onclick="navigate('vendor', ST.vendorId)" style="font-size:12px;color:var(--terra);cursor:pointer">View my public profile →</span>
+      </div>
     </div>
-    ${proLockedSection('Profile Photos','Add up to 12 photos of your products. Photos dramatically increase follows and engagement.')}
-    ${proLockedSection('Instagram Feed','Auto-pull your latest Instagram posts onto your Windmill profile.')}
   </div>`;
+}
+
+function previewCoverPhoto(input) {
+  const file = input.files[0];
+  if(!file) return;
+  if(file.size > 5 * 1024 * 1024) { alert('Photo must be under 5MB'); return; }
+  // Store file for upload on save
+  ST.pendingCoverPhotoFile = file;
+  // Show preview using object URL
+  const previewUrl = URL.createObjectURL(file);
+  const container = input.previousElementSibling;
+  if(container) {
+    container.style.background = `url(${previewUrl}) center/cover no-repeat`;
+    container.innerHTML = `<div style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.5);color:#fff;font-size:11px;padding:4px 8px;border-radius:var(--r-pill)">Change photo</div>`;
+  }
+  ST.pendingCoverPhoto = previewUrl; // for immediate UI feedback
+}
+
+async function saveVendorProfile() {
+  const vendorId = ST.vendorId;
+  if(!vendorId) { alert('No vendor profile found.'); return; }
+  let v = DATA.vendors.find(x => x.id === vendorId);
+  if(!v) { alert('Vendor not found.'); return; }
+  const isPro = v.pro || ST.isProTrial;
+
+  // Read form values
+  v.name = document.getElementById('ve_name')?.value?.trim() || v.name;
+  v.category = document.getElementById('ve_category')?.value || v.category;
+  v.description = document.getElementById('ve_description')?.value?.trim() || '';
+
+  // Social links
+  if(isPro) {
+    v.website = document.getElementById('ve_website')?.value?.trim() || '';
+    v.instagram = document.getElementById('ve_instagram')?.value?.trim() || '';
+    v.facebook = document.getElementById('ve_facebook')?.value?.trim() || '';
+  } else {
+    const socialType = document.getElementById('ve_social_type')?.value;
+    const socialValue = document.getElementById('ve_social_value')?.value?.trim() || '';
+    v.website = socialType === 'website' ? socialValue : '';
+    v.instagram = socialType === 'instagram' ? socialValue : '';
+    v.facebook = socialType === 'facebook' ? socialValue : '';
+  }
+
+  // Market schedule
+  v.markets = DATA.markets.filter(m => document.getElementById('ve_market_'+m.id)?.checked).map(m => m.id);
+
+  // Profile photo — upload to Supabase Storage
+  if(ST.pendingCoverPhotoFile) {
+    try {
+      const ext = ST.pendingCoverPhotoFile.name.split('.').pop() || 'jpg';
+      const path = `profile/${vendorId}/photo.${ext}`;
+      const url = await uploadToStorage(ST.pendingCoverPhotoFile, path);
+      v.photo = url;
+      ST.pendingCoverPhotoFile = null;
+      ST.pendingCoverPhoto = null;
+    } catch(e) {
+      console.warn('Photo upload failed:', e);
+      // Fall back to base64 preview if storage fails
+      if(ST.pendingCoverPhoto) { v.photo = ST.pendingCoverPhoto; ST.pendingCoverPhoto = null; }
+    }
+  }
+
+  // Save to Supabase
+  if(supabaseClient) {
+    try {
+      await dbSaveVendor(v);
+    } catch(e) {
+      console.warn('Save failed:', e);
+    }
+  }
+
+  // Show success toast
+  const toast = document.createElement('div');
+  toast.textContent = 'Profile updated ✓';
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
 }
 
 function renderVendorSchedule() {
   hideFilterUI();
-  // ads injected via freePageHeader in html
-  const sampleIds = ['lakes-park','sanibel-island','coconut-point'];
+  const vendorId = ST.vendorId;
+  const v = vendorId ? DATA.vendors.find(x => x.id === vendorId) : null;
+  const isPro = v?.pro || ST.isProTrial;
+  const marketIds = v?.markets || [];
+
   document.getElementById('scrollBody').innerHTML=`<div class="vendor-dash">
-    <div class="dash-title">My Schedule</div><div class="dash-sub">Markets where you attend</div>
+    ${!isPro ? freePageHeader() : ''}
+    <div class="dash-title">My Schedule</div>
+    <div class="dash-sub">Markets where you attend</div>
     <div class="dash-section">
       <div class="dash-section-title">Your markets</div>
-      ${sampleIds.map(id=>{const m=getMarket(id);if(!m)return '';return `<div class="schedule-row" onclick="navigate('market','${m.id}')"><div class="schedule-day">${shortDay(m.day_of_week)}</div><div style="flex:1"><div class="schedule-market">${m.name}</div><div class="schedule-time">${m.day_of_week}s · ${formatTimeRange(m.start_time,m.end_time)} · ${m.city}</div></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>`;}).join('')}
-      <button style="width:100%;margin-top:12px;padding:10px;background:var(--surface2);color:var(--text2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer">+ Request to add a market</button>
+      ${marketIds.length ? marketIds.map(id=>{const m=getMarket(id);if(!m)return '';return `<div class="schedule-row" onclick="navigate('market','${m.id}')"><div class="schedule-day">${shortDay(m.day_of_week)}</div><div style="flex:1"><div class="schedule-market">${m.name}</div><div class="schedule-time">${m.day_of_week}s · ${formatTimeRange(m.start_time,m.end_time)} · ${m.city}</div></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>`;}).join('') : `<div style="font-size:13px;color:var(--text2);padding:12px 0;text-align:center">No markets added yet — go to My Profile to add your market schedule.</div>`}
+      <button onclick="navigate('explore')" style="width:100%;margin-top:12px;padding:10px;background:var(--surface2);color:var(--text2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans)">+ Edit my market schedule</button>
     </div>
-    ${proLockedSection('Weekly Update Posts','Let customers know what you\'re bringing each week. Appears on your profile and market page.')}
-    ${proLockedSection('Attendance Confirmation','Mark yourself as attending — boosts your visibility on the market page.')}
+
+    <!-- WEEKLY UPDATE POSTS -->
+    <div class="dash-section">
+      <div class="dash-section-title" style="display:flex;align-items:center;justify-content:space-between">
+        Weekly Update Posts
+        ${isPro ? '<span style="font-size:10px;padding:2px 8px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill);font-weight:500">✓ Pro feature</span>' : '<span style="font-size:10px;color:var(--text3)">🔒 Pro</span>'}
+      </div>
+      ${isPro ? `
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Let customers know what you're bringing this week. Posts appear on your profile and market page.</p>
+      <button onclick="showWeeklyUpdateModal()" style="width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Post this week's update</button>` :
+      `<div class="pro-lock"><span style="font-size:20px">🔒</span><div class="pro-lock-text"><div class="pro-lock-title">Weekly Update Posts is a Pro feature</div><div class="pro-lock-sub">Let customers know what you're bringing each week.</div></div><button class="pro-lock-btn" onclick="navigate('vendors-join')">Upgrade</button></div>`}
+    </div>
+
+    <!-- ATTENDANCE CONFIRMATION -->
+    <div class="dash-section">
+      <div class="dash-section-title" style="display:flex;align-items:center;justify-content:space-between">
+        Attendance Confirmation
+        ${isPro ? '<span style="font-size:10px;padding:2px 8px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill);font-weight:500">✓ Pro feature</span>' : '<span style="font-size:10px;color:var(--text3)">🔒 Pro</span>'}
+      </div>
+      ${isPro ? `
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Mark yourself as attending this week — boosts your visibility on the market page.</p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${marketIds.map(id=>{const m=getMarket(id);if(!m)return '';return `<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md)"><input type="checkbox" style="width:16px;height:16px;accent-color:var(--green);cursor:pointer"><div style="flex:1"><div style="font-size:13px;font-weight:500">${m.name}</div><div style="font-size:11px;color:var(--text3)">${m.day_of_week} · ${formatTimeRange(m.start_time,m.end_time)}</div></div></label>`;}).join('')}
+        ${!marketIds.length ? `<div style="font-size:13px;color:var(--text2);text-align:center;padding:12px">Add markets to your schedule first</div>` : ''}
+      </div>` :
+      `<div class="pro-lock"><span style="font-size:20px">🔒</span><div class="pro-lock-text"><div class="pro-lock-title">Attendance Confirmation is a Pro feature</div><div class="pro-lock-sub">Mark yourself as attending — boosts your visibility on the market page.</div></div><button class="pro-lock-btn" onclick="navigate('vendors-join')">Upgrade</button></div>`}
+    </div>
   </div>`;
 }
 
 function renderVendorProducts() {
   hideFilterUI();
+  const vendorId = ST.vendorId;
+  const v = vendorId ? DATA.vendors.find(x => x.id === vendorId) : null;
+  const isPro = v?.pro || ST.isProTrial;
+  const products = v?.products || [];
+
   document.getElementById('scrollBody').innerHTML=`<div class="vendor-dash">
-    ${freePageHeader()}
-    <div class="dash-title">My Products</div><div class="dash-sub">Showcase what you sell</div>
-    ${proLockedSection('Product Catalog','Add photos and descriptions of your products. Customers can browse before visiting the market.')}
-    <div class="dash-section" style="text-align:center;padding:24px"><div style="font-size:32px;margin-bottom:8px">📦</div><div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:12px">Upgrade to showcase your products</div><button onclick="alert('$9/mo — first month free')" style="padding:8px 20px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:13px;cursor:pointer;font-weight:500">Start free trial</button></div>
+    ${!isPro ? freePageHeader() : ''}
+    <div class="dash-title">My Products</div>
+    <div class="dash-sub">Showcase what you sell</div>
+
+    <div class="dash-section">
+      <div class="dash-section-title" style="display:flex;align-items:center;justify-content:space-between">
+        Product Catalog
+        ${isPro ? '<span style="font-size:10px;padding:2px 8px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill);font-weight:500">✓ Pro feature</span>' : '<span style="font-size:10px;color:var(--text3)">🔒 Pro</span>'}
+      </div>
+      ${isPro ? `
+      <p style="font-size:13px;color:var(--text2);margin-bottom:14px">Add photos and descriptions of your products. Customers can browse before visiting the market.</p>
+      ${products.length ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+        ${products.map(p=>`<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden">
+          ${p.photo?`<div style="height:80px;background:url(${p.photo}) center/cover no-repeat"></div>`:`<div style="height:80px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:24px">📦</div>`}
+          <div style="padding:8px"><div style="font-size:12px;font-weight:500;color:var(--text)">${p.name}</div>${p.price?`<div style="font-size:11px;color:var(--green-dk)">$${p.price}</div>`:''}</div>
+        </div>`).join('')}
+      </div>` : `<div style="text-align:center;padding:20px 0;color:var(--text2);font-size:13px">No products listed yet</div>`}
+      <div style="background:var(--surface2);border:0.5px dashed var(--border-med);border-radius:var(--r-md);padding:14px;text-align:center;font-size:12px;color:var(--text3)">+ Add a product — coming in next build</div>` :
+      `<div class="pro-lock"><span style="font-size:20px">🔒</span><div class="pro-lock-text"><div class="pro-lock-title">Product Catalog is a Pro feature</div><div class="pro-lock-sub">Add photos and descriptions of your products. Customers can browse before visiting the market.</div></div><button class="pro-lock-btn" onclick="navigate('vendors-join')">Upgrade</button></div>
+      <div style="text-align:center;padding:20px 0"><div style="font-size:32px;margin-bottom:8px">📦</div><div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:12px">Upgrade to showcase your products</div><button onclick="navigate('vendors-join')" style="padding:8px 20px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:13px;cursor:pointer;font-weight:500">Start free trial</button></div>`}
+    </div>
   </div>`;
 }
 
@@ -5733,7 +7110,7 @@ function renderAdminSettings() {
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Platform Info</div>
-        <div class="admin-row-meta">Version 1.47 · Lee County, FL · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
+        <div class="admin-row-meta">Version 1.48.6 · Lee County, FL · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Coverage Area</div>
@@ -6053,6 +7430,18 @@ function goBack() {
   window.scrollTo(0, 0);
   const sb = document.getElementById('scrollBody');
   if(sb) sb.scrollTop = 0;
+  // If we came from a specific page (e.g. vendors-join), go back there
+  if(ST.previousPage) {
+    const returnTo = ST.previousPage;
+    const returnId = ST.previousId;
+    ST.previousPage = null;
+    ST.previousId = null;
+    ST.currentPage = returnTo;
+    ST.currentId = returnId || null;
+    renderSidebar(); renderBottom(); renderCurrentPage();
+    setTimeout(() => { window.scrollTo(0, 0); if(sb) sb.scrollTop = 0; }, 50);
+    return;
+  }
   ST.currentPage = null;
   renderFilterStrip();
   navigate(ST.tab || 'home');
@@ -6413,6 +7802,11 @@ function initSpotlightCarousel() {
       logoTimer = setTimeout(() => { logoTaps = 0; }, 2000);
       if(logoTaps >= 5) {
         logoTaps = 0;
+        // Security: only allow dev mode for logged-in admin users
+        if(!ST.user || ST.user.role !== 'admin') {
+          console.log('Dev mode requires admin login');
+          return;
+        }
         ST.devMode = !ST.devMode;
         localStorage.setItem('windmill_dev', ST.devMode ? 'true' : 'false');
         const rb = document.querySelector('.role-bar');
@@ -6444,7 +7838,7 @@ async function initApp() {
   renderSidebar();
   renderFilterStrip();
   renderBottom();
-  renderHome();
+  renderCurrentPage();
   initViewToggle();
   setTimeout(initSpotlightCarousel, 100);
 }
