@@ -346,6 +346,34 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .pro-lock-sub{font-size:10px;color:var(--amber)}
 .pro-lock-btn{font-size:11px;padding:5px 12px;background:var(--amber);color:#fff;border:none;border-radius:var(--r-pill);cursor:pointer;white-space:nowrap}
 
+/* VENDOR DISCOVERY STRIPS */
+.vnd-strip-wrap{padding:16px;border-bottom:0.5px solid var(--border);background:var(--surface);margin-top:8px}
+@media(min-width:768px){.vnd-strip-wrap{padding:20px 24px}}
+.vnd-strip-title{font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.vnd-strip-track-wrap{overflow:hidden;position:relative}
+.vnd-strip-track{display:flex;gap:10px;transition:transform .5s cubic-bezier(.4,0,.2,1);will-change:transform}
+.vnd-strip-manual{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;padding-bottom:4px}
+.vnd-strip-manual::-webkit-scrollbar{display:none}
+.vnd-strip-card{min-width:130px;max-width:130px;background:var(--surface2);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;flex-shrink:0;cursor:pointer;transition:transform .15s}
+.vnd-strip-card:hover{transform:translateY(-2px)}
+.vnd-strip-avatar{height:56px;display:flex;align-items:center;justify-content:center;font-family:var(--font-serif);font-size:16px;font-weight:600;position:relative}
+.vnd-strip-pro-dot{position:absolute;top:5px;right:5px;width:8px;height:8px;background:var(--green);border-radius:50%;border:1.5px solid var(--surface)}
+.vnd-strip-info{padding:6px 8px 8px}
+.vnd-strip-name{font-size:11px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vnd-strip-cat{font-size:10px;color:var(--text3);margin-top:1px}
+/* PRODUCT CATALOG */
+.product-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+@media(min-width:768px){.product-grid{grid-template-columns:repeat(3,1fr)}}
+.product-card{background:var(--surface2);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;position:relative}
+.product-img{height:80px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:24px}
+.product-body{padding:8px}
+.product-name{font-size:12px;font-weight:500;color:var(--text);margin-bottom:2px}
+.product-desc{font-size:10px;color:var(--text2);line-height:1.4;margin-bottom:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.product-price{font-size:11px;color:var(--green-dk);font-weight:500}
+.product-edit-btn{position:absolute;top:5px;right:5px;background:rgba(255,255,255,.9);border:0.5px solid var(--border-med);border-radius:var(--r-sm);padding:3px 7px;font-size:10px;cursor:pointer;font-family:var(--font-sans)}
+.product-add-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)}
+.product-limit-note{font-size:11px;color:var(--text3);text-align:center;margin-top:6px}
+
 /* MARKET DETAIL PAGE */
 .market-page{background:var(--bg);min-height:100%}
 .market-hero{background:var(--surface);padding:20px 16px;border-bottom:0.5px solid var(--border)}
@@ -382,6 +410,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 
 /* ADMIN PANEL */
 .admin-panel{padding:16px}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.85}}
 @media(min-width:768px){.admin-panel{padding:24px}}
 .admin-title{font-family:var(--font-serif);font-size:22px;font-weight:600;color:var(--text);margin-bottom:4px}
 .admin-sub{font-size:13px;color:var(--text2);margin-bottom:20px}
@@ -908,6 +937,28 @@ async function loadFromSupabase() {
 
       DB_LOADED = true;
       console.log(`✓ Loaded from Supabase: ${vendors.length} vendors, ${markets.length} markets`);
+
+      // Load claims for admin
+      try {
+        const { data: claims } = await supabaseClient.from('claims').select('*').order('created_at', {ascending: false});
+        if(claims && claims.length > 0) {
+          ST.adminClaims = claims.map(c => ({
+            id: c.id,
+            vendorId: c.vendor_id,
+            vendorName: c.vendor_name || c.vendor_id,
+            claimant: c.claimant_name,
+            email: c.email,
+            phone: c.phone || '',
+            message: c.message || '',
+            date: c.created_at ? new Date(c.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '',
+            status: c.status || 'pending',
+            denyReason: c.deny_reason || '',
+            proRequested: c.pro_requested || false,
+            upgradeRequest: c.upgrade_request || false
+          }));
+        }
+      } catch(e) { console.warn('Claims load failed:', e); }
+
       return true;
     }
     return false;
@@ -925,6 +976,7 @@ const DATA = {
     {id:"41-markets",name:"41 Markets",website:"https://41markets.com"},
     {id:"friends-of-koreshan",name:"Friends of Koreshan State Park",website:"https://FriendsofKoreshan.org"},
     {id:"bonita-downtown-alliance",name:"Bonita Downtown Alliance",website:"https://bonitadowntownalliance.com"},
+    {id:"windmill-test-operator",name:"Windmill Test Operator",website:"https://shopwindmill.com"},
     {id:"sarasota-markets-collective",name:"Sarasota Markets Collective",website:"https://sarasotafarmersmarket.org",phone:"941-225-9256"},
     {id:"lakewood-ranch-market",name:"Lakewood Ranch Community",website:"https://lakewoodranch.com/life-on-the-ranch/themarket",phone:"941-907-0586"},
     {id:"tampa-bay-markets",name:"Tampa Bay Markets LLC",website:"https://tampabaymarkets.com",phone:"813-444-0210"},
@@ -967,7 +1019,8 @@ const DATA = {
     {id:"dunedin-downtown-market",region:"tampa-bay",slug:"dunedin-downtown-market",name:"Dunedin Downtown Farmers Market",operator_id:"st-pete-market",description:"Year-round Saturday market on charming Main Street in Dunedin. Fresh produce, local honey, baked goods, flowers, artisan crafts and live music in one of Florida's most walkable and beloved small cities.",address:"422 Main St",city:"Dunedin",state:"FL",zip:"34698",venue:"John L. Lawrence Pioneer Park",lat:28.0194,lng:-82.7846,day_of_week:"Saturday",start_time:"09:00",end_time:"13:00",season_start:"All Year",season_end:"All Year",active:true,pet_friendly:true,parking_notes:"Free parking throughout downtown Dunedin.",special_notes:"Year-round. One of Florida's most charming small city markets.",published:true},
     {id:"safety-harbor-market",region:"tampa-bay",slug:"safety-harbor-market-on-main",name:"Safety Harbor Market on Main",operator_id:"st-pete-market",description:"Weekly Sunday market in quaint downtown Safety Harbor. Local hand-crafted items, fresh food vendors, produce, fresh orange juice, pickled products and more. Walk through charming downtown Safety Harbor after your visit.",address:"400 Main St",city:"Safety Harbor",state:"FL",zip:"34695",venue:"Downtown Safety Harbor",lat:27.9936,lng:-82.6921,day_of_week:"Sunday",start_time:"09:00",end_time:"13:00",season_start:"All Year",season_end:"All Year",active:true,pet_friendly:true,parking_notes:"Street parking in downtown Safety Harbor.",special_notes:"Year-round every Sunday. Walkable downtown.",published:true},
     {id:"tarpon-springs-market",region:"tampa-bay",slug:"tarpon-springs-farmers-market",name:"Tarpon Springs Farmers Market",operator_id:"st-pete-market",description:"Seasonal Sunday market in the historic Tarpon Springs Sponge Docks area. Fresh produce, Greek specialties, baked goods and local vendors with a unique Greek-influenced atmosphere. Walk to the famous Sponge Docks for a full cultural experience.",address:"Craig Park, 100 Tarpon Ave",city:"Tarpon Springs",state:"FL",zip:"34689",venue:"Craig Park",lat:28.1458,lng:-82.7578,day_of_week:"Sunday",start_time:"09:00",end_time:"14:00",season_start:"November",season_end:"April",active:true,pet_friendly:true,parking_notes:"Free parking at Craig Park.",special_notes:"Greek specialties unique to this market. Visit Sponge Docks nearby.",published:true},
-    {id:"market-marie-clearwater",region:"tampa-bay",slug:"market-marie-clearwater",name:"Market Marie at Coachman Park",operator_id:"tampa-bay-markets",description:"Second Saturday monthly market at waterfront Coachman Park in downtown Clearwater. 130+ small businesses and artisans with live music, fresh produce, art, clothing, handmade candles, pet treats and home goods.",address:"300 Cleveland St",city:"Clearwater",state:"FL",zip:"33755",venue:"Coachman Park",lat:27.9659,lng:-82.8001,day_of_week:"Saturday",start_time:"10:00",end_time:"14:00",season_start:"All Year",season_end:"All Year",active:true,pet_friendly:true,parking_notes:"Parking throughout downtown Clearwater.",special_notes:"Second Saturday of every month. 130+ vendors. Waterfront setting.",published:true}
+    {id:"market-marie-clearwater",region:"tampa-bay",slug:"market-marie-clearwater",name:"Market Marie at Coachman Park",operator_id:"tampa-bay-markets",description:"Second Saturday monthly market at waterfront Coachman Park in downtown Clearwater. 130+ small businesses and artisans with live music, fresh produce, art, clothing, handmade candles, pet treats and home goods.",address:"300 Cleveland St",city:"Clearwater",state:"FL",zip:"33755",venue:"Coachman Park",lat:27.9659,lng:-82.8001,day_of_week:"Saturday",start_time:"10:00",end_time:"14:00",season_start:"All Year",season_end:"All Year",active:true,pet_friendly:true,parking_notes:"Parking throughout downtown Clearwater.",special_notes:"Second Saturday of every month. 130+ vendors. Waterfront setting.",published:true},
+    {id:"windmill-test-market",region:"test-area",slug:"windmill-test-market",name:"Windmill Test Market",operator_id:"windmill-test-operator",description:"This is a test market used for internal Windmill platform testing. Not a real market.",address:"123 Test Street",city:"Test City",state:"FL",zip:"00000",venue:"Test Venue",lat:26.5534,lng:-81.8722,day_of_week:"Saturday",start_time:"09:00",end_time:"13:00",season_start:"All Year",season_end:"All Year",active:true,pet_friendly:true,parking_notes:"Test parking notes.",special_notes:"Internal test market — not public.",published:false}
   ],
   vendors:[
     {id:"euro-bakery",name:"Euro Bakery",slug:"euro-bakery",category:"Baked Goods",email:"oktoberfestpretzel1@gmail.com",website:null,claimed:false,region:"lee-county",published:true,markets:["lakes-park","sanibel-island"]},
@@ -1059,7 +1112,10 @@ const DATA = {
     {id:"safety-harbor-soap",region:"tampa-bay",name:"Safety Harbor Soap Works",slug:"safety-harbor-soap",category:"Soaps & Body Care",email:"lather@soapworks727.com",phone:"727-726-5581",website:null,claimed:false,published:true,markets:["safety-harbor-market","dunedin-downtown-market","tarpon-springs-market"]},
     {id:"ybor-roasters",region:"tampa-bay",name:"Ybor City Roasters",slug:"ybor-roasters",category:"Coffee & Café",email:"roast@yborroasters.com",phone:"813-242-7789",website:"https://yborroasters.com",claimed:false,published:true,markets:["ybor-city-market","hyde-park-fresh-market","st-pete-saturday-morning"]},
     {id:"gulf-coast-artisan-cheese",region:"tampa-bay",name:"Gulf Coast Artisan Cheese",slug:"gulf-coast-artisan-cheese",category:"Cheese & Dairy",email:"cheese@gulfcoastcheese.com",phone:"727-398-6643",website:"https://gulfcoastcheese.com",claimed:false,published:true,markets:["st-pete-saturday-morning","corey-ave-sunday","dunedin-downtown-market"]},
-    {id:"clearwater-candles",region:"tampa-bay",name:"Clearwater Candle Co.",slug:"clearwater-candles",category:"Arts & Crafts",email:"glow@clearwatercandles.com",phone:"727-531-8872",website:null,claimed:false,published:true,markets:["market-marie-clearwater","dunedin-downtown-market","safety-harbor-market"]}
+    {id:"clearwater-candles",region:"tampa-bay",name:"Clearwater Candle Co.",slug:"clearwater-candles",category:"Arts & Crafts",email:"glow@clearwatercandles.com",phone:"727-531-8872",website:null,claimed:false,published:true,markets:["market-marie-clearwater","dunedin-downtown-market","safety-harbor-market"]},
+    {id:"test-vendor-free",region:"test-area",slug:"test-vendor-free",name:"Test Vendor Free",category:"Produce",email:null,website:null,phone:null,claimed:false,pro:false,published:false,markets:["windmill-test-market"]},
+    {id:"test-vendor-trial",region:"test-area",slug:"test-vendor-trial",name:"Test Vendor Trial",category:"Baked Goods",email:null,website:null,phone:null,claimed:false,pro:false,published:false,markets:["windmill-test-market"]},
+    {id:"test-vendor-pro",region:"test-area",slug:"test-vendor-pro",name:"Test Vendor Pro",category:"Honey & Preserves",email:null,website:null,phone:null,claimed:false,pro:false,published:false,markets:["windmill-test-market"]}
   ],
   categories:[
     {id:"produce",label:"Produce",es:"Productos",pt:"Produtos",emoji:"🥬",photo:"https://images.unsplash.com/photo-1540148426945-6cf22a6b2383?w=400&q=80"},
@@ -1272,7 +1328,7 @@ let ST = {
   authMode:'signin',
   follows:[],
   vendorId:null, operatorId:null,
-  isProTrial:false, trialStart:null,
+  isProTrial:false, trialStart:null, attendanceData:[], localProducts:[], notifFollower:true, notifWeekly:true,
   profileSetupComplete:false,
   pendingCoverPhoto:null,
   sandboxMode:false, sandboxOverwrite:false, sandboxVendorId:null, sandboxOriginalVendor:null,
@@ -2164,7 +2220,24 @@ function renderCurrentPage() {
   if(p === 'vendors-list') { updatePageMeta('Browse Vendors | Windmill','Browse all local market vendors on Windmill.','/vendors'); return renderVendorsList(); }
   if(p === 'vendors-join') { updatePageMeta('Join Windmill as a Vendor | Grow Your Farmers Market Business','Claim your free vendor listing on Windmill. Be found between markets, showcase your products, and connect with customers.','/vendors/join'); return renderVendorsJoin(); }
   if(p === 'demo-vendor-free') return renderDemoVendorFree();
-  if(p === 'demo-vendor-pro') return renderDemoVendorPro();
+  if(p === 'demo-vendor-pro') {
+    // Inject Empanada Queen demo data into vendors if not already there
+    const dv = DATA.demo_vendors[1];
+    if(!DATA.vendors.find(x=>x.id===dv.id)) {
+      DATA.vendors.push(Object.assign({}, dv, {gallery: dv.photos, published:false, region:'demo'}));
+    } else {
+      const ev = DATA.vendors.find(x=>x.id===dv.id);
+      if(!ev.gallery && dv.photos) ev.gallery = dv.photos;
+    }
+    // Pre-populate local products so they show on the profile
+    ST.localProducts = ST.localProducts || [];
+    if(!ST.localProducts.some(p=>p.vendor_id===dv.id)) {
+      dv.products.forEach((p,i) => {
+        ST.localProducts.push({id:'demo-prod-'+i, vendor_id:dv.id, name:p.name, price:p.price, description:p.description, sort_order:i});
+      });
+    }
+    return renderVendorProfile(dv.id);
+  }
   if(p === 'demo-operator-free') return renderDemoOperatorFree();
   if(p === 'demo-operator-pro') return renderDemoOperatorPro();
   if(ST.role === 'vendor') return renderVendorSubPage();
@@ -3604,8 +3677,6 @@ function renderVendorProfile(id) {
       <button class="section-nav-btn" onclick="scrollToSection('vnd-products','vendorSectionNav',this)">Products</button>
       <button class="section-nav-btn" onclick="scrollToSection('vnd-reviews','vendorSectionNav',this)">Reviews</button>
     </div>
-
-    <!-- ABOUT -->
     <div style="height:0;overflow:hidden;visibility:hidden" id="vnd-about"></div>
     <div class="profile-section">
       <div class="profile-section-title">${t('about_vendor')}</div>
@@ -3640,13 +3711,19 @@ function renderVendorProfile(id) {
         const m = getMarket(mid);
         if(!m) return '';
         const dayKey = 'day_'+m.day_of_week.toLowerCase();
+        const weekOf = getWeekOf();
+        const confirmed = (ST.attendanceData||[]).some(a=>a.vendor_id===v.id&&a.market_id===mid&&a.week_of===weekOf&&a.confirmed);
         return `<div class="schedule-row" onclick="navigate('market','${m.id}')">
           <div class="schedule-day">${t(dayKey)||shortDay(m.day_of_week)}</div>
           <div style="flex:1"><div class="schedule-market">${m.name}</div><div class="schedule-time">${m.day_of_week}s · ${formatTimeRange(m.start_time,m.end_time)} · ${m.city}</div></div>
+          ${confirmed?'<span style="font-size:10px;padding:2px 7px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill);font-weight:500;white-space:nowrap">✓ This week</span>':''}
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </div>`;
       }).join(''):`<p style="font-size:13px;color:var(--text2)">${t('no_markets_yet')}</p>`}
     </div>
+
+    <!-- MORE VENDORS NEAR YOU: free/unclaimed only, same category, manual scroll -->
+    ${!isPro ? buildMoreVendorsStrip(v) : ''}
 
     <!-- PHOTOS -->
     <div style="height:0;overflow:hidden;visibility:hidden" id="vnd-photos"></div>
@@ -3673,12 +3750,17 @@ function renderVendorProfile(id) {
     <div style="height:0;overflow:hidden;visibility:hidden" id="vnd-products"></div>
     <div class="profile-section">
       <div class="profile-section-title">Products & Menu</div>
-      ${isPro?`<p style="font-size:13px;color:var(--text2);font-style:italic">No products listed yet.</p>`:`
-      <div style="background:var(--amber-lt);border:0.5px solid #F0D090;border-radius:var(--r-md);padding:12px 14px;display:flex;align-items:center;gap:10px">
+      ${isPro
+        ? '<div id="productCatalogDisplay"><p style="font-size:13px;color:var(--text2);font-style:italic">Loading products...</p></div>'
+        : `<div style="background:var(--amber-lt);border:0.5px solid #F0D090;border-radius:var(--r-md);padding:12px 14px;display:flex;align-items:center;gap:10px">
         <span style="font-size:20px">🔒</span>
-        <div><div style="font-size:12px;font-weight:500;color:#7A4E08">Products & Menu — Pro feature</div><div style="font-size:11px;color:var(--amber)">Upgrade to Pro to list your products, menu items and prices</div></div>
+        <div><div style="font-size:12px;font-weight:500;color:#7A4E08">Products & Menu — Pro feature</div><div style="font-size:11px;color:var(--amber)">${isClaimed?'Upgrade to Pro to list your products':'Claim this listing to add products'}</div></div>
+        ${isClaimed?'<button onclick="navigate(\'vendors-join\')" style="padding:5px 12px;background:var(--amber);color:#fff;border:none;border-radius:var(--r-pill);font-size:11px;cursor:pointer;white-space:nowrap;font-family:var(--font-sans)">Upgrade</button>':''}
       </div>`}
     </div>
+
+    <!-- ALSO AT THIS MARKET: all tiers, different categories, auto-scroll -->
+    <div id="alsoAtMarketStrip"></div>
 
     <!-- REVIEWS -->
     <div style="height:0;overflow:hidden;visibility:hidden" id="vnd-reviews"></div>
@@ -3693,6 +3775,9 @@ function renderVendorProfile(id) {
   </div>`;
   document.getElementById('scrollBody').innerHTML = h;
   setTimeout(() => initSectionNavObserver('vendorSectionNav', ['vnd-about','vnd-contact','vnd-schedule','vnd-photos','vnd-products','vnd-reviews']), 100);
+  if(isPro) loadVendorProductsDisplay(v.id);
+  renderAlsoAtStrip(v);
+  loadAttendanceData().then(() => { renderAlsoAtStrip(v); });
 }
 
 /* ── MARKET DETAIL TEMPLATE ── */
@@ -4302,7 +4387,27 @@ function renderVendorJoinSuggestions(q) {
     </div>`).join('');
 }
 
-function submitVendorJoinRequest() {
+/* ── RESEND EMAIL NOTIFICATIONS ── */
+async function sendWindmillEmail(subject, bodyHtml) {
+  try {
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer re_89QxzRSt_AA14MaimfnXPErxb2nakHivC'
+      },
+      body: JSON.stringify({
+        from: 'Windmill Notifications <onboarding@resend.dev>',
+        to: ['windmillmarketplace@gmail.com'],
+        subject: subject,
+        html: bodyHtml
+      })
+    });
+    console.log('✓ Email sent:', subject);
+  } catch(e) { console.warn('Email send failed:', e); }
+}
+
+async function submitVendorJoinRequest() {
   const businessName = document.getElementById('joinVendorSearch')?.value?.trim();
   const yourName = document.getElementById('joinYourName')?.value?.trim();
   const email = document.getElementById('joinEmail')?.value?.trim();
@@ -4314,10 +4419,9 @@ function submitVendorJoinRequest() {
     return;
   }
 
-  // Add to admin claims queue
   const newClaim = {
     id: 'c' + Date.now(),
-    vendorId: businessName.toLowerCase().replace(/\s+/g,'-'),
+    vendorId: ST.claimVendorId || businessName.toLowerCase().replace(/\s+/g,'-'),
     vendorName: businessName,
     claimant: yourName,
     email: email,
@@ -4325,11 +4429,40 @@ function submitVendorJoinRequest() {
     message: message || '',
     date: new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}),
     status: 'pending',
-    proRequested: true
+    proRequested: true,
+    upgradeRequest: false
   };
   ST.adminClaims.unshift(newClaim);
 
-  // Show confirmation
+  // Save to Supabase
+  if(supabaseClient) {
+    try {
+      await supabaseClient.from('claims').insert({
+        id: newClaim.id,
+        vendor_id: newClaim.vendorId,
+        vendor_name: newClaim.vendorName,
+        claimant_name: newClaim.claimant,
+        email: newClaim.email,
+        phone: newClaim.phone,
+        message: newClaim.message,
+        status: 'pending',
+        pro_requested: true,
+        upgrade_request: false
+      });
+    } catch(e) { console.warn('Claim save failed:', e); }
+  }
+
+  // Send email notification
+  sendWindmillEmail(
+    '🌾 New claim request — ' + businessName,
+    '<h2>New Vendor Claim Request</h2>' +
+    '<p><strong>Business:</strong> ' + businessName + '</p>' +
+    '<p><strong>Claimant:</strong> ' + yourName + '</p>' +
+    '<p><strong>Email:</strong> ' + email + '</p>' +
+    '<p><strong>Phone:</strong> ' + (phone||'Not provided') + '</p>' +
+    '<p><strong>Message:</strong> ' + (message||'None') + '</p>' +
+    '<p><a href="https://shopwindmill.com" style="background:#5C7A4E;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:12px">Review in Admin Dashboard →</a></p>'
+  );
   const form = document.getElementById('joinClaimForm');
   if(form) {
     form.innerHTML = `
@@ -5005,13 +5138,24 @@ function renderAdminPanel() {
     <div class="admin-sub">Platform management dashboard</div>
 
     <!-- DEMO PROFILES QUICK ACCESS -->
-    <div style="background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-md);padding:14px;margin-bottom:16px">
+    <div style="background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-md);padding:14px;margin-bottom:12px">
       <div style="font-size:12px;font-weight:500;color:var(--green-dk);margin-bottom:8px">🎯 Demo Profiles — Sales Tool</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
         <button onclick="navigate('demo-vendor-free')" style="padding:8px;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left"><div style="font-weight:500">👤 Vendor Free</div><div style="color:var(--text2);font-size:10px">Suncoast Honey Co.</div></button>
         <button onclick="navigate('demo-vendor-pro')" style="padding:8px;background:var(--green);border:none;border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left;color:#fff"><div style="font-weight:500">⭐ Vendor Pro</div><div style="opacity:.8;font-size:10px">The Empanada Queen</div></button>
         <button onclick="navigate('demo-operator-free')" style="padding:8px;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left"><div style="font-weight:500">🏪 Operator Free</div><div style="color:var(--text2);font-size:10px">Gulf Coast Markets</div></button>
         <button onclick="navigate('demo-operator-pro')" style="padding:8px;background:var(--green);border:none;border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left;color:#fff"><div style="font-weight:500">⭐ Operator Pro</div><div style="opacity:.8;font-size:10px">Suncoast Collective</div></button>
+      </div>
+    </div>
+
+    <!-- TEST AREA QUICK LINKS -->
+    <div style="background:var(--amber-lt);border:0.5px solid #F0D090;border-radius:var(--r-md);padding:14px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:500;color:#7A4E08;margin-bottom:8px">🧪 Test Area — Internal Testing</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <button onclick="navigate('market','windmill-test-market')" style="padding:8px;background:var(--surface);border:0.5px solid #F0D090;border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left;grid-column:1/-1"><div style="font-weight:500">🏪 Windmill Test Market</div><div style="color:var(--text2);font-size:10px">Test City, FL · Saturday 9am–1pm</div></button>
+        <button onclick="navigate('vendor','test-vendor-free')" style="padding:8px;background:var(--surface);border:0.5px solid #F0D090;border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left"><div style="font-weight:500">👤 Test Vendor 1</div><div style="color:var(--text2);font-size:10px">Unclaimed · Produce</div></button>
+        <button onclick="navigate('vendor','test-vendor-trial')" style="padding:8px;background:var(--surface);border:0.5px solid #F0D090;border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left"><div style="font-weight:500">👤 Test Vendor 2</div><div style="color:var(--text2);font-size:10px">Unclaimed · Baked Goods</div></button>
+        <button onclick="navigate('vendor','test-vendor-pro')" style="padding:8px;background:var(--surface);border:0.5px solid #F0D090;border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left;grid-column:1/-1"><div style="font-weight:500">👤 Test Vendor 3</div><div style="color:var(--text2);font-size:10px">Unclaimed · Honey & Preserves</div></button>
       </div>
     </div>
 
@@ -5022,6 +5166,24 @@ function renderAdminPanel() {
       <div class="stat-card"><div class="stat-number">${DATA.markets.length}</div><div class="stat-label">Markets</div></div>
       <div class="stat-card"><div class="stat-number">${pendingClaims}</div><div class="stat-label">Pending claims</div></div>
     </div>
+
+    ${pendingClaims > 0 ? `
+    <div style="background:var(--terra);border-radius:var(--r-md);padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;cursor:pointer;animation:pulse 2s infinite" onclick="setAdminTab('claims')">
+      <div style="font-size:24px">🔔</div>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600;color:#fff">${pendingClaims} pending claim${pendingClaims===1?'':'s'} need${pendingClaims===1?'s':''} your attention</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.8);margin-top:2px">Tap to review →</div>
+      </div>
+    </div>` : ''}
+
+    ${ST.adminClaims.filter(c=>c.upgradeRequest&&c.status==='pending').length > 0 ? `
+    <div style="background:var(--amber);border-radius:var(--r-md);padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;cursor:pointer" onclick="setAdminTab('claims')">
+      <div style="font-size:24px">⭐</div>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600;color:#fff">${ST.adminClaims.filter(c=>c.upgradeRequest&&c.status==='pending').length} upgrade request${ST.adminClaims.filter(c=>c.upgradeRequest&&c.status==='pending').length===1?'':'s'} waiting</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.8);margin-top:2px">Vendors want to go Pro → tap to activate</div>
+      </div>
+    </div>` : ''}
 
     <!-- TABS -->
     <div class="admin-tabs">${tabs.map(tab=>`<div class="admin-tab ${ST.adminTab===tab?'active':''}" onclick="setAdminTab('${tab}')">${tabLabels[tab]}</div>`).join('')}</div>`;
@@ -5037,16 +5199,23 @@ function renderAdminPanel() {
     </div>
     <div class="admin-table" id="adminVendorTable">`;
     DATA.vendors.forEach(v => {
+      const trialStart = v.trial_start ? new Date(v.trial_start) : null;
+      const trialExpiry = trialStart ? new Date(trialStart.getTime() + 180*24*60*60*1000) : null;
+      const daysLeft = trialExpiry ? Math.max(0, Math.ceil((trialExpiry - new Date()) / (24*60*60*1000))) : null;
+      const onTrial = trialStart && !v.pro && daysLeft > 0;
       h += `<div class="admin-row" data-name="${v.name.toLowerCase()}">
         <div class="admin-row-info">
           <div class="admin-row-name">${v.name}</div>
           <div class="admin-row-meta">${v.category} · ${v.markets.length} market${v.markets.length===1?'':'s'} · ${v.email||'no email'}</div>
+          ${onTrial ? `<div style="font-size:10px;color:var(--amber);margin-top:2px">⏱ Trial · ${daysLeft} days left · started ${trialStart.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>` : ''}
+          ${trialStart && v.pro ? `<div style="font-size:10px;color:var(--green-dk);margin-top:2px">✓ Pro · trial started ${trialStart.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>` : ''}
         </div>
         <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;align-items:flex-end">
           <span class="status-pill ${v.claimed?'claimed':'unclaimed'}" style="cursor:pointer" onclick="adminToggleVendorClaimed('${v.id}',this)">${v.claimed?'Claimed':'Unclaimed'}</span>
-          <span class="status-pill ${v.pro?'live':'draft'}" style="cursor:pointer" onclick="adminToggleVendorPro('${v.id}',this)">${v.pro?'Pro':'Free'}</span>
+          <span class="status-pill ${v.pro?'live':onTrial?'claimed':'draft'}" style="cursor:pointer" onclick="adminToggleVendorPro('${v.id}',this)">${v.pro?'Pro':onTrial?'Trial':'Free'}</span>
         </div>
         <div class="admin-row-actions">
+          ${onTrial ? `<button class="action-btn edit" onclick="openExtendTrial('${v.id}','${v.name}')">Extend</button>` : ''}
           <button class="action-btn edit" onclick="openAdminEditVendor('${v.id}')">Edit</button>
           <button class="action-btn preview" onclick="navigate('vendor','${v.id}')">View</button>
         </div>
@@ -6052,13 +6221,54 @@ function adminToggleVendorClaimed(id, el) {
   v.claimed = !v.claimed;
   el.textContent = v.claimed ? 'Claimed' : 'Unclaimed';
   el.className = 'status-pill ' + (v.claimed ? 'claimed' : 'unclaimed');
+  if(supabaseClient) supabaseClient.from('vendors').update({claimed:v.claimed}).eq('id',id).then(()=>{});
 }
 function adminToggleVendorPro(id, el) {
   const v = DATA.vendors.find(x=>x.id===id);
   if(!v) return;
   v.pro = !v.pro;
+  if(v.pro && !v.trial_start) v.trial_start = new Date().toISOString();
   el.textContent = v.pro ? 'Pro' : 'Free';
   el.className = 'status-pill ' + (v.pro ? 'live' : 'draft');
+  if(supabaseClient) supabaseClient.from('vendors').update({pro:v.pro,trial_start:v.trial_start||null}).eq('id',id).then(()=>{});
+  renderAdminPanel();
+}
+
+function openExtendTrial(vendorId, vendorName) {
+  const modal = document.createElement('div');
+  modal.id = 'extendTrialModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(44,32,22,.55);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML = `<div style="background:var(--surface);border-radius:var(--r-lg);width:100%;max-width:360px;padding:24px">
+    <div style="font-size:16px;font-weight:600;font-family:var(--font-serif);margin-bottom:4px">Extend Trial</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:16px">${vendorName}</div>
+    <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:6px">Days to add</label>
+    <input id="extendDays" type="number" value="30" min="1" max="365" class="form-input" style="width:100%;margin-bottom:16px">
+    <div style="display:flex;gap:10px">
+      <button onclick="document.getElementById('extendTrialModal').remove()" style="flex:1;padding:10px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans)">Cancel</button>
+      <button onclick="submitExtendTrial('${vendorId}')" style="flex:1;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Extend</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
+}
+
+async function submitExtendTrial(vendorId) {
+  const days = parseInt(document.getElementById('extendDays')?.value) || 30;
+  const v = DATA.vendors.find(x=>x.id===vendorId);
+  if(!v) return;
+  const current = v.trial_start ? new Date(v.trial_start) : new Date();
+  current.setDate(current.getDate() + days);
+  v.trial_start = current.toISOString();
+  if(supabaseClient) {
+    await supabaseClient.from('vendors').update({trial_start: v.trial_start}).eq('id', vendorId);
+  }
+  document.getElementById('extendTrialModal')?.remove();
+  const toast = document.createElement('div');
+  toast.textContent = `✓ Trial extended by ${days} days`;
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#2C2016;color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;z-index:9999;font-family:var(--font-sans);white-space:nowrap';
+  document.body.appendChild(toast);
+  setTimeout(()=>toast.remove(), 2500);
+  renderAdminPanel();
 }
 function adminToggleMarketPublished(id, el) {
   const m = DATA.markets.find(x=>x.id===id);
@@ -6749,6 +6959,284 @@ async function saveVendorProfile() {
   setTimeout(() => toast.remove(), 3000);
 }
 
+/* ── v1.49 NEW FUNCTIONS ── */
+
+function getWeekOf() {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day===0?-6:1);
+  const mon = new Date(d.setDate(diff));
+  return mon.toISOString().split('T')[0];
+}
+
+async function loadAttendanceData() {
+  if(!supabaseClient) return;
+  try {
+    const weekOf = getWeekOf();
+    const { data } = await supabaseClient.from('attendance').select('*').eq('week_of',weekOf).eq('confirmed',true);
+    ST.attendanceData = data || [];
+  } catch(e) { ST.attendanceData = ST.attendanceData || []; }
+}
+
+async function saveAttendance(vendorId, marketId, confirmed) {
+  if(!supabaseClient) return;
+  const weekOf = getWeekOf();
+  try {
+    if(confirmed) {
+      await supabaseClient.from('attendance').upsert(
+        {vendor_id:vendorId,market_id:marketId,week_of:weekOf,confirmed:true},
+        {onConflict:'vendor_id,market_id,week_of'}
+      );
+    } else {
+      await supabaseClient.from('attendance').delete().eq('vendor_id',vendorId).eq('market_id',marketId).eq('week_of',weekOf);
+    }
+    ST.attendanceData = ST.attendanceData || [];
+    if(confirmed) {
+      if(!ST.attendanceData.some(a=>a.vendor_id===vendorId&&a.market_id===marketId&&a.week_of===weekOf))
+        ST.attendanceData.push({vendor_id:vendorId,market_id:marketId,week_of:weekOf,confirmed:true});
+    } else {
+      ST.attendanceData = ST.attendanceData.filter(a=>!(a.vendor_id===vendorId&&a.market_id===marketId&&a.week_of===weekOf));
+    }
+  } catch(e) { console.warn('Attendance save failed',e); }
+}
+
+function buildMoreVendorsStrip(v) {
+  const sameCategory = DATA.vendors.filter(x=>x.id!==v.id&&x.category===v.category);
+  if(!sameCategory.length) return '';
+  const sorted = [...sameCategory].sort((a,b)=>(b.pro?2:b.claimed?1:0)-(a.pro?2:a.claimed?1:0)).slice(0,3);
+  const cards = sorted.map(x=>{
+    const c = vc(DATA.vendors.indexOf(x));
+    return '<div class="vnd-strip-card" onclick="navigate(\'vendor\',\''+x.id+'\')">'
+      +'<div class="vnd-strip-avatar" style="background:'+(x.photo?'url('+x.photo+') center/cover no-repeat':c.bg)+';color:'+c.c+'">'
+      +(x.photo?'':initials(x.name))
+      +(x.pro?'<div class="vnd-strip-pro-dot"></div>':'')
+      +'</div>'
+      +'<div class="vnd-strip-info"><div class="vnd-strip-name">'+x.name+'</div><div class="vnd-strip-cat">'+x.category+'</div></div>'
+      +'</div>';
+  }).join('');
+  return '<div class="vnd-strip-wrap"><div class="vnd-strip-title">More '+v.category+' vendors near you</div>'
+    +'<div class="vnd-strip-manual">'+cards+'</div></div>';
+}
+
+function renderAlsoAtStrip(v) {
+  const el = document.getElementById('alsoAtMarketStrip');
+  if(!el) return;
+  if(!v.markets||!v.markets.length) { el.innerHTML=''; return; }
+  const primaryMarket = getMarket(v.markets[0]);
+  if(!primaryMarket) { el.innerHTML=''; return; }
+  let others = DATA.vendors.filter(x=>x.id!==v.id&&x.category!==v.category&&x.markets&&x.markets.some(mid=>v.markets.includes(mid)));
+  if(!others.length) { el.innerHTML=''; return; }
+  others = others.sort((a,b)=>(b.pro?2:b.claimed?1:0)-(a.pro?2:a.claimed?1:0));
+  const stripId = 'alsoAtTrack_'+v.id;
+  const wrapId = 'alsoAtWrap_'+v.id;
+  const cards = others.map(x=>{
+    const c = vc(DATA.vendors.indexOf(x));
+    return '<div class="vnd-strip-card" onclick="navigate(\'vendor\',\''+x.id+'\')">'
+      +'<div class="vnd-strip-avatar" style="background:'+(x.photo?'url('+x.photo+') center/cover no-repeat':c.bg)+';color:'+c.c+'">'
+      +(x.photo?'':initials(x.name))
+      +(x.pro?'<div class="vnd-strip-pro-dot"></div>':'')
+      +'</div>'
+      +'<div class="vnd-strip-info"><div class="vnd-strip-name">'+x.name+'</div><div class="vnd-strip-cat">'+x.category+'</div></div>'
+      +'</div>';
+  }).join('');
+  el.innerHTML = '<div class="vnd-strip-wrap"><div class="vnd-strip-title">Also at '+primaryMarket.name+'</div>'
+    +'<div class="vnd-strip-track-wrap" id="'+wrapId+'">'
+    +'<div class="vnd-strip-track" id="'+stripId+'" style="padding-bottom:4px">'+cards+'</div>'
+    +'</div></div>';
+  setTimeout(function(){initVendorStripCarousel(stripId,wrapId);},100);
+}
+
+var _vendorStripTimers = {};
+function initVendorStripCarousel(trackId, wrapId) {
+  var track = document.getElementById(trackId);
+  var wrap = document.getElementById(wrapId);
+  if(!track||!wrap) return;
+  var cards = Array.from(track.querySelectorAll('.vnd-strip-card'));
+  if(cards.length<=2) return;
+  cards.forEach(function(c){var cl=c.cloneNode(true);cl.setAttribute('aria-hidden','true');track.appendChild(cl);});
+  var total = cards.length;
+  var idx = 0;
+  requestAnimationFrame(function(){
+    var cardW = cards[0].getBoundingClientRect().width + 10;
+    function goTo(i,animated){
+      track.style.transition = animated===false?'none':'transform .5s cubic-bezier(.4,0,.2,1)';
+      idx=i; track.style.transform='translateX(-'+(i*cardW)+'px)';
+    }
+    function advance(){
+      var next=idx+1; goTo(next,true);
+      if(next>=total) setTimeout(function(){goTo(0,false);},520);
+    }
+    if(_vendorStripTimers[trackId]) clearInterval(_vendorStripTimers[trackId]);
+    _vendorStripTimers[trackId] = setInterval(advance,3800);
+    wrap.addEventListener('touchstart',function(){clearInterval(_vendorStripTimers[trackId]);},{passive:true});
+    wrap.addEventListener('touchend',function(){
+      setTimeout(function(){_vendorStripTimers[trackId]=setInterval(advance,3800);},6000);
+    },{passive:true});
+  });
+}
+
+async function loadVendorProductsDisplay(vendorId) {
+  var el = document.getElementById('productCatalogDisplay');
+  if(!el) return;
+  var products = [];
+  // Local/demo mode — use ST.localProducts
+  var localProds = (ST.localProducts||[]).filter(function(p){return p.vendor_id===vendorId;});
+  if(localProds.length || !supabaseClient || !DB_LOADED) {
+    products = localProds;
+  } else {
+    try {
+      var res = await supabaseClient.from('products').select('*').eq('vendor_id',vendorId).order('sort_order',{ascending:true});
+      products = res.data || [];
+    } catch(e) { products = []; }
+  }
+  if(!products.length) { el.innerHTML='<p style="font-size:13px;color:var(--text2);font-style:italic">No products listed yet.</p>'; return; }
+  var html = '<div>';
+  products.forEach(function(p){
+    html += '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--border)">'
+      +'<div style="flex:1"><div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:2px">'+p.name+'</div>'
+      +(p.description?'<div style="font-size:11px;color:var(--text2)">'+p.description+'</div>':'')
+      +'</div>'
+      +(p.price?'<div style="font-size:13px;font-weight:600;color:var(--green-dk);flex-shrink:0">'+p.price+'</div>':'')
+      +'</div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+async function loadVendorProductsDash(vendorId) {
+  if(!supabaseClient || !DB_LOADED) {
+    ST.localProducts = ST.localProducts || [];
+    return ST.localProducts.filter(p=>p.vendor_id===vendorId);
+  }
+  try {
+    var res = await supabaseClient.from('products').select('*').eq('vendor_id',vendorId).order('sort_order',{ascending:true});
+    return res.data || [];
+  } catch(e) { return []; }
+}
+
+async function saveProduct(product) {
+  // Local/sandbox mode — save to ST.localProducts
+  if(!supabaseClient || !DB_LOADED) {
+    ST.localProducts = ST.localProducts || [];
+    if(product.id) {
+      const idx = ST.localProducts.findIndex(p=>p.id===product.id);
+      if(idx !== -1) ST.localProducts[idx] = product;
+      else ST.localProducts.push(product);
+    } else {
+      product.id = 'local-' + Date.now();
+      ST.localProducts.push(product);
+    }
+    console.log('🧪 Local: product saved in memory only');
+    return product;
+  }
+  try {
+    var res = await supabaseClient.from('products').upsert(product,{onConflict:'id'}).select().single();
+    if(res.error) throw res.error;
+    return res.data;
+  } catch(e) { console.warn('Save product failed',e); return null; }
+}
+
+async function deleteProduct(productId) {
+  if(!supabaseClient || !DB_LOADED) {
+    ST.localProducts = (ST.localProducts||[]).filter(p=>p.id!==productId);
+    return;
+  }
+  try { await supabaseClient.from('products').delete().eq('id',productId); } catch(e){}
+}
+
+function openProductModal(product, vendorId, isTrial) {
+  var isEdit = !!(product && product.id);
+  var maxProducts = isTrial ? 10 : 25;
+  var modal = document.createElement('div');
+  modal.id = 'productModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(44,32,22,.55);z-index:3000;display:flex;align-items:flex-end;justify-content:center';
+  var nameVal = product && product.name ? product.name : '';
+  var priceVal = product && product.price ? product.price : '';
+  var descVal = product && product.description ? product.description : '';
+  var productId = product && product.id ? product.id : '';
+  modal.innerHTML = '<div style="background:var(--surface);border-radius:var(--r-lg) var(--r-lg) 0 0;width:100%;max-width:520px;padding:20px 20px 32px;max-height:90vh;overflow-y:auto">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">'
+    +'<div style="font-size:16px;font-weight:600;font-family:var(--font-serif)">'+(isEdit?'Edit Product':'Add Product')+'</div>'
+    +'<button onclick="document.getElementById(\'productModal\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text2)">x</button>'
+    +'</div>'
+    +'<div style="display:flex;flex-direction:column;gap:12px">'
+    +'<div><label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:4px">Product name *</label>'
+    +'<input id="pName" value="'+nameVal+'" placeholder="e.g. Heirloom Tomatoes" class="form-input" style="width:100%"></div>'
+    +'<div><label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:4px">Price</label>'
+    +'<input id="pPrice" value="'+priceVal+'" placeholder="e.g. $4/lb or $12 each" class="form-input" style="width:100%"></div>'
+    +'<div><label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:4px">Description</label>'
+    +'<textarea id="pDesc" placeholder="Brief description..." class="form-textarea" style="height:72px">'+descVal+'</textarea></div>'
+    +'<div style="display:flex;gap:10px;margin-top:4px">'
+    +'<button onclick="submitProductModal(\''+vendorId+'\',\''+productId+'\','+isTrial+','+maxProducts+')" style="flex:1;padding:11px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">'+(isEdit?'Save changes':'Add product')+'</button>'
+    +(isEdit?'<button onclick="confirmDeleteProduct(\''+productId+'\',\''+vendorId+'\','+isTrial+')" style="padding:11px 16px;background:var(--terra-lt);color:var(--terra);border:0.5px solid #ECC4B0;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans)">Delete</button>':'')
+    +'</div></div></div>';
+  document.body.appendChild(modal);
+  modal.addEventListener('click',function(e){if(e.target===modal)modal.remove();});
+}
+
+async function submitProductModal(vendorId, existingId, isTrial, maxProducts) {
+  var name = (document.getElementById('pName')||{}).value||'';
+  var price = (document.getElementById('pPrice')||{}).value||'';
+  var desc = (document.getElementById('pDesc')||{}).value||'';
+  name = name.trim(); price = price.trim(); desc = desc.trim();
+  if(!name) { alert('Please enter a product name.'); return; }
+  if(!existingId) {
+    var existing = await loadVendorProductsDash(vendorId);
+    if(existing.length >= maxProducts) {
+      alert('You\'ve reached the '+maxProducts+'-product limit'+(isTrial?' for the founding trial. Upgrade to full Pro for up to 25 products':' for your plan')+'.');
+      return;
+    }
+  }
+  var product = {vendor_id:vendorId, name:name, price:price||null, description:desc||null};
+  if(existingId) product.id = existingId;
+  var saved = await saveProduct(product);
+  if(saved) {
+    var m = document.getElementById('productModal');
+    if(m) m.remove();
+    renderVendorProducts();
+  } else { alert('Could not save product. Please try again.'); }
+}
+
+async function confirmDeleteProduct(productId, vendorId, isTrial) {
+  if(!confirm('Delete this product?')) return;
+  await deleteProduct(productId);
+  var m = document.getElementById('productModal');
+  if(m) m.remove();
+  renderVendorProducts();
+}
+
+async function renderAttendanceList(vendorId, marketIds) {
+  var el = document.getElementById('attendanceList');
+  if(!el) return;
+  await loadAttendanceData();
+  var weekOf = getWeekOf();
+  if(!marketIds.length) { el.innerHTML='<div style="font-size:13px;color:var(--text2);text-align:center;padding:12px">Add markets to your schedule first</div>'; return; }
+  var html = '';
+  marketIds.forEach(function(id){
+    var m = getMarket(id);
+    if(!m) return;
+    var isChecked = (ST.attendanceData||[]).some(function(a){return a.vendor_id===vendorId&&a.market_id===id&&a.week_of===weekOf&&a.confirmed;});
+    html += '<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;background:var(--surface);border:0.5px solid '+(isChecked?'var(--green)':'var(--border)')+';border-radius:var(--r-md)">'
+      +'<input type="checkbox" '+(isChecked?'checked':'')+' style="width:16px;height:16px;accent-color:var(--green);cursor:pointer" onchange="handleAttendanceToggle(this,\''+vendorId+'\',\''+id+'\')">'
+      +'<div style="flex:1"><div style="font-size:13px;font-weight:500">'+m.name+'</div><div style="font-size:11px;color:var(--text3)">'+m.day_of_week+' · '+formatTimeRange(m.start_time,m.end_time)+'</div></div>'
+      +(isChecked?'<span style="font-size:10px;color:var(--green-dk);font-weight:500">✓ Confirmed</span>':'')
+      +'</label>';
+  });
+  el.innerHTML = html;
+}
+
+async function handleAttendanceToggle(checkbox, vendorId, marketId) {
+  var confirmed = checkbox.checked;
+  var label = checkbox.closest('label');
+  if(label) label.style.borderColor = confirmed?'var(--green)':'var(--border)';
+  await saveAttendance(vendorId, marketId, confirmed);
+  var toast = document.createElement('div');
+  toast.textContent = confirmed ? '✓ Attendance confirmed' : 'Attendance removed';
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#2C2016;color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;z-index:9999;font-family:var(--font-sans);white-space:nowrap';
+  document.body.appendChild(toast);
+  setTimeout(function(){toast.remove();},2200);
+}
+
 function renderVendorSchedule() {
   hideFilterUI();
   const vendorId = ST.vendorId;
@@ -6785,72 +7273,234 @@ function renderVendorSchedule() {
         ${isPro ? '<span style="font-size:10px;padding:2px 8px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill);font-weight:500">✓ Pro feature</span>' : '<span style="font-size:10px;color:var(--text3)">🔒 Pro</span>'}
       </div>
       ${isPro ? `
-      <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Mark yourself as attending this week — boosts your visibility on the market page.</p>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        ${marketIds.map(id=>{const m=getMarket(id);if(!m)return '';return `<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md)"><input type="checkbox" style="width:16px;height:16px;accent-color:var(--green);cursor:pointer"><div style="flex:1"><div style="font-size:13px;font-weight:500">${m.name}</div><div style="font-size:11px;color:var(--text3)">${m.day_of_week} · ${formatTimeRange(m.start_time,m.end_time)}</div></div></label>`;}).join('')}
-        ${!marketIds.length ? `<div style="font-size:13px;color:var(--text2);text-align:center;padding:12px">Add markets to your schedule first</div>` : ''}
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Mark yourself as attending this week — shows a <strong>✓ This week</strong> badge on your profile.</p>
+      <div style="display:flex;flex-direction:column;gap:8px" id="attendanceList">
+        <div style="text-align:center;padding:8px;color:var(--text2);font-size:12px">Loading...</div>
       </div>` :
       `<div class="pro-lock"><span style="font-size:20px">🔒</span><div class="pro-lock-text"><div class="pro-lock-title">Attendance Confirmation is a Pro feature</div><div class="pro-lock-sub">Mark yourself as attending — boosts your visibility on the market page.</div></div><button class="pro-lock-btn" onclick="navigate('vendors-join')">Upgrade</button></div>`}
     </div>
   </div>`;
+  if(isPro && vendorId) renderAttendanceList(vendorId, marketIds);
 }
 
-function renderVendorProducts() {
+async function renderVendorProducts() {
   hideFilterUI();
-  const vendorId = ST.vendorId;
-  const v = vendorId ? DATA.vendors.find(x => x.id === vendorId) : null;
-  const isPro = v?.pro || ST.isProTrial;
-  const products = v?.products || [];
+  var vendorId = ST.vendorId;
+  var v = vendorId ? DATA.vendors.find(function(x){return x.id===vendorId;}) : null;
+  var isPro = !!(v && (v.pro || ST.isProTrial));
+  var isTrial = !!(v && !v.pro && ST.isProTrial);
+  var maxProducts = isTrial ? 10 : 25;
 
-  document.getElementById('scrollBody').innerHTML=`<div class="vendor-dash">
-    ${!isPro ? freePageHeader() : ''}
-    <div class="dash-title">My Products</div>
-    <div class="dash-sub">Showcase what you sell</div>
+  document.getElementById('scrollBody').innerHTML = '<div class="vendor-dash">'
+    +(!isPro ? freePageHeader() : '')
+    +'<div class="dash-title">My Products</div>'
+    +'<div class="dash-sub">Showcase what you sell</div>'
+    +'<div class="dash-section">'
+    +'<div class="dash-section-title" style="display:flex;align-items:center;justify-content:space-between">Product Catalog'
+    +(isPro?'<span style="font-size:10px;padding:2px 8px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill);font-weight:500">✓ '+(isTrial?'Trial':'Pro')+' feature</span>':'<span style="font-size:10px;color:var(--text3)">🔒 Pro</span>')
+    +'</div>'
+    +(isPro
+      ?'<p style="font-size:13px;color:var(--text2);margin-bottom:14px">Add products customers can browse before visiting the market.'
+        +(isTrial?' <span style="color:var(--green-dk)">Trial: up to '+maxProducts+' products.</span> <span style="color:var(--terra);cursor:pointer" onclick="navigate(\'vendors-join\')">Upgrade for 25 →</span>':' Up to '+maxProducts+' products.')
+        +'</p>'
+        +'<div id="dashProductGrid"><div style="text-align:center;padding:16px;color:var(--text2);font-size:13px">Loading...</div></div>'
+        +'<button class="product-add-btn" onclick="openProductModal(null,\''+vendorId+'\','+isTrial+')" style="margin-top:12px">+ Add a product</button>'
+      :'<div class="pro-lock"><span style="font-size:20px">🔒</span><div class="pro-lock-text"><div class="pro-lock-title">Product Catalog is a Pro feature</div><div class="pro-lock-sub">Add products and prices. Customers can browse before visiting the market.</div></div><button class="pro-lock-btn" onclick="navigate(\'vendors-join\')">Upgrade</button></div>'
+        +'<div style="text-align:center;padding:20px 0"><div style="font-size:32px;margin-bottom:8px">📦</div><div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:12px">Upgrade to showcase your products</div><button onclick="navigate(\'vendors-join\')" style="padding:8px 20px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:13px;cursor:pointer;font-weight:500">Start free trial</button></div>'
+    )
+    +'</div></div>';
 
-    <div class="dash-section">
-      <div class="dash-section-title" style="display:flex;align-items:center;justify-content:space-between">
-        Product Catalog
-        ${isPro ? '<span style="font-size:10px;padding:2px 8px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill);font-weight:500">✓ Pro feature</span>' : '<span style="font-size:10px;color:var(--text3)">🔒 Pro</span>'}
-      </div>
-      ${isPro ? `
-      <p style="font-size:13px;color:var(--text2);margin-bottom:14px">Add photos and descriptions of your products. Customers can browse before visiting the market.</p>
-      ${products.length ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-        ${products.map(p=>`<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden">
-          ${p.photo?`<div style="height:80px;background:url(${p.photo}) center/cover no-repeat"></div>`:`<div style="height:80px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:24px">📦</div>`}
-          <div style="padding:8px"><div style="font-size:12px;font-weight:500;color:var(--text)">${p.name}</div>${p.price?`<div style="font-size:11px;color:var(--green-dk)">$${p.price}</div>`:''}</div>
-        </div>`).join('')}
-      </div>` : `<div style="text-align:center;padding:20px 0;color:var(--text2);font-size:13px">No products listed yet</div>`}
-      <div style="background:var(--surface2);border:0.5px dashed var(--border-med);border-radius:var(--r-md);padding:14px;text-align:center;font-size:12px;color:var(--text3)">+ Add a product — coming in next build</div>` :
-      `<div class="pro-lock"><span style="font-size:20px">🔒</span><div class="pro-lock-text"><div class="pro-lock-title">Product Catalog is a Pro feature</div><div class="pro-lock-sub">Add photos and descriptions of your products. Customers can browse before visiting the market.</div></div><button class="pro-lock-btn" onclick="navigate('vendors-join')">Upgrade</button></div>
-      <div style="text-align:center;padding:20px 0"><div style="font-size:32px;margin-bottom:8px">📦</div><div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:12px">Upgrade to showcase your products</div><button onclick="navigate('vendors-join')" style="padding:8px 20px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:13px;cursor:pointer;font-weight:500">Start free trial</button></div>`}
-    </div>
-  </div>`;
+  if(isPro && vendorId) {
+    var products = await loadVendorProductsDash(vendorId);
+    var grid = document.getElementById('dashProductGrid');
+    if(grid) {
+      if(!products.length) {
+        grid.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text2);font-size:13px">No products yet — add your first one below.</div>';
+      } else {
+        var html = '<div class="product-grid">';
+        products.forEach(function(p){
+          var pJson = JSON.stringify(p).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+          html += '<div class="product-card">'
+            +'<button class="product-edit-btn" onclick=\'openProductModal('+JSON.stringify(p)+',\''+vendorId+'\','+isTrial+')\'>Edit</button>'
+            +'<div class="product-img">'+(p.photo?'<img src="'+p.photo+'" style="width:100%;height:100%;object-fit:cover">':'📦')+'</div>'
+            +'<div class="product-body"><div class="product-name">'+p.name+'</div>'
+            +(p.description?'<div class="product-desc">'+p.description+'</div>':'')
+            +(p.price?'<div class="product-price">'+p.price+'</div>':'')
+            +'</div></div>';
+        });
+        html += '</div><p class="product-limit-note">'+products.length+' / '+maxProducts+' products used</p>';
+        grid.innerHTML = html;
+      }
+    }
+  }
 }
 
 function renderVendorSettings() {
   hideFilterUI();
+  const vendorId = ST.vendorId;
+  const v = vendorId ? DATA.vendors.find(x=>x.id===vendorId) : null;
+  const isPro = v?.pro || ST.isProTrial;
+  const isTrial = !v?.pro && ST.isProTrial;
+  const trialStart = ST.trialStart;
+  const trialExpiry = trialStart ? new Date(new Date(trialStart).getTime() + 180*24*60*60*1000) : null;
+  const daysLeft = trialExpiry ? Math.max(0, Math.ceil((trialExpiry - new Date()) / (24*60*60*1000))) : null;
+
   document.getElementById('scrollBody').innerHTML=`<div class="vendor-dash">
     <div class="dash-title">Settings</div><div class="dash-sub">Account and preferences</div>
+
+    <!-- YOUR PLAN -->
+    <div class="dash-section">
+      <div class="dash-section-title">Your plan</div>
+      ${isPro && !isTrial ? `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 0">
+        <div style="width:36px;height:36px;background:var(--green);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px">⭐</div>
+        <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--text)">Windmill Pro</div><div style="font-size:11px;color:var(--green-dk)">All features unlocked · Founding rate</div></div>
+      </div>` : isTrial ? `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 0">
+        <div style="width:36px;height:36px;background:var(--amber);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px">🌱</div>
+        <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--text)">Founding Trial</div><div style="font-size:11px;color:var(--amber)">${daysLeft} days remaining in your trial</div></div>
+      </div>
+      <div style="background:var(--amber-lt);border-radius:var(--r-md);padding:10px 12px;font-size:11px;color:#7A4E08;margin-bottom:10px">Your founding trial gives you almost all Pro features. Upgrade to full Pro to unlock up to 10 photos and 25 products — locked at $9/mo forever.</div>
+      <button onclick="openUpgradeFlow()" style="width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Upgrade to full Pro — $9/mo</button>` : `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 0">
+        <div style="width:36px;height:36px;background:var(--surface2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px">👤</div>
+        <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--text)">Free</div><div style="font-size:11px;color:var(--text2)">Ads shown · Limited features</div></div>
+      </div>
+      <div style="background:var(--green-lt);border-radius:var(--r-md);padding:12px;margin-bottom:10px;font-size:11px;color:var(--green-dk);line-height:1.8">✓ Remove ads · ✓ Photos & gallery · ✓ Product catalog<br>✓ Weekly updates · ✓ All 3 social links · ✓ Analytics<br><span style="color:var(--text3);font-size:10px">First month free · $9/mo after · Founding rate locked forever</span></div>
+      <button onclick="openUpgradeFlow()" style="width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Upgrade to Pro — first month free</button>`}
+    </div>
+
+    <!-- ACCOUNT -->
+    <div class="dash-section">
+      <div class="dash-section-title">Account</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--border)">
+        <div style="font-size:13px;color:var(--text2)">Email</div>
+        <div style="font-size:13px;color:var(--text)">${ST.user?.email || v?.email || 'Not set'}</div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--border)">
+        <div style="font-size:13px;color:var(--text2)">Vendor page</div>
+        <div style="font-size:13px;color:var(--green)">${v ? 'shopwindmill.com/vendors/'+(v.slug||v.id) : '—'}</div>
+      </div>
+      <button onclick="authSignOut()" style="width:100%;margin-top:12px;padding:10px;background:var(--surface2);color:var(--terra);border:0.5px solid var(--terra-lt);border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans)">Sign out</button>
+    </div>
+
+    <!-- NOTIFICATIONS -->
     <div class="dash-section">
       <div class="dash-section-title">Notifications</div>
-      <div class="checklist-item"><div class="check-text">Email notifications</div><div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-thumb"></div></div></div>
-      <div class="checklist-item"><div class="check-text">New follower alerts</div><div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-thumb"></div></div></div>
+      <div class="checklist-item"><div class="check-text">Email when someone follows me</div><div class="toggle ${ST.notifFollower!==false?'on':''}" onclick="toggleVendorNotif('follower',this)"><div class="toggle-thumb"></div></div></div>
+      <div class="checklist-item"><div class="check-text">Weekly reminder to post an update</div><div class="toggle ${ST.notifWeekly!==false?'on':''}" onclick="toggleVendorNotif('weekly',this)"><div class="toggle-thumb"></div></div></div>
     </div>
+
+    <!-- SUPPORT -->
     <div class="dash-section">
       <div class="dash-section-title">Contact Support</div>
       <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Have a question? We respond within 24 hours.</p>
-      <textarea class="form-textarea" placeholder="How can we help?"></textarea>
+      <textarea class="form-textarea" placeholder="How can we help?" id="supportMsg"></textarea>
       <button onclick="submitContactSupport('vendor','Vendor')" style="width:100%;margin-top:10px;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500">Send message</button>
     </div>
-    <div class="dash-section">
-      <div class="dash-section-title">Your plan</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0">
-        <div><div style="font-size:13px;font-weight:500">Free tier</div><div style="font-size:11px;color:var(--text2)">Ads shown on your dashboard</div></div>
-        <button onclick="alert('Vendor Pro — $9/mo, first month free. Founding vendor rate, locked forever.')" style="padding:6px 14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500">Upgrade — $9/mo</button>
-      </div>
-      <div style="background:var(--green-lt);border-radius:var(--r-md);padding:12px;margin-top:4px;font-size:11px;color:var(--green-dk);line-height:1.8">✓ Remove dashboard ads &nbsp;·&nbsp; ✓ Add photos &nbsp;·&nbsp; ✓ Product catalog<br>✓ Weekly update posts &nbsp;·&nbsp; ✓ Instagram feed &nbsp;·&nbsp; ✓ Analytics<br><span style="color:var(--text3);font-size:10px">First month free · $9/mo after · Founding rate locked forever</span></div>
+  </div>`;
+}
+
+function toggleVendorNotif(type, el) {
+  el.classList.toggle('on');
+  if(type === 'follower') ST.notifFollower = el.classList.contains('on');
+  if(type === 'weekly') ST.notifWeekly = el.classList.contains('on');
+  // Could save to Supabase users table in future
+}
+
+function openUpgradeFlow() {
+  const v = ST.vendorId ? DATA.vendors.find(x=>x.id===ST.vendorId) : null;
+  const modal = document.createElement('div');
+  modal.id = 'upgradeModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(44,32,22,.55);z-index:3000;display:flex;align-items:flex-end;justify-content:center';
+  modal.innerHTML = `<div style="background:var(--surface);border-radius:var(--r-lg) var(--r-lg) 0 0;width:100%;max-width:520px;padding:24px 20px 36px">
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="font-size:32px;margin-bottom:8px">⭐</div>
+      <div style="font-family:var(--font-serif);font-size:20px;font-weight:600;color:var(--text);margin-bottom:4px">Upgrade to Windmill Pro</div>
+      <div style="font-size:13px;color:var(--text2)">First month free · $9/mo after · Founding rate locked forever</div>
+    </div>
+    <div style="background:var(--green-lt);border-radius:var(--r-md);padding:12px 14px;margin-bottom:20px;font-size:12px;color:var(--green-dk);line-height:2">
+      ✓ Remove ads from your page<br>
+      ✓ Up to 10 photos in your gallery<br>
+      ✓ Product catalog — up to 25 items<br>
+      ✓ All 3 social links (website, Instagram, Facebook)<br>
+      ✓ Weekly update posts<br>
+      ✓ Attendance confirmation badge<br>
+      ✓ Analytics (coming soon)
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <input id="upgradeEmail" class="form-input" type="email" placeholder="Confirm your email" value="${ST.user?.email || v?.email || ''}">
+      <textarea id="upgradeMsg" class="form-textarea" placeholder="Anything you'd like us to know? (optional)" style="height:60px"></textarea>
+      <button onclick="submitUpgradeRequest()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Request upgrade — I'll activate you within 24hrs</button>
+      <button onclick="document.getElementById('upgradeModal').remove()" style="width:100%;padding:10px;background:transparent;border:none;font-size:13px;cursor:pointer;color:var(--text3);font-family:var(--font-sans)">Maybe later</button>
     </div>
   </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
+}
+
+async function submitUpgradeRequest() {
+  const email = document.getElementById('upgradeEmail')?.value?.trim();
+  const msg = document.getElementById('upgradeMsg')?.value?.trim();
+  const v = ST.vendorId ? DATA.vendors.find(x=>x.id===ST.vendorId) : null;
+  if(!email) { alert('Please enter your email.'); return; }
+
+  const claim = {
+    id: 'upg-' + Date.now(),
+    vendorId: ST.vendorId || '',
+    vendorName: v?.name || 'Unknown vendor',
+    claimant: ST.user?.email || email,
+    email: email,
+    phone: '',
+    message: msg || 'Upgrade request from vendor dashboard.',
+    date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
+    status: 'pending',
+    proRequested: true,
+    upgradeRequest: true
+  };
+  ST.adminClaims.unshift(claim);
+
+  if(supabaseClient) {
+    try {
+      await supabaseClient.from('claims').insert({
+        id: claim.id,
+        vendor_id: claim.vendorId,
+        vendor_name: claim.vendorName,
+        claimant_name: claim.claimant,
+        email: claim.email,
+        message: claim.message,
+        status: 'pending',
+        pro_requested: true,
+        upgrade_request: true
+      });
+    } catch(e) { console.warn('Upgrade request save failed:', e); }
+  }
+
+  // Send email notification
+  sendWindmillEmail(
+    '⭐ Upgrade request — ' + claim.vendorName,
+    '<h2>Vendor Upgrade Request</h2>' +
+    '<p><strong>Vendor:</strong> ' + claim.vendorName + '</p>' +
+    '<p><strong>Email:</strong> ' + email + '</p>' +
+    '<p><strong>Message:</strong> ' + (msg||'None') + '</p>' +
+    '<p>This vendor wants to upgrade to Pro. Activate them in the admin dashboard.</p>' +
+    '<p><a href="https://shopwindmill.com" style="background:#5C7A4E;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:12px">Activate in Admin Dashboard →</a></p>'
+  );
+
+  document.getElementById('upgradeModal')?.remove();
+  // Show confirmation on settings page
+  const sb = document.getElementById('scrollBody');
+  if(sb) {
+    const conf = document.createElement('div');
+    conf.style.cssText = 'position:fixed;inset:0;background:rgba(44,32,22,.55);z-index:3000;display:flex;align-items:center;justify-content:center;padding:24px';
+    conf.innerHTML = `<div style="background:var(--surface);border-radius:var(--r-lg);padding:32px 24px;text-align:center;max-width:320px">
+      <div style="font-size:48px;margin-bottom:12px">🎉</div>
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:8px">Request received!</div>
+      <p style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:20px">We'll activate your Pro account within 24 hours and notify you at <strong>${email}</strong>.</p>
+      <button onclick="this.closest('[style]').remove()" style="padding:10px 24px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:13px;cursor:pointer;font-weight:500">Got it!</button>
+    </div>`;
+    document.body.appendChild(conf);
+  }
 }
 
 /* ── OPERATOR SUB-PAGES ── */
@@ -7110,7 +7760,7 @@ function renderAdminSettings() {
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Platform Info</div>
-        <div class="admin-row-meta">Version 1.48.6 · Lee County, FL · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
+        <div class="admin-row-meta">Version 1.51.1 · Lee County, FL · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Coverage Area</div>
@@ -7802,8 +8452,10 @@ function initSpotlightCarousel() {
       logoTimer = setTimeout(() => { logoTaps = 0; }, 2000);
       if(logoTaps >= 5) {
         logoTaps = 0;
-        // Security: only allow dev mode for logged-in admin users
-        if(!ST.user || ST.user.role !== 'admin') {
+        // Allow toggle if: admin user OR no Supabase connection (local testing)
+        const isAdmin = ST.user && ST.user.role === 'admin';
+        const isLocal = !supabaseClient || !DB_LOADED;
+        if(!isAdmin && !isLocal) {
           console.log('Dev mode requires admin login');
           return;
         }
