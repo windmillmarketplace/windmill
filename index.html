@@ -2160,6 +2160,9 @@ window.addEventListener('popstate', function(e) {
 /* ── HISTORY API: parse URL on first load ── */
 function routeFromURL() {
   const path = window.location.pathname;
+  // Check specific vendor sub-pages BEFORE the vendor regex
+  if(path === '/vendors/join') { ST.currentPage = 'vendors-join'; return; }
+  if(path === '/vendors/login') { ST.currentPage = 'vendors-login'; return; }
   const marketMatch = path.match(/^\/markets\/([^/]+)\/?$/);
   const vendorMatch = path.match(/^\/vendors\/([^/]+)\/?$/);
   if(marketMatch) {
@@ -2172,9 +2175,6 @@ function routeFromURL() {
     ST.currentId = vendorMatch[1];
     return;
   }
-  // Vendors join page
-  if(path === '/vendors/join') { ST.currentPage = 'vendors-join'; return; }
-  if(path === '/vendors/login') { ST.currentPage = 'vendors-login'; return; }
   // Tab routes
   const tabMap = {'/explore':'explore','/markets':'markets','/following':'following','/me':'me'};
   if(tabMap[path]) { ST.tab = tabMap[path]; ST.currentPage = null; }
@@ -4556,7 +4556,7 @@ function renderVendorJoinSuggestions(q) {
 /* ── EMAIL NOTIFICATIONS via Supabase Edge Function ── */
 async function sendWindmillEmail(subject, bodyHtml, toEmail) {
   try {
-    await fetch('https://fwzgazmewsspgtekcdhs.supabase.co/functions/v1/send-email', {
+    const res = await fetch('https://fwzgazmewsspgtekcdhs.supabase.co/functions/v1/send-email', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -4568,8 +4568,13 @@ async function sendWindmillEmail(subject, bodyHtml, toEmail) {
         to: toEmail || 'windmillmarketplace@gmail.com'
       })
     });
-    console.log('✓ Email sent:', subject);
-  } catch(e) { console.warn('Email send failed:', e); }
+    const data = await res.json();
+    if(res.ok) {
+      console.log('✓ Email sent:', subject, '→', toEmail || 'windmillmarketplace@gmail.com');
+    } else {
+      console.warn('✗ Email failed:', data);
+    }
+  } catch(e) { console.warn('Email send failed:', e.message); }
 }
 
 async function submitVendorJoinRequest() {
@@ -7975,7 +7980,7 @@ function renderAdminSettings() {
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Platform Info</div>
-        <div class="admin-row-meta">Version 1.52 · Lee County, FL · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
+        <div class="admin-row-meta">Version 1.52.1 · Lee County, FL · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Coverage Area</div>
