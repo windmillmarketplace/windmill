@@ -4388,7 +4388,7 @@ function renderVendorJoinSuggestions(q) {
 }
 
 /* ── RESEND EMAIL NOTIFICATIONS ── */
-async function sendWindmillEmail(subject, bodyHtml) {
+async function sendWindmillEmail(subject, bodyHtml, toEmail) {
   try {
     await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -4397,8 +4397,8 @@ async function sendWindmillEmail(subject, bodyHtml) {
         'Authorization': 'Bearer re_89QxzRSt_AA14MaimfnXPErxb2nakHivC'
       },
       body: JSON.stringify({
-        from: 'Windmill Notifications <onboarding@resend.dev>',
-        to: ['windmillmarketplace@gmail.com'],
+        from: 'Windmill Marketplace <onboarding@resend.dev>',
+        to: [toEmail || 'windmillmarketplace@gmail.com'],
         subject: subject,
         html: bodyHtml
       })
@@ -4434,11 +4434,10 @@ async function submitVendorJoinRequest() {
   };
   ST.adminClaims.unshift(newClaim);
 
-  // Save to Supabase
+  // Save to Supabase - don't send id, let Supabase auto-generate UUID
   if(supabaseClient) {
     try {
       await supabaseClient.from('claims').insert({
-        id: newClaim.id,
         vendor_id: newClaim.vendorId,
         vendor_name: newClaim.vendorName,
         claimant_name: newClaim.claimant,
@@ -4452,7 +4451,7 @@ async function submitVendorJoinRequest() {
     } catch(e) { console.warn('Claim save failed:', e); }
   }
 
-  // Send email notification
+  // Send email to admin
   sendWindmillEmail(
     '🌾 New claim request — ' + businessName,
     '<h2>New Vendor Claim Request</h2>' +
@@ -4462,6 +4461,19 @@ async function submitVendorJoinRequest() {
     '<p><strong>Phone:</strong> ' + (phone||'Not provided') + '</p>' +
     '<p><strong>Message:</strong> ' + (message||'None') + '</p>' +
     '<p><a href="https://shopwindmill.com" style="background:#5C7A4E;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:12px">Review in Admin Dashboard →</a></p>'
+  );
+
+  // Send confirmation email to vendor
+  sendWindmillEmail(
+    '🌾 We received your Windmill request!',
+    '<h2>You\'re on your way, ' + yourName + '!</h2>' +
+    '<p>We\'ve received your request to claim <strong>' + businessName + '</strong> on Windmill.</p>' +
+    '<p>We\'ll verify your listing and get back to you within 24 hours.</p>' +
+    '<div style="background:#f0f7ee;border-radius:8px;padding:16px;margin:16px 0;font-size:14px;line-height:2">' +
+    '✓ Free profile listing<br>✓ 6 months Pro free — no credit card needed<br>✓ Your page at shopwindmill.com</div>' +
+    '<p style="color:#666;font-size:13px">Questions? Reply to this email and we\'ll get right back to you.</p>' +
+    '<p style="color:#666;font-size:13px">— The Windmill Team</p>',
+    email
   );
   const form = document.getElementById('joinClaimForm');
   if(form) {
@@ -7463,7 +7475,6 @@ async function submitUpgradeRequest() {
   if(supabaseClient) {
     try {
       await supabaseClient.from('claims').insert({
-        id: claim.id,
         vendor_id: claim.vendorId,
         vendor_name: claim.vendorName,
         claimant_name: claim.claimant,
@@ -7476,7 +7487,7 @@ async function submitUpgradeRequest() {
     } catch(e) { console.warn('Upgrade request save failed:', e); }
   }
 
-  // Send email notification
+  // Send email to admin
   sendWindmillEmail(
     '⭐ Upgrade request — ' + claim.vendorName,
     '<h2>Vendor Upgrade Request</h2>' +
@@ -7485,6 +7496,18 @@ async function submitUpgradeRequest() {
     '<p><strong>Message:</strong> ' + (msg||'None') + '</p>' +
     '<p>This vendor wants to upgrade to Pro. Activate them in the admin dashboard.</p>' +
     '<p><a href="https://shopwindmill.com" style="background:#5C7A4E;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:12px">Activate in Admin Dashboard →</a></p>'
+  );
+
+  // Send confirmation email to vendor
+  sendWindmillEmail(
+    '⭐ Your Windmill Pro upgrade request is in!',
+    '<h2>Upgrade request received!</h2>' +
+    '<p>Hi! We\'ve received your request to upgrade <strong>' + claim.vendorName + '</strong> to Windmill Pro.</p>' +
+    '<p>We\'ll activate your Pro account within 24 hours and notify you at <strong>' + email + '</strong>.</p>' +
+    '<div style="background:#f0f7ee;border-radius:8px;padding:16px;margin:16px 0;font-size:14px;line-height:2">' +
+    '✓ Up to 10 photos<br>✓ 25 products in your catalog<br>✓ All 3 social links<br>✓ No ads on your page</div>' +
+    '<p style="color:#666;font-size:13px">— The Windmill Team</p>',
+    email
   );
 
   document.getElementById('upgradeModal')?.remove();
@@ -7760,7 +7783,7 @@ function renderAdminSettings() {
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Platform Info</div>
-        <div class="admin-row-meta">Version 1.51.1 · Lee County, FL · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
+        <div class="admin-row-meta">Version 1.51.2 · Lee County, FL · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Coverage Area</div>
