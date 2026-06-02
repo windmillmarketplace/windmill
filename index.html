@@ -2197,7 +2197,12 @@ function navigate(page, id) {
   ST.previousId = ST.currentId;
   ST.currentPage = page; ST.currentId = id || null;
   const tabs = ['home','explore','markets','following','me','admin-ads','admin-settings'];
-  if(tabs.includes(page)) ST.tab = page;
+  if(tabs.includes(page)) {
+    ST.tab = page;
+  } else {
+    // Non-tab page — don't let tab override the render
+    ST.tab = 'home';
+  }
   // Reset scroll on BOTH window and scrollBody before render
   const sb = document.getElementById('scrollBody');
   window.scrollTo(0, 0);
@@ -6065,12 +6070,36 @@ async function onAuthSuccess(user) {
   const { data: profile } = await supabaseClient.from('users').select('*').eq('id', user.id).single();
 
   const name = profile?.name || user.user_metadata?.full_name || user.user_metadata?.name || user.email.split('@')[0];
-  const role = profile?.role || user.user_metadata?.role || 'customer';
+  let role = profile?.role || user.user_metadata?.role || 'customer';
+  let vendorId = profile?.vendor_id || null;
+
+  // If no vendor_id in users table, check vendors table by email
+  if(role === 'customer' && !vendorId) {
+    try {
+      const { data: vendorRecord } = await supabaseClient
+        .from('vendors')
+        .select('id, claimed, pro, trial_start')
+        .eq('email', user.email)
+        .eq('claimed', true)
+        .single();
+      if(vendorRecord) {
+        role = 'vendor';
+        vendorId = vendorRecord.id;
+        // Update users table with vendor role
+        await supabaseClient.from('users').upsert({
+          id: user.id,
+          email: user.email,
+          name,
+          role: 'vendor',
+          vendor_id: vendorRecord.id,
+          trial_start: vendorRecord.trial_start || null
+        }, {onConflict: 'id'});
+      }
+    } catch(e) { console.warn('Vendor lookup failed:', e); }
+  }
 
   ST.user = { id: user.id, email: user.email, name, role };
-
-  // Store vendor/operator identity and trial info
-  ST.vendorId = profile?.vendor_id || null;
+  ST.vendorId = vendorId;
   ST.operatorId = profile?.operator_id || null;
   ST.trialStart = profile?.trial_start ? new Date(profile.trial_start) : null;
   ST.profileSetupComplete = profile?.profile_setup_complete || false;
@@ -6084,7 +6113,7 @@ async function onAuthSuccess(user) {
     ST.isProTrial = false;
   }
 
-  // Auto-create users table row if it doesn't exist (Google/OAuth sign-ins)
+  // Auto-create users table row if it doesn't exist
   if(!profile) {
     try {
       await supabaseClient.from('users').upsert({
@@ -6094,12 +6123,10 @@ async function onAuthSuccess(user) {
         role,
         email_opt_in: true
       });
-    } catch(e) {
-      console.warn('Could not create user profile:', e);
-    }
+    } catch(e) { console.warn('Could not create user profile:', e); }
   }
 
-  // Set role (unless in dev mode where role bar controls it)
+  // Set role
   if(!ST.devMode) ST.role = role;
 
   // Load follows
@@ -6109,17 +6136,22 @@ async function onAuthSuccess(user) {
   renderBottom();
   renderFilterStrip();
   renderSidebar();
+
   // Update desktop sign-in button
   const btn = document.getElementById('desktopSigninBtn');
   if(btn) {
     btn.textContent = ST.user.name.split(' ')[0];
     btn.onclick = () => { ST.tab='me'; renderCurrentPage(); renderBottom(); };
   }
-  renderMe();
 
-  // Show onboarding modal for new vendors who haven't completed setup
-  if(role === 'vendor' && !ST.profileSetupComplete && ST.vendorId) {
-    setTimeout(() => showVendorOnboarding(), 800);
+  // Route vendor to dashboard, shopper to me page
+  if(role === 'vendor' && vendorId) {
+    ST.tab = 'home';
+    ST.currentPage = null;
+    renderCurrentPage();
+    if(!ST.profileSetupComplete) setTimeout(() => showVendorOnboarding(), 800);
+  } else {
+    renderMe();
   }
 
   // Show welcome toast
@@ -7980,7 +8012,7 @@ function renderAdminSettings() {
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Platform Info</div>
-        <div class="admin-row-meta">Version 1.52.1 · Lee County, FL · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
+        <div class="admin-row-meta">Version 1.52.3 · Lee County, FL · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Coverage Area</div>
