@@ -4387,20 +4387,19 @@ function renderVendorJoinSuggestions(q) {
     </div>`).join('');
 }
 
-/* ── RESEND EMAIL NOTIFICATIONS ── */
+/* ── EMAIL NOTIFICATIONS via Supabase Edge Function ── */
 async function sendWindmillEmail(subject, bodyHtml, toEmail) {
   try {
-    await fetch('https://api.resend.com/emails', {
+    await fetch('https://fwzgazmewsspgtekcdhs.supabase.co/functions/v1/send-email', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer re_89QxzRSt_AA14MaimfnXPErxb2nakHivC'
+        'Authorization': 'Bearer ' + SUPABASE_KEY
       },
       body: JSON.stringify({
-        from: 'Windmill Marketplace <onboarding@resend.dev>',
-        to: [toEmail || 'windmillmarketplace@gmail.com'],
         subject: subject,
-        html: bodyHtml
+        html: bodyHtml,
+        to: toEmail || 'windmillmarketplace@gmail.com'
       })
     });
     console.log('✓ Email sent:', subject);
@@ -7783,7 +7782,7 @@ function renderAdminSettings() {
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Platform Info</div>
-        <div class="admin-row-meta">Version 1.51.2 · Lee County, FL · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
+        <div class="admin-row-meta">Version 1.51.3 · Lee County, FL · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Coverage Area</div>
