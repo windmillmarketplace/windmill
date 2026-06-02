@@ -2174,6 +2174,7 @@ function routeFromURL() {
   }
   // Vendors join page
   if(path === '/vendors/join') { ST.currentPage = 'vendors-join'; return; }
+  if(path === '/vendors/login') { ST.currentPage = 'vendors-login'; return; }
   // Tab routes
   const tabMap = {'/explore':'explore','/markets':'markets','/following':'following','/me':'me'};
   if(tabMap[path]) { ST.tab = tabMap[path]; ST.currentPage = null; }
@@ -2219,6 +2220,7 @@ function renderCurrentPage() {
   if(p === 'area-request') { updatePageMeta('Request Your Area | Windmill','Ask us to bring Windmill to your city.','/area-request'); return renderAreaRequest(); }
   if(p === 'vendors-list') { updatePageMeta('Browse Vendors | Windmill','Browse all local market vendors on Windmill.','/vendors'); return renderVendorsList(); }
   if(p === 'vendors-join') { updatePageMeta('Join Windmill as a Vendor | Grow Your Farmers Market Business','Claim your free vendor listing on Windmill. Be found between markets, showcase your products, and connect with customers.','/vendors/join'); return renderVendorsJoin(); }
+  if(p === 'vendors-login') { updatePageMeta('Vendor Sign In | Windmill','Sign in to your Windmill vendor dashboard.','/vendors/login'); return renderVendorsLogin(); }
   if(p === 'demo-vendor-free') return renderDemoVendorFree();
   if(p === 'demo-vendor-pro') {
     // Inject Empanada Queen demo data into vendors if not already there
@@ -4293,7 +4295,11 @@ function renderVendorsJoin() {
     <!-- CLAIM FORM -->
     <div id="joinClaimForm" style="margin:0 16px 28px;background:var(--surface);border:1.5px solid var(--green);border-radius:var(--r-lg);padding:24px 20px">
       <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:6px;text-align:center">${c.claim_modal_title}</div>
-      <div style="font-size:12px;color:var(--text2);text-align:center;margin-bottom:20px;line-height:1.5">${c.claim_modal_sub}</div>
+      <div style="font-size:12px;color:var(--text2);text-align:center;margin-bottom:6px;line-height:1.5">${c.claim_modal_sub}</div>
+      <div style="text-align:center;margin-bottom:16px">
+        <span style="font-size:12px;color:var(--text3)">Already claimed your listing? </span>
+        <span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="navigate('vendors-login')">Sign in here →</span>
+      </div>
 
       <!-- Vendor search with predictive dropdown -->
       <div style="position:relative;margin-bottom:14px">
@@ -4366,6 +4372,166 @@ function renderVendorsJoin() {
 
   </div>`;
 }
+
+function renderVendorsLogin() {
+  hideFilterUI();
+  document.getElementById('scrollBody').innerHTML = `<div style="max-width:420px;margin:0 auto;padding:32px 20px 60px">
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="font-size:32px;margin-bottom:8px">🌾</div>
+      <div style="font-family:var(--font-serif);font-size:22px;font-weight:600;color:var(--text);margin-bottom:6px">Vendor Sign In</div>
+      <div style="font-size:13px;color:var(--text2)">Sign in to manage your Windmill listing</div>
+    </div>
+
+    <div id="vendorLoginForm" style="background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-lg);padding:24px 20px">
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div>
+          <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:5px">Email address</label>
+          <input id="vendorLoginEmail" type="email" placeholder="your@email.com" class="form-input" style="width:100%">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:5px">Password</label>
+          <input id="vendorLoginPassword" type="password" placeholder="Minimum 8 characters" class="form-input" style="width:100%">
+        </div>
+        <button onclick="submitVendorLogin()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Sign in</button>
+        <div style="text-align:center">
+          <span style="font-size:12px;color:var(--text3)">New vendor? </span>
+          <span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="navigate('vendors-join')">Claim your listing →</span>
+        </div>
+        <div style="border-top:0.5px solid var(--border);padding-top:12px;text-align:center">
+          <div style="font-size:12px;color:var(--text3);margin-bottom:8px">First time signing in? Create your password:</div>
+          <button onclick="showVendorSignup()" style="width:100%;padding:10px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans);color:var(--text)">Create account with email</button>
+        </div>
+        <div style="text-align:center">
+          <span style="font-size:11px;color:var(--text3);cursor:pointer" onclick="showVendorForgotPassword()">Forgot password?</span>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function showVendorSignup() {
+  const form = document.getElementById('vendorLoginForm');
+  if(!form) return;
+  form.innerHTML = `<div style="font-family:var(--font-serif);font-size:16px;font-weight:600;margin-bottom:4px">Create your vendor account</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:16px">Use the email you submitted when claiming your listing</div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div>
+        <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:5px">Email address</label>
+        <input id="vendorSignupEmail" type="email" placeholder="your@email.com" class="form-input" style="width:100%">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:5px">Choose a password (min. 8 characters)</label>
+        <input id="vendorSignupPassword" type="password" placeholder="Minimum 8 characters" class="form-input" style="width:100%">
+      </div>
+      <button onclick="submitVendorSignup()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Create account</button>
+      <div style="text-align:center"><span style="font-size:12px;color:var(--terra);cursor:pointer" onclick="renderVendorsLogin()">← Back to sign in</span></div>
+    </div>`;
+}
+
+function showVendorForgotPassword() {
+  const form = document.getElementById('vendorLoginForm');
+  if(!form) return;
+  form.innerHTML = `<div style="font-family:var(--font-serif);font-size:16px;font-weight:600;margin-bottom:4px">Reset your password</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:16px">We'll send a reset link to your email</div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div>
+        <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:5px">Email address</label>
+        <input id="vendorResetEmail" type="email" placeholder="your@email.com" class="form-input" style="width:100%">
+      </div>
+      <button onclick="submitVendorPasswordReset()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Send reset link</button>
+      <div style="text-align:center"><span style="font-size:12px;color:var(--terra);cursor:pointer" onclick="renderVendorsLogin()">← Back to sign in</span></div>
+    </div>`;
+}
+
+async function submitVendorLogin() {
+  const email = document.getElementById('vendorLoginEmail')?.value?.trim();
+  const password = document.getElementById('vendorLoginPassword')?.value;
+  if(!email || !password) { alert('Please enter your email and password.'); return; }
+  if(!supabaseClient) { alert('Connection error. Please try again.'); return; }
+  try {
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if(error) throw error;
+    await onVendorLoginSuccess(data.user);
+  } catch(e) {
+    alert('Sign in failed: ' + (e.message || 'Please check your email and password.'));
+  }
+}
+
+async function submitVendorSignup() {
+  const email = document.getElementById('vendorSignupEmail')?.value?.trim();
+  const password = document.getElementById('vendorSignupPassword')?.value;
+  if(!email || !password) { alert('Please fill in all fields.'); return; }
+  if(password.length < 8) { alert('Password must be at least 8 characters.'); return; }
+  if(!supabaseClient) { alert('Connection error. Please try again.'); return; }
+  try {
+    const { data, error } = await supabaseClient.auth.signUp({ email, password });
+    if(error) throw error;
+    if(data.user) {
+      await onVendorLoginSuccess(data.user);
+    } else {
+      // Email confirmation required
+      document.getElementById('vendorLoginForm').innerHTML = `<div style="text-align:center;padding:20px 0">
+        <div style="font-size:48px;margin-bottom:12px">📬</div>
+        <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:8px">Check your email</div>
+        <p style="font-size:13px;color:var(--text2);line-height:1.6">We sent a confirmation link to <strong>${email}</strong>. Click it to activate your account, then come back and sign in.</p>
+      </div>`;
+    }
+  } catch(e) {
+    alert('Sign up failed: ' + (e.message || 'Please try again.'));
+  }
+}
+
+async function submitVendorPasswordReset() {
+  const email = document.getElementById('vendorResetEmail')?.value?.trim();
+  if(!email) { alert('Please enter your email.'); return; }
+  if(!supabaseClient) return;
+  try {
+    await supabaseClient.auth.resetPasswordForEmail(email, {
+      redirectTo: 'https://shopwindmill.com/vendors/login'
+    });
+    document.getElementById('vendorLoginForm').innerHTML = `<div style="text-align:center;padding:20px 0">
+      <div style="font-size:48px;margin-bottom:12px">📬</div>
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:8px">Reset link sent!</div>
+      <p style="font-size:13px;color:var(--text2);line-height:1.6">Check your email at <strong>${email}</strong> for a password reset link.</p>
+    </div>`;
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function onVendorLoginSuccess(user) {
+  if(!user) return;
+  // Find vendor record matching this email
+  const vendor = DATA.vendors.find(v => v.email === user.email || v.id === user.user_metadata?.vendor_id);
+  if(vendor) {
+    ST.vendorId = vendor.id;
+    ST.isProTrial = !vendor.pro && !!vendor.trial_start;
+    ST.trialStart = vendor.trial_start || null;
+    ST.role = 'vendor';
+    ST.user = { email: user.email, id: user.id, role: 'vendor' };
+    // Update users table
+    if(supabaseClient) {
+      try {
+        await supabaseClient.from('users').upsert({
+          id: user.id, email: user.email, role: 'vendor', vendor_id: vendor.id
+        }, {onConflict:'id'});
+      } catch(e) {}
+    }
+    // Navigate to vendor dashboard
+    ST.currentPage = null;
+    ST.tab = 'me';
+    renderCurrentPage();
+    // Show welcome toast
+    const toast = document.createElement('div');
+    toast.textContent = 'Welcome back, ' + (vendor.name || 'Vendor') + '!';
+    toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#2C2016;color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;z-index:9999;font-family:var(--font-sans);white-space:nowrap';
+    document.body.appendChild(toast);
+    setTimeout(()=>toast.remove(), 2500);
+  } else {
+    // No vendor record found — show message
+    alert('No vendor listing found for ' + user.email + '. Please make sure you use the same email you submitted when claiming your listing, or contact us at windmillmarketplace@gmail.com.');
+    await supabaseClient.auth.signOut();
+  }
+}
+
 
 function renderVendorJoinSuggestions(q) {
   const box = document.getElementById('joinVendorSuggestions');
@@ -6297,40 +6463,67 @@ async function adminApproveClaim(claimId) {
 
   // Mark vendor as claimed in local data
   const v = DATA.vendors.find(x=>x.id===c.vendorId);
-  if(v) v.claimed = true;
+  if(v) { v.claimed = true; v.trial_start = new Date().toISOString(); }
 
-  // Set vendor_id, role, and trial_start on the user in Supabase
-  if(supabaseClient && c.email) {
-    const trialStart = new Date().toISOString();
+  // Update vendor in Supabase
+  if(supabaseClient) {
     try {
-      // Find user by email and update their record
-      const { data: userRecord } = await supabaseClient
-        .from('users')
-        .select('id')
-        .eq('email', c.email)
-        .single();
+      await supabaseClient.from('vendors').update({
+        claimed: true,
+        trial_start: new Date().toISOString()
+      }).eq('id', c.vendorId);
 
+      // Update claim status
+      await supabaseClient.from('claims').update({status:'approved'}).eq('id', claimId);
+
+      // Try to find and update user record if they already have an account
+      const { data: userRecord } = await supabaseClient
+        .from('users').select('id').eq('email', c.email).single();
       if(userRecord) {
         await supabaseClient.from('users').update({
           role: 'vendor',
           vendor_id: c.vendorId,
-          trial_start: trialStart
+          trial_start: new Date().toISOString()
         }).eq('id', userRecord.id);
       }
-    } catch(e) {
-      console.warn('Could not update user record on approval:', e);
-    }
+    } catch(e) { console.warn('Approval Supabase update failed:', e); }
   }
 
-  // Add confirmation message to inbox
+  // Send approval email to vendor
+  sendWindmillEmail(
+    '🎉 You\'re approved on Windmill! Set up your profile',
+    '<h2>Welcome to Windmill, ' + c.claimant + '!</h2>' +
+    '<p>Your listing for <strong>' + c.vendorName + '</strong> has been approved.</p>' +
+    '<p>You now have <strong>6 months of Pro free</strong> — no credit card needed.</p>' +
+    '<div style="background:#f0f7ee;border-radius:8px;padding:16px;margin:16px 0;font-size:14px;line-height:2">' +
+    '✓ Add your photos and story<br>' +
+    '✓ List your products and prices<br>' +
+    '✓ Confirm your market schedule<br>' +
+    '✓ Post weekly updates to your followers</div>' +
+    '<p style="text-align:center;margin:24px 0">' +
+    '<a href="https://shopwindmill.com/vendors/login" style="background:#5C7A4E;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:15px;font-weight:600;display:inline-block">Set up your profile →</a></p>' +
+    '<p style="color:#666;font-size:12px">Go to shopwindmill.com/vendors/login and sign in with <strong>' + c.email + '</strong></p>' +
+    '<p style="color:#666;font-size:12px">— The Windmill Team</p>',
+    c.email
+  );
+
+  // Add to admin messages
   ST.adminMessages.unshift({
     id:'auto_'+Date.now(),
     from:c.claimant, role:'Vendor',
     subject:'Claim approved: '+c.vendorName,
-    body:`Your claim for "${c.vendorName}" has been approved. You now have 6 months of Pro free. Log in to manage your listing.`,
+    body:'Approved. Approval email sent to ' + c.email + '. Trial started.',
     date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
     read:true, resolved:true, replies:[], isSystem:true
   });
+
+  // Show toast
+  const toast = document.createElement('div');
+  toast.textContent = '✓ Approved! Email sent to ' + c.email;
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#2C2016;color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;z-index:9999;font-family:var(--font-sans);white-space:nowrap';
+  document.body.appendChild(toast);
+  setTimeout(()=>toast.remove(), 3000);
+
   renderAdminPanel();
 }
 function adminDenyClaim(claimId) {
@@ -7782,7 +7975,7 @@ function renderAdminSettings() {
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Platform Info</div>
-        <div class="admin-row-meta">Version 1.51.3 · Lee County, FL · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
+        <div class="admin-row-meta">Version 1.52 · Lee County, FL · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Coverage Area</div>
