@@ -148,7 +148,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .section{padding:18px 16px 4px}
 @media(min-width:768px){.section{padding:20px 24px 4px}}
 .section-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px}
-.section-title{font-family:var(--font-serif);font-size:17px;font-weight:600;color:var(--text);letter-spacing:-.2px}
+.section-title{font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);letter-spacing:-.2px}
 .section-more{font-size:12px;color:var(--terra);font-weight:500;cursor:pointer}
 
 /* MARKET CARDS */
@@ -185,7 +185,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .open-badge.open{background:var(--green-lt);color:var(--green-dk);border:0.5px solid var(--green-mid)}
 .open-badge.seasonal{background:var(--amber-lt);color:#7A4E08;border:0.5px solid #F0D090}
 .market-info{padding:10px 11px 11px}
-.market-name{font-size:14px;font-weight:500;color:var(--text);margin-bottom:4px;line-height:1.3}
+.market-name{font-size:15px;font-weight:500;color:var(--text);margin-bottom:4px;line-height:1.3}
 .market-meta-row{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);margin-top:3px}
 .market-meta-row svg{width:10px;height:10px;flex-shrink:0}
 
@@ -202,7 +202,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 @media(min-width:768px){.vendor-card{margin:0 24px 10px}}
 .vendor-avatar{width:52px;height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--font-serif);font-size:17px;font-weight:600;border:0.5px solid var(--border)}
 .vendor-body{flex:1;min-width:0}
-.vendor-name{font-size:14px;font-weight:500;color:var(--text);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vendor-name{font-size:15px;font-weight:500;color:var(--text);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vendor-at{font-size:12px;color:var(--text2);margin-bottom:4px;display:flex;align-items:center;gap:3px}
 .vendor-at svg{width:10px;height:10px;color:var(--green);flex-shrink:0}
 .vendor-category{font-size:11px;color:var(--text3);margin-top:2px}
@@ -240,8 +240,8 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .cat-hero-emoji{font-size:28px;margin-bottom:4px}
 .cat-hero-title{font-family:var(--font-serif);font-size:26px;font-weight:600;color:#fff;line-height:1.2;margin-bottom:4px}
 .cat-hero-stats{font-size:11px;color:rgba(255,255,255,.8)}
-.cat-description{padding:16px 16px 4px;font-size:13px;color:var(--text2);line-height:1.6}
-@media(min-width:768px){.cat-description{padding:20px 24px 4px}}
+.cat-description{padding:16px 16px 4px;font-size:14px;color:var(--text2);line-height:1.6}
+@media(min-width:768px){.cat-description{padding:20px 24px 4px;font-size:15px}}
 .cat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:0 16px 16px}
 @media(min-width:768px){.cat-grid{grid-template-columns:repeat(4,minmax(0,1fr));padding:0 24px 16px}}
 .cat-tile{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;cursor:pointer;transition:transform .15s;position:relative}
@@ -1164,7 +1164,7 @@ const DATA = {
     {id:"seafood",label:"Seafood",es:"Mariscos",pt:"Frutos do Mar",emoji:"🐟",photo:"https://images.unsplash.com/photo-1534482421-64566f976cfa?w=400&q=80"},
     {id:"prepared-food",label:"Prepared Food",es:"Comida",pt:"Comida",emoji:"🍲",photo:"https://images.unsplash.com/photo-1547592180-85f173990554?w=400&q=80"},
     {id:"coffee-drinks",label:"Coffee & Drinks",es:"Café",pt:"Café",emoji:"☕",photo:"https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&q=80"},
-    {id:"flowers",label:"Flowers",es:"Flores",pt:"Flores",emoji:"🌸",photo:"https://images.unsplash.com/photo-1490750967868-88df5691cc1d?w=400&q=80"},
+    {id:"flowers",label:"Flowers",es:"Flores",pt:"Flores",emoji:"🌸",photo:"https://statics.vinwonders.com/ho-thi-ky-flower-market-1_1676975510.jpg"},
     {id:"health-wellness",label:"Health & Wellness",es:"Salud",pt:"Saúde",emoji:"🌱",photo:"https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=400&q=80"},
     {id:"jewelry",label:"Jewelry",es:"Joyería",pt:"Joias",emoji:"💎",photo:"https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400&q=80"},
     {id:"food-truck",label:"Food Trucks",es:"Food Trucks",pt:"Food Trucks",emoji:"🚚",photo:"https://images.unsplash.com/photo-1565123409695-7b5ef63a2efb?w=400&q=80"}
@@ -1174,7 +1174,7 @@ const DATA = {
     "babcock-ranch":"https://images.unsplash.com/photo-1466611653911-95081537e5b7?w=400&q=80",
     "boca-grande":"https://images.unsplash.com/photo-1449034446853-66c86144b0ad?w=400&q=80",
     "captiva-island":"https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=400&q=80",
-    "lakes-park":"https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=400&q=80",
+    "lakes-park":"https://fcit.usf.edu/florida/flassets/content/6100/fa6168/fa6168.jpg",
     "coconut-point":"https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?w=400&q=80",
     "bonita-springs":"https://images.unsplash.com/photo-1490750967868-88df5691cc1d?w=400&q=80",
     "gateway":"https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=400&q=80",
@@ -1187,7 +1187,7 @@ const DATA = {
     "koreshan-sunday":"https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&q=80",
     "fort-myers-beach":"https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&q=80",
     "miromar-outlets":"https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?w=400&q=80",
-    "lions-club-bonita":"https://images.unsplash.com/photo-1490750967868-88df5691cc1d?w=400&q=80",
+    "lions-club-bonita":"https://m.media-amazon.com/images/I/91v+8+IFSVL._AC_UF350,350_QL80_.jpg",
     "sarasota-downtown":"https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&q=80",
     "lakewood-ranch-waterside":"https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=400&q=80",
     "phillippi-farmhouse":"https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=400&q=80",
@@ -1324,7 +1324,7 @@ const DATA = {
     'lee-county':[
       {type:'vendor',id:'demo-vendor-pro',name:'The Empanada Queen',tagline:'Handmade empanadas — 12 flavors, made fresh every morning',photo:'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=400&q=80',route:'demo-vendor-pro'},
       {type:'operator',id:'demo-operator-pro',name:'Suncoast Market Collective',tagline:"SW Florida's premier network of artisan farmers markets",photo:'https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=400&q=80',route:'demo-operator-pro'},
-      {type:'vendor',id:'heritage-honey',name:'Heritage Honey',tagline:'Raw Florida wildflower honey — straight from our hives',photo:'https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=400&q=80',route:'vendor'},
+      {type:'vendor',id:'heritage-honey',name:'Heritage Honey',tagline:'Raw Florida wildflower honey — straight from our hives',photo:'https://images.unsplash.com/photo-1558642452-9d2a7deb7f62?w=400&q=80',route:'vendor'},
       {type:'vendor',id:'stamper-cheese',name:'Stamper Cheese',tagline:'Artisan cheeses made in Southwest Florida',photo:'https://images.unsplash.com/photo-1486297678162-eb2a19b0a32d?w=400&q=80',route:'vendor'},
       {type:'vendor',id:'jimmys-java',name:"Jimmy's Java",tagline:'Specialty coffee roasted local — find us at 6 markets',photo:'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&q=80',route:'vendor'}
     ],
@@ -1402,7 +1402,7 @@ const T = {
     /* nav & global */
     search:"Search markets, vendors, cities...",date:"Date",lang:"EN",filters:"Filters",
     markets_near:"Markets near you",happening:"Happening near you",explore_cat:"Explore by category",
-    coming:"Food trucks & events",see_all:"See all",open:"Open",seasonal:"Seasonal",
+    coming:"Food trucks & events",see_all:"See all",open:"In Season",seasonal:"Seasonal",
     vendors_c:"vendors",follow:"Follow",following:"Following",signin:"Sign in",
     nudge_title:"Save your favorites",nudge_sub:"Sign in free to follow vendors & markets",
     coming_title:"Coming soon",coming_sub:"Get notified when food trucks & events go live",
@@ -1640,11 +1640,11 @@ const initials = n => n.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase(
 const getMarket = id => DATA.markets.find(m=>m.id===id);
 const getVendor = id => DATA.vendors.find(v=>v.id===id);
 
-// Returns next upcoming market with day label for vendor cards
+// Returns next upcoming in-season market with day label for vendor cards
 function vendorMarketLabel(vendor) {
   const shortName = n => n.replace(/ Farmers Market$/i,'').replace(/ Farm Market$/i,'').replace(/ Market$/i,'').trim();
   const dayOrder = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  const todayIdx = new Date().getDay(); // 0=Sun, 1=Mon...
+  const todayIdx = new Date().getDay();
 
   let markets = vendor.markets.map(id => getMarket(id)).filter(Boolean);
 
@@ -1653,25 +1653,43 @@ function vendorMarketLabel(vendor) {
   if(activeDays.length > 0) markets = markets.filter(m => activeDays.includes(m.day_of_week));
   if(markets.length === 0) markets = vendor.markets.map(id => getMarket(id)).filter(Boolean);
 
-  // Sort by next upcoming day
-  markets.sort((a, b) => {
-    const ai = dayOrder.indexOf(a.day_of_week);
-    const bi = dayOrder.indexOf(b.day_of_week);
-    const aDiff = (ai - todayIdx + 7) % 7;
-    const bDiff = (bi - todayIdx + 7) % 7;
+  // Split into in-season and out-of-season
+  const inSeason = markets.filter(m => isOpen(m));
+  const outOfSeason = markets.filter(m => !isOpen(m));
+
+  const sortByNextDay = arr => [...arr].sort((a, b) => {
+    const aDiff = (dayOrder.indexOf(a.day_of_week) - todayIdx + 7) % 7;
+    const bDiff = (dayOrder.indexOf(b.day_of_week) - todayIdx + 7) % 7;
     return aDiff - bDiff;
   });
 
+  const hasInSeason = inSeason.length > 0;
+  const sorted = hasInSeason
+    ? [...sortByNextDay(inSeason), ...sortByNextDay(outOfSeason)]
+    : sortByNextDay(outOfSeason);
+
   const total = markets.length;
-  const first = markets[0];
+  const first = sorted[0];
   if(!first) return '';
 
   const dayIdx = dayOrder.indexOf(first.day_of_week);
   const diff = (dayIdx - todayIdx + 7) % 7;
-  const dayLabel = diff === 0 ? 'Today' : first.day_of_week.slice(0,3)+'s';
 
+  // Only use relative labels (Today/Tomorrow) for in-season markets
+  let dayLabel;
+  if(hasInSeason && isOpen(first)) {
+    dayLabel = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : first.day_of_week.slice(0,3)+'s';
+  } else {
+    // Out of season — always show day name, never relative
+    dayLabel = first.day_of_week.slice(0,3)+'s';
+  }
+
+  const seasonNote = !hasInSeason
+    ? ` <span style="color:var(--amber-dk);font-size:10px">· out of season</span>`
+    : (!isOpen(first) ? ` <span style="color:var(--text3);font-size:10px">· out of season</span>` : '');
   const more = total > 1 ? ` <span style="color:var(--text3)">+${total-1} more</span>` : '';
-  return `${shortName(first.name)} <span style="color:var(--text3);font-size:10px">(${dayLabel})</span>${more}`;
+
+  return `${shortName(first.name)} <span style="color:var(--text3);font-size:10px">(${dayLabel})</span>${seasonNote}${more}`;
 }
 const getOperator = id => DATA.operators.find(o=>o.id===id);
 const vendorCount = mid => DATA.vendors.filter(v=>v.markets.includes(mid)).length;
@@ -2061,7 +2079,7 @@ function showGlobalSearchDropdown(results, val) {
             <div class="gs-item-name">${m.name}</div>
             <div class="gs-item-sub">${m.city} · ${m.day_of_week}s ${formatTimeRange(m.start_time,m.end_time)}</div>
           </div>
-          <span class="gs-item-badge" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'Open now':(m.season_start==='All Year'?'All Year':m.season_start.slice(0,3)+'–'+m.season_end.slice(0,3))}</span>
+          <span class="gs-item-badge" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'In Season':(m.season_start==='All Year'?'All Year':m.season_start.slice(0,3)+'–'+m.season_end.slice(0,3))}</span>
         </div>`;
       });
     }
@@ -2579,19 +2597,29 @@ function applyAllFilters(markets) {
       return marketVendors.some(v => ST.filters.cats.includes(v.category));
     });
   }
+  // Sort: in-season first, then by next upcoming day, then by most vendors
+  const dayOrder = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const todayIdx = new Date().getDay();
+  ms.sort((a, b) => {
+    const aOpen = isOpen(a);
+    const bOpen = isOpen(b);
+    if(aOpen && !bOpen) return -1;
+    if(!aOpen && bOpen) return 1;
+    const aDiff = (dayOrder.indexOf(a.day_of_week) - todayIdx + 7) % 7;
+    const bDiff = (dayOrder.indexOf(b.day_of_week) - todayIdx + 7) % 7;
+    if(aDiff !== bDiff) return aDiff - bDiff;
+    return vendorCount(b.id) - vendorCount(a.id);
+  });
   return ms;
 }
 
 /* ── APPLY VENDOR FILTERS ── */
 function applyVendorFilters(vendors) {
   let vs = [...vendors].filter(v=>v.published);
-  // region filter
   if(ST.region) vs = vs.filter(v => v.region === ST.region);
-  // category chip filter
   if(ST.filters.cats.length > 0) {
     vs = vs.filter(v => ST.filters.cats.includes(v.category));
   }
-  // date/day filter — only show vendors attending markets on that day
   if(ST.dateFilter || ST.filters.days.length > 0) {
     const allowedDays = ST.dateFilter?.days || (ST.dateFilter?.day ? [ST.dateFilter.day] : []);
     const filterDays = [...allowedDays, ...ST.filters.days];
@@ -2602,7 +2630,43 @@ function applyVendorFilters(vendors) {
       }));
     }
   }
+  // Sort: vendors with at least one in-season market first
+  const dayOrder = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const todayIdx = new Date().getDay();
+  vs.sort((a, b) => {
+    const aInSeason = a.markets.some(mid => { const m = getMarket(mid); return m && isOpen(m); });
+    const bInSeason = b.markets.some(mid => { const m = getMarket(mid); return m && isOpen(m); });
+    if(aInSeason && !bInSeason) return -1;
+    if(!aInSeason && bInSeason) return 1;
+    // Within same season group, sort by next upcoming day
+    const aNext = Math.min(...a.markets.map(mid => { const m = getMarket(mid); return m ? (dayOrder.indexOf(m.day_of_week) - todayIdx + 7) % 7 : 7; }));
+    const bNext = Math.min(...b.markets.map(mid => { const m = getMarket(mid); return m ? (dayOrder.indexOf(m.day_of_week) - todayIdx + 7) % 7 : 7; }));
+    return aNext - bNext;
+  });
   return vs;
+}
+
+// Shared vendor sort: in-season markets first, then by next upcoming day
+function sortVendors(vendors) {
+  const dayOrder = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const todayIdx = new Date().getDay();
+  const nextDay = (vendor) => {
+    const diffs = vendor.markets.map(mid => {
+      const m = getMarket(mid);
+      if(!m) return 99;
+      const inSeason = isOpen(m);
+      const diff = (dayOrder.indexOf(m.day_of_week) - todayIdx + 7) % 7;
+      return inSeason ? diff : diff + 100; // push out-of-season further back
+    });
+    return diffs.length ? Math.min(...diffs) : 999;
+  };
+  return [...vendors].sort((a, b) => {
+    const aInSeason = a.markets.some(mid => { const m = getMarket(mid); return m && isOpen(m); });
+    const bInSeason = b.markets.some(mid => { const m = getMarket(mid); return m && isOpen(m); });
+    if(aInSeason && !bInSeason) return -1;
+    if(!aInSeason && bInSeason) return 1;
+    return nextDay(a) - nextDay(b);
+  });
 }
 
 /* ── BOTTOM NAV ── */
@@ -2648,7 +2712,7 @@ function renderHome() {
   // ── HERO ──
   h += `<div class="home-hero">
     <div class="home-hero-eyebrow">🌾 Southwest Florida</div>
-    <div class="home-hero-headline">Your local farmers market,<br>in your pocket</div>
+    <div class="home-hero-headline">Your local farmers market,<br>at your fingertips</div>
     <div class="home-hero-sub">Find fresh produce, artisan goods, and local vendors at markets near you — every week.</div>
     <div class="home-hero-stats">
       <span class="home-hero-stat">📍 ${marketCount} markets</span>
@@ -2692,12 +2756,7 @@ function renderHome() {
   h += `<div class="section"><div class="section-header"><span class="section-title">${t('markets_near')}</span><span class="section-more" onclick="navigate('markets')">${t('see_all')}</span></div></div>`;
 
   if(markets.length === 0) {
-    h += `<div style="margin:0 16px 16px;text-align:center;padding:28px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-lg)">
-      <div style="font-size:32px;margin-bottom:8px">📅</div>
-      <div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:4px">No markets match your filters</div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Try a different day or clear your filters</div>
-      <button onclick="clearDateFilter();clearFilters()" style="padding:7px 16px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer">Clear filters</button>
-    </div>`;
+    h += noResultsSuggestions('markets');
   } else {
     h += `<div class="hscroll">`;
     markets.slice(0,8).forEach((m,i)=>{
@@ -2712,7 +2771,7 @@ function renderHome() {
           <div class="market-name">${m.name.replace(' Farmers Market','').replace(' Market','')}</div>
           <div class="market-meta-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${m.day_of_week.slice(0,3)}s ${formatTimeRange(m.start_time,m.end_time)}</div>
           <div class="market-meta-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${m.city} <span style="color:var(--text3)">· ${vendorCount(m.id)} ${vendorCount(m.id)===1?'vendor':t('vendors_c')}</span></div>
-          <div class="market-meta-row" style="margin-top:4px"><span style="font-size:10px;padding:2px 7px;border-radius:var(--r-pill);${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'Open now':(m.season_start==='All Year'?'All Year':m.season_start.slice(0,3)+'–'+m.season_end.slice(0,3))}</span></div>
+          <div class="market-meta-row" style="margin-top:4px"><span style="font-size:10px;padding:2px 7px;border-radius:var(--r-pill);${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'In Season':(m.season_start==='All Year'?'All Year':m.season_start.slice(0,3)+'–'+m.season_end.slice(0,3))}</span></div>
         </div></div>`;
     });
     h += `</div>`;
@@ -2741,7 +2800,7 @@ function renderHome() {
   h += `${adUnit()}<div class="section"><div class="section-header"><span class="section-title">Vendors near you</span><span class="section-more" onclick="navigate('vendors-list')">${t('see_all')}</span></div></div>`;
 
   if(featured.length === 0) {
-    h += `<div style="margin:0 16px 16px;padding:20px;text-align:center;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-lg);font-size:13px;color:var(--text2)">No vendors match your current filters.</div>`;
+    h += noResultsSuggestions('vendors');
   } else {
     featured.forEach((v,i)=>{
       const c = vc(i);
@@ -2761,11 +2820,11 @@ function renderHome() {
   const charity = DATA.charity[ST.region] || DATA.charity['lee-county'];
   h += `<div class="login-nudge"><div class="nudge-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C4622D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div><div class="nudge-text"><div class="nudge-title">${t('nudge_title')}</div><div class="nudge-sub">${t('nudge_sub')}</div></div><button class="nudge-btn" onclick="openSignIn()">${t('signin')}</button></div>
   ${adUnit()}
-  <div style="margin:0 0 16px;border-radius:var(--r-lg);overflow:hidden;border:0.5px solid var(--border);background:var(--surface);mx:16px">
+  <div class="section"><div class="section-header"><span class="section-title">💚 Community Spotlight</span></div></div>
+  <div style="margin:0 16px 16px;border-radius:var(--r-lg);overflow:hidden;border:0.5px solid var(--border);background:var(--surface)">
     <div style="position:relative;height:160px;overflow:hidden">
       <img src="${charity.photo}" alt="${charity.name}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.style.display='none'">
-      <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.1) 0%,rgba(0,0,0,.65) 100%)"></div>
-      <div style="position:absolute;top:10px;left:12px;background:var(--green);color:#fff;font-size:9px;font-weight:600;padding:3px 8px;border-radius:var(--r-pill);text-transform:uppercase;letter-spacing:.5px">💚 Community Spotlight</div>
+      <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.1) 0%,rgba(0,0,0,.55) 100%)"></div>
       <div style="position:absolute;bottom:12px;left:12px;right:12px">
         <div style="font-size:15px;font-weight:600;color:#fff;margin-bottom:2px">${charity.name}</div>
         <div style="font-size:11px;color:rgba(255,255,255,.85)">${charity.tagline}</div>
@@ -2809,17 +2868,13 @@ function renderVendorsList() {
       );
     }
     if(catFilter) vendors = vendors.filter(v => v.category === catFilter);
+    vendors = sortVendors(vendors);
 
     const listEl = document.getElementById('vendorsListBody');
     if(!listEl) return;
 
     if(vendors.length === 0) {
-      listEl.innerHTML = `<div style="padding:40px 16px;text-align:center">
-        <div style="font-size:40px;margin-bottom:12px">🌾</div>
-        <div style="font-size:15px;font-weight:500;color:var(--text);margin-bottom:6px">No vendors found</div>
-        <div style="font-size:13px;color:var(--text2);margin-bottom:16px">Try a different search or clear filters</div>
-        <button onclick="ST.vendorListSearch='';ST.vendorListCat='';renderVendorsList()" style="padding:8px 18px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:13px;cursor:pointer">Clear filters</button>
-      </div>`;
+      listEl.innerHTML = noResultsSuggestions('vendors');
       return;
     }
     let h = '';
@@ -3045,7 +3100,7 @@ function renderCategoryPage(catId) {
           <div class="vendor-at"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${m.city} · ${m.day_of_week}s</div>
           <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">
             <span class="market-pill">${formatTimeRange(m.start_time,m.end_time)}</span>
-            <span class="market-pill" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'Open now':(m.season_start==='All Year'?'All Year':m.season_start.slice(0,3)+'–'+m.season_end.slice(0,3))}</span>
+            <span class="market-pill" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'In Season':(m.season_start==='All Year'?'All Year':m.season_start.slice(0,3)+'–'+m.season_end.slice(0,3))}</span>
           </div>
         </div>
         <button onclick="event.stopPropagation();seeMarketOnMap('${m.id}')" style="font-size:10px;padding:4px 8px;border:0.5px solid var(--green-mid);border-radius:var(--r-pill);color:var(--green-dk);background:var(--green-lt);cursor:pointer;white-space:nowrap;font-family:var(--font-sans);align-self:flex-start">📍 Map</button>
@@ -3062,7 +3117,7 @@ function renderCategoryPage(catId) {
   </div>`;
 
   if(regionVendors.length === 0) {
-    h += `<div style="margin:0 16px 24px;padding:24px;text-align:center;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-lg);font-size:13px;color:var(--text2)">No vendors in this category yet in your area.</div>`;
+    h += noResultsSuggestions('vendors');
   } else {
     regionVendors.forEach((v, i) => {
       const c = vc(i);
@@ -3148,7 +3203,7 @@ function renderMapModeContent() {
     content.innerHTML = `
       <div class="map-filter-bar" id="mapFilterBar">
         <div class="mfpill ${!ST.mapFilterOpen&&!ST.mapFilterPet?'active':''}" onclick="clearMapFilters()">All markets</div>
-        <div class="mfpill ${ST.mapFilterOpen?'active':''}" onclick="toggleMapFilter('open')">Open now</div>
+        <div class="mfpill ${ST.mapFilterOpen?'active':''}" onclick="toggleMapFilter('open')">In Season</div>
         <div class="mfpill ${ST.mapFilterPet?'active':''}" onclick="toggleMapFilter('pet')">🐾 Pets OK</div>
       </div>
       <div class="map-count" id="mapCount"></div>
@@ -3156,8 +3211,12 @@ function renderMapModeContent() {
     const markets = getMapFilteredMarkets();
     renderMapPins(markets);
     renderMapCards(markets);
-    if(markets.length === 0) showMapComingSoon();
-    else hideMapComingSoon();
+    if(markets.length === 0) {
+      document.getElementById('mapCardList').innerHTML = noResultsSuggestions('markets');
+      showMapComingSoon();
+    } else {
+      hideMapComingSoon();
+    }
 
   } else {
     // Vendors mode — only show vendors attending markets currently on the map
@@ -3179,25 +3238,23 @@ function renderMapModeContent() {
     if(ST.filters.cats.length > 0) {
       vendors = vendors.filter(v => ST.filters.cats.includes(v.category));
     }
+    vendors = sortVendors(vendors);
 
     content.innerHTML = `
       <div class="map-count">${vendors.length} vendor${vendors.length===1?'':'s'} at ${visibleMarkets.length} market${visibleMarkets.length===1?'':'s'}</div>
       <div id="mapVendorList">
         ${vendors.slice(0, 60).map((v,i) => {
           const c = vc(i);
-          // Show only the markets that are visible on the map
-          const shownMarkets = v.markets.filter(mid => visibleMarketIds.has(mid)).map(mid => getMarket(mid)).filter(Boolean);
-          const shortName = n => n.replace(/ Farmers Market$/i,'').replace(/ Farm Market$/i,'').replace(/ Market$/i,'').trim();
           const sponsoredHtml = (i > 0 && i % 5 === 0) ? sponsoredMapCard(Math.floor(i/5)-1) : '';
           return sponsoredHtml + `<div class="map-market-card" onclick="selectVendorOnMap('${v.id}')">
             <div class="map-pin-badge" style="background:${c.bg};color:${c.c};font-family:var(--font-serif);font-size:10px;font-weight:600;border:0.5px solid var(--border)">${initials(v.name)}</div>
             <div style="flex:1;min-width:0">
               <div class="map-card-name">${v.name}</div>
-              <div class="map-card-sub">${v.category}</div>
-              <div class="map-card-pills">
-                ${shownMarkets.slice(0,2).map(m => `<span class="market-pill">${shortName(m.name)}</span>`).join('')}
-                ${shownMarkets.length > 2 ? `<span class="market-pill">+${shownMarkets.length-2}</span>` : ''}
+              <div class="map-card-sub" style="display:flex;align-items:flex-start;gap:3px;margin-top:2px">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                <span style="font-size:11px;color:var(--text2)">${vendorMarketLabel(v)}</span>
               </div>
+              <div style="font-size:10px;color:var(--text3);margin-top:2px">${v.category}</div>
             </div>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
           </div>`;
@@ -3235,6 +3292,19 @@ function getMapFilteredMarkets() {
       return marketVendors.some(v => ST.filters.cats.includes(v.category));
     });
   }
+  // Sort: in-season first, then by next upcoming day, then by most vendors
+  const dayOrder2 = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const todayIdx2 = new Date().getDay();
+  markets.sort((a, b) => {
+    const aOpen = isOpen(a);
+    const bOpen = isOpen(b);
+    if(aOpen && !bOpen) return -1;
+    if(!aOpen && bOpen) return 1;
+    const aDiff = (dayOrder2.indexOf(a.day_of_week) - todayIdx2 + 7) % 7;
+    const bDiff = (dayOrder2.indexOf(b.day_of_week) - todayIdx2 + 7) % 7;
+    if(aDiff !== bDiff) return aDiff - bDiff;
+    return vendorCount(b.id) - vendorCount(a.id);
+  });
   return markets;
 }
 
@@ -3322,7 +3392,7 @@ function initWindmillMap() {
                 <div class="map-card-name">${m.name}</div>
                 <div class="map-card-sub">${m.city} · ${m.day_of_week}s ${formatTimeRange(m.start_time,m.end_time)}</div>
                 <div class="map-card-pills">
-                  <span class="market-pill" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'Open now':m.season_start+'–'+m.season_end}</span>
+                  <span class="market-pill" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'In Season':m.season_start+'–'+m.season_end}</span>
                   <span class="market-pill">${vendorCount(m.id)} vendors</span>
                   ${m.pet_friendly?'<span class="market-pill">🐾</span>':''}
                 </div>
@@ -3526,7 +3596,7 @@ function showMarketPopup(market, index, marker) {
       <div class="wm-popup-name">${market.name}</div>
       <div class="wm-popup-sub">${market.city} · ${market.day_of_week}s ${formatTimeRange(market.start_time,market.end_time)}</div>
       <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">
-        <span style="font-size:10px;padding:2px 7px;border-radius:99px;${open?'background:#EEF2EB;color:#3D5435':'background:#FDF3DC;color:#7A4E08'}">${open?'✓ Open now':market.season_start+'–'+market.season_end}</span>
+        <span style="font-size:10px;padding:2px 7px;border-radius:99px;${open?'background:#EEF2EB;color:#3D5435':'background:#FDF3DC;color:#7A4E08'}">${open?'✓ In Season':market.season_start+'–'+market.season_end}</span>
         <span style="font-size:10px;padding:2px 7px;border-radius:99px;background:#F5F1EB;color:#7A6E65">${vendorCount(market.id)} vendors</span>
         ${market.pet_friendly?'<span style="font-size:10px;padding:2px 7px;border-radius:99px;background:#EEF2EB;color:#3D5435">🐾 Pets OK</span>':''}
       </div>
@@ -3582,7 +3652,7 @@ function renderMapCards(markets) {
           <div class="map-card-name">${m.name}</div>
           <div class="map-card-sub">${m.city} · ${m.day_of_week}s ${formatTimeRange(m.start_time,m.end_time)}</div>
           <div class="map-card-pills">
-            <span class="market-pill" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'Open now':m.season_start+'–'+m.season_end}</span>
+            <span class="market-pill" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'In Season':m.season_start+'–'+m.season_end}</span>
             <span class="market-pill">${vendorCount(m.id)} vendors</span>
             ${m.pet_friendly?'<span class="market-pill">🐾</span>':''}
           </div>
@@ -3924,13 +3994,131 @@ function hideMapComingSoon() {
 }
 
 
+/* ── NO RESULTS SUGGESTIONS ── */
+function noResultsSuggestions(type = 'markets') {
+  const dayOrder = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const todayIdx = new Date().getDay();
+  const hasDateFilter = !!ST.dateFilter;
+  const hasCatFilter = ST.filters.cats.length > 0;
+  const hasOtherFilter = ST.filters.open || ST.filters.pet;
+  const regionMarkets = DATA.markets.filter(m => !ST.region || m.region === ST.region);
+  const regionVendors = DATA.vendors.filter(v => v.published && (!ST.region || v.region === ST.region));
+
+  // Build suggestion content first
+  let suggestions = '';
+
+  if(hasDateFilter && type === 'markets') {
+    const upcoming = regionMarkets.filter(m => isOpen(m)).sort((a,b) => {
+      const ad = (dayOrder.indexOf(a.day_of_week) - todayIdx + 7) % 7;
+      const bd = (dayOrder.indexOf(b.day_of_week) - todayIdx + 7) % 7;
+      if(ad !== bd) return ad - bd;
+      return vendorCount(b.id) - vendorCount(a.id);
+    }).slice(0,3);
+    upcoming.forEach((m,i) => {
+      const open = isOpen(m); const photo = DATA.market_photos[m.id];
+      suggestions += marketListCard(m, i, open, photo);
+    });
+  }
+
+  if(hasCatFilter && type === 'vendors') {
+    const outOfSeasonVendors = regionVendors.filter(v =>
+      ST.filters.cats.includes(v.category) &&
+      !v.markets.some(mid => { const m = getMarket(mid); return m && isOpen(m); })
+    ).slice(0,3);
+    outOfSeasonVendors.forEach((v,i) => {
+      const c = vc(i);
+      const firstMarket = v.markets.map(id => getMarket(id)).filter(Boolean)[0];
+      const season = firstMarket ? `${firstMarket.season_start.slice(0,3)}–${firstMarket.season_end.slice(0,3)}` : '';
+      suggestions += `<div class="vendor-card" onclick="navigate('vendor','${v.id}')">
+        <div class="vendor-avatar" style="background:${c.bg};color:${c.c};overflow:hidden">${v.photo?`<img src="${v.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`:initials(v.name)}</div>
+        <div class="vendor-body">
+          <div class="vendor-name">${v.name}</div>
+          <div class="vendor-at"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${vendorMarketLabel(v)}</div>
+          <div class="vendor-category">${v.category}${season?` · <span style="color:var(--amber-dk)">${season}</span>`:''}</div>
+        </div>
+        ${(v.tier==='pro'||v.tier==='pro-trial') ? `<button onclick="event.stopPropagation();navigate('vendor','${v.id}')" style="align-self:flex-start;font-size:10px;padding:4px 10px;background:var(--amber-lt);color:#7A4E08;border:0.5px solid #F0D090;border-radius:var(--r-pill);cursor:pointer;white-space:nowrap;font-family:var(--font-sans)">✉ Message</button>` : `<button class="follow-btn" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor',v.id)?t('following'):t('follow')}</button>`}
+      </div>`;
+    });
+
+    const related = regionVendors.filter(v =>
+      !ST.filters.cats.includes(v.category) &&
+      v.markets.some(mid => { const m = getMarket(mid); return m && isOpen(m); })
+    );
+    const relCats = [...new Set(related.map(v => v.category))].slice(0,3);
+    relCats.forEach(cat => {
+      const catData = DATA.categories.find(c => c.label === cat);
+      const count = related.filter(v => v.category === cat).length;
+      suggestions += `<div onclick="navigate('category','${catData?.id||cat}')" style="margin:0 16px 10px;padding:14px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-lg);display:flex;align-items:center;gap:12px;cursor:pointer">
+        <div style="font-size:28px">${catData?.emoji||'🛒'}</div>
+        <div>
+          <div style="font-size:15px;font-weight:500;color:var(--text)">${cat}</div>
+          <div style="font-size:12px;color:var(--text2)">${count} vendor${count===1?'':'s'} in season now</div>
+        </div>
+        <svg style="margin-left:auto;flex-shrink:0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>`;
+    });
+  }
+
+  if(type === 'markets' && !hasDateFilter) {
+    const fallback = regionMarkets.filter(m => isOpen(m)).sort((a,b) => vendorCount(b.id)-vendorCount(a.id)).slice(0,3);
+    fallback.forEach((m,i) => {
+      const open = isOpen(m); const photo = DATA.market_photos[m.id];
+      suggestions += marketListCard(m, i, open, photo);
+    });
+  }
+
+  // Suggestion lead text
+  const suggestionLead = suggestions
+    ? `<div style="font-size:15px;font-weight:600;color:var(--text);margin:16px 16px 4px">Here are some you might like instead:</div>`
+    : '';
+
+  // Filter chips
+  const chips = [
+    hasDateFilter ? `<button onclick="clearDateFilter();renderFilterStrip();renderCurrentPage()" style="padding:6px 14px;background:var(--green-lt);color:var(--green-dk);border:0.5px solid var(--green-mid);border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-family:var(--font-sans)">Remove date filter ×</button>` : '',
+    hasCatFilter ? `<button onclick="ST.filters.cats=[];_applyFiltersLive()" style="padding:6px 14px;background:var(--green-lt);color:var(--green-dk);border:0.5px solid var(--green-mid);border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-family:var(--font-sans)">Remove category ×</button>` : '',
+    hasOtherFilter ? `<button onclick="ST.filters.open=false;ST.filters.pet=false;_applyFiltersLive()" style="padding:6px 14px;background:var(--green-lt);color:var(--green-dk);border:0.5px solid var(--green-mid);border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-family:var(--font-sans)">Remove other filters ×</button>` : '',
+    `<button onclick="clearDateFilter();ST.filters={days:[],cats:[],pet:false,open:false,parking:false};renderFilterStrip();renderCurrentPage()" style="padding:6px 14px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-family:var(--font-sans)">Clear all</button>`
+  ].filter(Boolean).join('');
+
+  return `<div style="margin:0 16px 4px;padding:20px 16px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-lg)">
+    <div style="text-align:center;margin-bottom:14px">
+      <div style="font-size:28px;margin-bottom:6px">🔍</div>
+      <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px">No ${type} match your filters</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Try adjusting or clearing your filters</div>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">${chips}</div>
+    </div>
+    ${suggestionLead}
+  </div>
+  ${suggestions}`;
+}
+
+// Helper to render a market list card (used in no-results suggestions)
+function marketListCard(m, i, open, photo) {
+  const vc2 = vendorCount(m.id);
+  return `<div class="vendor-card" onclick="navigate('market','${m.id}')">
+    <div style="width:52px;height:52px;border-radius:10px;overflow:hidden;flex-shrink:0;background:${mbg(i)};position:relative">
+      ${photo?`<img src="${photo}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0" loading="lazy">`:''}
+    </div>
+    <div class="vendor-body">
+      <div class="vendor-name">${m.name}</div>
+      <div class="vendor-at"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${m.city} · ${m.day_of_week}s</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">
+        <span class="market-pill">${formatTimeRange(m.start_time,m.end_time)}</span>
+        <span class="market-pill" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'In Season':m.season_start.slice(0,3)+'–'+m.season_end.slice(0,3)}</span>
+        <span class="market-pill">${vc2} vendor${vc2===1?'':'s'}</span>
+      </div>
+    </div>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;align-self:center"><polyline points="9 18 15 12 9 6"/></svg>
+  </div>`;
+}
+
 /* ── MARKETS PAGE ── */
 function renderMarketsPage() {
   const markets = applyAllFilters(DATA.markets);
   let h = `<div class="section"><div class="section-header"><span class="section-title">${t('nav_markets')}</span><span style="font-size:12px;color:var(--text2)">${markets.length} of ${DATA.markets.length} markets</span></div></div>
   ${adUnit()}`;
   if(markets.length === 0) {
-    h += `<div style="margin:0 16px;padding:32px;text-align:center;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-lg)"><div style="font-size:32px;margin-bottom:8px">📅</div><div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:8px">No markets match your filters</div><button onclick="clearDateFilter();clearFilters()" style="padding:7px 16px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer">Clear filters</button></div>`;
+    h += noResultsSuggestions('markets');
   } else {
     markets.forEach((m,i)=>{
       if(i>0 && i%5===0) h += sponsoredCard();
@@ -3946,7 +4134,7 @@ function renderMarketsPage() {
           <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">
             <span class="market-pill">${formatTimeRange(m.start_time,m.end_time)}</span>
             <span class="market-pill">${vendorCount(m.id)} vendors</span>
-            <span class="market-pill" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'Open now':m.season_start+'–'+m.season_end}</span>
+            <span class="market-pill" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'In Season':m.season_start+'–'+m.season_end}</span>
             ${m.pet_friendly?'<span class="market-pill">🐾 Pets OK</span>':''}
           </div>
         </div>
@@ -5021,36 +5209,155 @@ function renderAreaRequest() {
 
 /* ── FOLLOWING ── */
 function renderFollowing() {
+  hideFilterUI();
+
+  // ── Helper: build the highlight carousel items ──
+  function buildCarouselItems(followedVendors, followedMarkets) {
+    const dayOrder = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const todayIdx = new Date().getDay();
+    const regionVendors = DATA.vendors.filter(v => v.published && (!ST.region || v.region === ST.region));
+    const regionMarkets = DATA.markets.filter(m => (!ST.region || m.region === ST.region));
+
+    // Shuffle helper
+    const shuffle = arr => [...arr].sort(() => Math.random() - 0.5);
+
+    // Tag each item with in-season status and next day diff
+    const tagItem = (item, type) => {
+      const open = type === 'vendor'
+        ? item.markets.some(mid => { const m = getMarket(mid); return m && isOpen(m); })
+        : isOpen(item);
+      const nextDiff = type === 'vendor'
+        ? Math.min(...item.markets.map(mid => { const m = getMarket(mid); return m ? (dayOrder.indexOf(m.day_of_week) - todayIdx + 7) % 7 : 99; }).filter(n=>n<99), 99)
+        : (dayOrder.indexOf(item.day_of_week) - todayIdx + 7) % 7;
+      return { item, type, open, nextDiff };
+    };
+
+    // Followed items
+    const followedTagged = [
+      ...followedVendors.map(v => tagItem(v, 'vendor')),
+      ...followedMarkets.map(m => tagItem(m, 'market'))
+    ];
+    const followedInSeason = shuffle(followedTagged.filter(x => x.open));
+    const followedOutOfSeason = shuffle(followedTagged.filter(x => !x.open));
+
+    // Fill from non-followed in-season items if needed
+    const followedIds = new Set([
+      ...followedVendors.map(v => v.id),
+      ...followedMarkets.map(m => m.id)
+    ]);
+    const fillItems = shuffle([
+      ...regionVendors.filter(v => !followedIds.has(v.id)).map(v => tagItem(v, 'vendor')),
+      ...regionMarkets.filter(m => !followedIds.has(m.id)).map(m => tagItem(m, 'market'))
+    ].filter(x => x.open)).slice(0, 6);
+
+    return [...followedInSeason, ...followedOutOfSeason, ...fillItems].slice(0, 10);
+  }
+
+  // ── Carousel card HTML ──
+  function carouselCard(tagged) {
+    const { item, type, open } = tagged;
+    if(type === 'vendor') {
+      const c = vc(Math.floor(Math.random() * 5));
+      return `<div onclick="navigate('vendor','${item.id}')" style="min-width:140px;max-width:140px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-lg);overflow:hidden;cursor:pointer;flex-shrink:0">
+        <div style="height:80px;background:${c.bg};display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden">
+          ${item.photo ? `<img src="${item.photo}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0" loading="lazy">` : `<span style="font-family:var(--font-serif);font-size:22px;font-weight:600;color:${c.c}">${initials(item.name)}</span>`}
+          <span style="position:absolute;top:6px;right:6px;font-size:8px;font-weight:600;padding:2px 6px;border-radius:var(--r-pill);${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'In Season':'Out of Season'}</span>
+        </div>
+        <div style="padding:8px 10px 10px">
+          <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.name}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">${item.category}</div>
+        </div>
+      </div>`;
+    } else {
+      const photo = DATA.market_photos[item.id];
+      return `<div onclick="navigate('market','${item.id}')" style="min-width:140px;max-width:140px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-lg);overflow:hidden;cursor:pointer;flex-shrink:0">
+        <div style="height:80px;background:${mbg(0)};display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden">
+          ${photo ? `<img src="${photo}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0" loading="lazy">` : `<span style="font-size:28px">🏪</span>`}
+          <span style="position:absolute;top:6px;right:6px;font-size:8px;font-weight:600;padding:2px 6px;border-radius:var(--r-pill);${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'In Season':'Out of Season'}</span>
+        </div>
+        <div style="padding:8px 10px 10px">
+          <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.name.replace(' Farmers Market','').replace(' Market','')}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">${item.day_of_week}s · ${item.city}</div>
+        </div>
+      </div>`;
+    }
+  }
+
+  // ── LOGGED OUT ──
   if(!ST.user) {
-    document.getElementById('scrollBody').innerHTML = `<div style="padding:16px">${adUnit()}<div class="login-nudge"><div class="nudge-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C4622D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div><div class="nudge-text"><div class="nudge-title">${t('nudge_title')}</div><div class="nudge-sub">${t('nudge_sub')}</div></div><button class="nudge-btn" onclick="openSignIn()">${t('signin')}</button></div></div>`;
+    const carouselItems = buildCarouselItems([], []);
+    const carouselHTML = carouselItems.map(tagged => carouselCard(tagged)).join('');
+
+    document.getElementById('scrollBody').innerHTML = `<div>
+      <!-- Sign-in nudge -->
+      <div style="margin:16px 16px 0;padding:16px;background:var(--terra-lt);border:0.5px solid #ECC4B0;border-radius:var(--r-lg);display:flex;align-items:center;gap:12px">
+        <div style="width:36px;height:36px;background:var(--terra);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px">Follow your favorites</div>
+          <div style="font-size:11px;color:var(--text2)">Sign in to save vendors and markets you love</div>
+        </div>
+        <button onclick="openSignIn()" style="padding:7px 14px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-sans);white-space:nowrap">Sign in</button>
+      </div>
+
+      <!-- Discover carousel -->
+      <div class="section" style="padding-top:20px;padding-bottom:8px">
+        <div class="section-title">Discover near you</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px">In-season vendors and markets</div>
+      </div>
+      <div class="hscroll" style="padding-left:16px;padding-right:16px;gap:10px">
+        ${carouselHTML}
+      </div>
+    </div>`;
     return;
   }
 
+  // ── LOGGED IN ──
   const followedVendors = ST.follows.filter(f=>f.vendor_id).map(f=>getVendor(f.vendor_id)).filter(Boolean);
   const followedMarkets = ST.follows.filter(f=>f.market_id).map(f=>getMarket(f.market_id)).filter(Boolean);
+  const carouselItems = buildCarouselItems(followedVendors, followedMarkets);
+  const carouselHTML = carouselItems.map(tagged => carouselCard(tagged)).join('');
 
-  let h = `<div style="padding:16px 16px 40px">
+  const carouselTitle = followedVendors.length + followedMarkets.length > 0
+    ? 'Your highlights'
+    : 'Discover near you';
+  const carouselSub = followedVendors.length + followedMarkets.length > 0
+    ? 'From your saved vendors and markets'
+    : 'In-season vendors and markets';
+
+  let h = `<div style="padding-bottom:40px">
     ${adUnit()}
-    <div style="font-family:var(--font-serif);font-size:20px;font-weight:600;color:var(--text);margin-bottom:4px">Following</div>
-    <div style="font-size:12px;color:var(--text2);margin-bottom:20px">${ST.follows.length} saved</div>`;
+
+    <!-- Highlight carousel -->
+    <div class="section" style="padding-bottom:8px">
+      <div class="section-title">${carouselTitle}</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:2px">${carouselSub}</div>
+    </div>
+    <div class="hscroll" style="padding-left:16px;padding-right:16px;gap:10px">
+      ${carouselHTML}
+    </div>
+
+    <!-- Following list -->
+    <div style="font-family:var(--font-serif);font-size:20px;font-weight:600;color:var(--text);margin:24px 16px 4px">Following</div>
+    <div style="font-size:12px;color:var(--text2);margin:0 16px 16px">${ST.follows.length} saved</div>`;
 
   if(ST.follows.length === 0) {
     h += `<div style="text-align:center;padding:40px 20px">
       <div style="font-size:40px;margin-bottom:12px">💚</div>
       <div style="font-size:15px;font-weight:500;color:var(--text);margin-bottom:8px">Nothing saved yet</div>
-      <div style="font-size:13px;color:var(--text2)">Follow vendors and markets to see them here</div>
+      <div style="font-size:13px;color:var(--text2)">Tap Follow on any vendor or market to save them here</div>
     </div>`;
   } else {
     if(followedVendors.length > 0) {
-      h += `<div style="font-size:12px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Vendors (${followedVendors.length})</div>`;
+      h += `<div style="font-size:12px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:0 16px 10px">Vendors (${followedVendors.length})</div>`;
       followedVendors.forEach((v,i) => {
         const c = vc(i);
-        const places = v.markets.slice(0,2).map(id=>{const m=getMarket(id);return m?m.city:'?'});
         h += `<div class="vendor-card" onclick="navigate('vendor','${v.id}')">
           <div class="vendor-avatar" style="background:${c.bg};color:${c.c};overflow:hidden">${v.photo?`<img src="${v.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`:initials(v.name)}</div>
           <div class="vendor-body">
             <div class="vendor-name">${v.name}</div>
-            <div class="vendor-at"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${places.join(' · ')}</div>
+            <div class="vendor-at"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${vendorMarketLabel(v)}</div>
             <div class="vendor-category">${v.category}</div>
           </div>
           <button class="follow-btn" style="background:var(--green);color:#fff;border-color:var(--green)" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">Following</button>
@@ -5059,17 +5366,17 @@ function renderFollowing() {
     }
 
     if(followedMarkets.length > 0) {
-      h += `<div style="font-size:12px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:16px 0 10px">Markets (${followedMarkets.length})</div>`;
+      h += `<div style="font-size:12px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:16px 16px 10px">Markets (${followedMarkets.length})</div>`;
       followedMarkets.forEach(m => {
         const open = isOpen(m);
         h += `<div class="vendor-card" onclick="navigate('market','${m.id}')">
-          <div style="width:44px;height:44px;border-radius:10px;overflow:hidden;flex-shrink:0;background:var(--surface2)">
+          <div style="width:52px;height:52px;border-radius:10px;overflow:hidden;flex-shrink:0;background:var(--surface2)">
             ${DATA.market_photos[m.id]?`<img src="${DATA.market_photos[m.id]}" style="width:100%;height:100%;object-fit:cover">`:`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:20px">🏪</div>`}
           </div>
           <div class="vendor-body">
             <div class="vendor-name">${m.name}</div>
-            <div class="vendor-at">${m.city} · ${m.day_of_week}s ${formatTimeRange(m.start_time,m.end_time)}</div>
-            <div class="vendor-category" style="color:${open?'var(--green-dk)':'var(--text3)'}">${open?'Open now':'Seasonal'}</div>
+            <div class="vendor-at"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${m.city} · ${m.day_of_week}s ${formatTimeRange(m.start_time,m.end_time)}</div>
+            <div class="vendor-category" style="color:${open?'var(--green-dk)':'var(--text3)'}">${open?'In Season':'Out of Season'}</div>
           </div>
           <button class="follow-btn" style="background:var(--green);color:#fff;border-color:var(--green)" onclick="event.stopPropagation();handleFollow(event,'market','${m.id}',this)">Following</button>
         </div>`;
@@ -8355,7 +8662,7 @@ function renderAdminSettings() {
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Platform Info</div>
-        <div class="admin-row-meta">Version 1.54.5 · Lee County, FL · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
+        <div class="admin-row-meta">Version 1.57.5 · Lee County, FL · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Coverage Area</div>
