@@ -1691,6 +1691,51 @@ function vendorMarketLabel(vendor) {
 
   return `${shortName(first.name)} <span style="color:var(--text3);font-size:10px">(${dayLabel})</span>${seasonNote}${more}`;
 }
+// Returns badge-style HTML for category page vendor cards
+function vendorMarketBadges(vendor) {
+  const shortName = n => n.replace(/ Farmers Market$/i,'').replace(/ Farm Market$/i,'').replace(/ Market$/i,'').trim();
+  const dayOrder = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const todayIdx = new Date().getDay();
+  let markets = vendor.markets.map(id => getMarket(id)).filter(Boolean);
+  if(markets.length === 0) return '';
+  const inSeason = markets.filter(m => isOpen(m));
+  const outOfSeason = markets.filter(m => !isOpen(m));
+  const sortByNextDay = arr => [...arr].sort((a,b) => {
+    const aDiff = (dayOrder.indexOf(a.day_of_week) - todayIdx + 7) % 7;
+    const bDiff = (dayOrder.indexOf(b.day_of_week) - todayIdx + 7) % 7;
+    return aDiff - bDiff;
+  });
+  const hasInSeason = inSeason.length > 0;
+  const sorted = hasInSeason ? [...sortByNextDay(inSeason), ...sortByNextDay(outOfSeason)] : sortByNextDay(outOfSeason);
+  const first = sorted[0];
+  if(!first) return '';
+  const diff = (dayOrder.indexOf(first.day_of_week) - todayIdx + 7) % 7;
+  let dayLabel;
+  if(hasInSeason && isOpen(first)) {
+    dayLabel = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : first.day_of_week.slice(0,3)+'s';
+  } else {
+    dayLabel = first.day_of_week.slice(0,3)+'s';
+  }
+  const open = isOpen(first);
+  const seasonPill = open
+    ? `<span style="padding:2px 7px;border-radius:99px;font-size:10px;font-weight:500;background:var(--green-lt);color:var(--green-dk);border:0.5px solid var(--green-mid)">In Season</span>`
+    : `<span style="padding:2px 7px;border-radius:99px;font-size:10px;font-weight:500;background:var(--amber-lt);color:#7A4E08;border:0.5px solid #F0D090">Out of Season</span>`;
+  const dayPill = `<span style="padding:2px 7px;border-radius:99px;font-size:10px;background:var(--surface2);color:var(--text2);border:0.5px solid var(--border)">${dayLabel}</span>`;
+  const moreCount = markets.length - 1;
+  const morePill = moreCount > 0 ? `<span onclick="event.stopPropagation();ST.pendingScrollSection='vnd-schedule';navigate('vendor','${vendor.id}')" style="padding:2px 7px;border-radius:99px;font-size:10px;background:var(--surface2);color:var(--green-dk);border:0.5px solid var(--green-mid);cursor:pointer;font-weight:500">+${moreCount} market${moreCount>1?'s':''}</span>` : '';
+  return `<div style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:4px;margin-bottom:2px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px;flex-shrink:0"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span style="font-size:12px">${shortName(first.name)}</span></div><div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:2px">${dayPill}${seasonPill}${morePill}</div>`;
+}
+// Returns inline season pill for vendor cards (home/explore) — appended after category
+function vendorSeasonPill(vendor) {
+  const inSeason = vendor.markets.some(mid => { const m = getMarket(mid); return m && isOpen(m); });
+  if(inSeason) return `<span style="margin-left:5px;padding:1px 6px;border-radius:99px;font-size:10px;font-weight:500;background:var(--green-lt);color:var(--green-dk);border:0.5px solid var(--green-mid)">In Season</span>`;
+  // Find best out-of-season market for date range label
+  const markets = vendor.markets.map(id => getMarket(id)).filter(Boolean);
+  if(!markets.length) return '';
+  const first = markets[0];
+  const label = first.season_start === 'All Year' ? 'All Year' : first.season_start.slice(0,3)+'–'+first.season_end.slice(0,3);
+  return `<span style="margin-left:5px;padding:1px 6px;border-radius:99px;font-size:10px;font-weight:500;background:var(--amber-lt);color:#7A4E08;border:0.5px solid #F0D090">${label}</span>`;
+}
 const getOperator = id => DATA.operators.find(o=>o.id===id);
 const vendorCount = mid => DATA.vendors.filter(v=>v.markets.includes(mid)).length;
 const shortDay = d => ({Sunday:'Sun',Monday:'Mon',Tuesday:'Tue',Wednesday:'Wed',Thursday:'Thu',Friday:'Fri',Saturday:'Sat'}[d]||d);
@@ -2809,7 +2854,7 @@ function renderHome() {
         <div class="vendor-body">
           <div class="vendor-name">${v.name}</div>
           <div class="vendor-at"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${vendorMarketLabel(v)}</div>
-          <div class="vendor-category">${v.category}</div>
+          <div class="vendor-category">${v.category}${vendorSeasonPill(v)}</div>
         </div>
         <button class="follow-btn" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor','${v.id}')?t('following'):t('follow')}</button>
       </div>`;
@@ -2885,8 +2930,7 @@ function renderVendorsList() {
         <div class="vendor-avatar" style="background:${c.bg};color:${c.c};overflow:hidden">${v.photo ? `<img src="${v.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : initials(v.name)}</div>
         <div class="vendor-body">
           <div class="vendor-name">${v.name}</div>
-          <div class="vendor-at"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${vendorMarketLabel(v)}</div>
-          <div class="vendor-category">${v.category}</div>
+          ${vendorMarketBadges(v)}
         </div>
         <div style="display:flex;flex-direction:column;gap:5px;align-self:flex-start;flex-shrink:0">
           <button class="follow-btn" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor','${v.id}')?t('following'):t('follow')}</button>
@@ -3028,10 +3072,23 @@ function renderCategoryPage(catId) {
   if(ST.filters.open) regionMarkets = regionMarkets.filter(m => isOpen(m));
   if(ST.filters.pet) regionMarkets = regionMarkets.filter(m => m.pet_friendly);
   regionMarkets = regionMarkets.filter(m => regionVendors.some(v => v.markets.includes(m.id)));
+  // Sort: in-season first, then by next upcoming day of week, then by most vendors
+  const _dayOrder = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const _todayIdx = new Date().getDay();
+  regionMarkets.sort((a, b) => {
+    const aOpen = isOpen(a), bOpen = isOpen(b);
+    if(aOpen && !bOpen) return -1;
+    if(!aOpen && bOpen) return 1;
+    const aDiff = (_dayOrder.indexOf(a.day_of_week) - _todayIdx + 7) % 7;
+    const bDiff = (_dayOrder.indexOf(b.day_of_week) - _todayIdx + 7) % 7;
+    if(aDiff !== bDiff) return aDiff - bDiff;
+    return vendorCount(b.id) - vendorCount(a.id);
+  });
   const filteredMarketIds = new Set(regionMarkets.map(m => m.id));
   if(ST.dateFilter || ST.filters.open) {
     regionVendors = regionVendors.filter(v => v.markets.some(mid => filteredMarketIds.has(mid)));
   }
+  regionVendors = sortVendors(regionVendors);
 
   // Featured = Pro vendors in this category
   const featured = regionVendors.filter(v => v.tier === 'pro' || v.tier === 'pro-trial');
@@ -3070,7 +3127,7 @@ function renderCategoryPage(catId) {
         <div class="vendor-body">
           <div class="vendor-name">${v.name} <span style="font-size:9px;background:var(--green);color:#fff;padding:2px 6px;border-radius:var(--r-pill);font-weight:600;margin-left:4px">⭐ Pro</span></div>
           <div class="vendor-at"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${vendorMarketLabel(v)}</div>
-          <div class="vendor-category">${v.category}</div>
+          <div class="vendor-category">${v.category}${vendorSeasonPill(v)}</div>
         </div>
         <button class="follow-btn" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor',v.id)?t('following'):t('follow')}</button>
       </div>`;
@@ -3125,8 +3182,7 @@ function renderCategoryPage(catId) {
         <div class="vendor-avatar" style="background:${c.bg};color:${c.c};overflow:hidden">${v.photo ? `<img src="${v.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : initials(v.name)}</div>
         <div class="vendor-body">
           <div class="vendor-name">${v.name}</div>
-          <div class="vendor-at"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${vendorMarketLabel(v)}</div>
-          <div class="vendor-category">${v.category}</div>
+          ${vendorMarketBadges(v)}
         </div>
         <button class="follow-btn" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor',v.id)?t('following'):t('follow')}</button>
       </div>`;
@@ -3254,7 +3310,7 @@ function renderMapModeContent() {
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
                 <span style="font-size:11px;color:var(--text2)">${vendorMarketLabel(v)}</span>
               </div>
-              <div style="font-size:10px;color:var(--text3);margin-top:2px">${v.category}</div>
+              <div style="font-size:10px;color:var(--text3);margin-top:2px">${v.category}${vendorSeasonPill(v)}</div>
             </div>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
           </div>`;
@@ -4034,7 +4090,7 @@ function noResultsSuggestions(type = 'markets') {
         <div class="vendor-body">
           <div class="vendor-name">${v.name}</div>
           <div class="vendor-at"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${vendorMarketLabel(v)}</div>
-          <div class="vendor-category">${v.category}${season?` · <span style="color:var(--amber-dk)">${season}</span>`:''}</div>
+          <div class="vendor-category">${v.category}${vendorSeasonPill(v)}</div>
         </div>
         ${(v.tier==='pro'||v.tier==='pro-trial') ? `<button onclick="event.stopPropagation();navigate('vendor','${v.id}')" style="align-self:flex-start;font-size:10px;padding:4px 10px;background:var(--amber-lt);color:#7A4E08;border:0.5px solid #F0D090;border-radius:var(--r-pill);cursor:pointer;white-space:nowrap;font-family:var(--font-sans)">✉ Message</button>` : `<button class="follow-btn" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor',v.id)?t('following'):t('follow')}</button>`}
       </div>`;
@@ -4234,19 +4290,38 @@ function renderVendorProfile(id) {
     <div style="height:0;overflow:hidden;visibility:hidden" id="vnd-schedule"></div>
     <div class="profile-section">
       <div class="profile-section-title">${t('market_schedule')} — ${mCount} ${mCount===1?t('market_label'):t('markets_label')}</div>
-      ${v.markets&&v.markets.length?v.markets.map(mid=>{
-        const m = getMarket(mid);
-        if(!m) return '';
-        const dayKey = 'day_'+m.day_of_week.toLowerCase();
-        const weekOf = getWeekOf();
-        const confirmed = (ST.attendanceData||[]).some(a=>a.vendor_id===v.id&&a.market_id===mid&&a.week_of===weekOf&&a.confirmed);
-        return `<div class="schedule-row" onclick="navigate('market','${m.id}')">
-          <div class="schedule-day">${t(dayKey)||shortDay(m.day_of_week)}</div>
-          <div style="flex:1"><div class="schedule-market">${m.name}</div><div class="schedule-time">${m.day_of_week}s · ${formatTimeRange(m.start_time,m.end_time)} · ${m.city}</div></div>
-          ${confirmed?'<span style="font-size:10px;padding:2px 7px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill);font-weight:500;white-space:nowrap">✓ This week</span>':''}
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </div>`;
-      }).join(''):`<p style="font-size:13px;color:var(--text2)">${t('no_markets_yet')}</p>`}
+      ${v.markets&&v.markets.length?(() => {
+        const dayOrder = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+        const todayIdx = new Date().getDay();
+        const schedMarkets = v.markets.map(mid => getMarket(mid)).filter(Boolean);
+        const inSeason = schedMarkets.filter(m => isOpen(m));
+        const outOfSeason = schedMarkets.filter(m => !isOpen(m));
+        const sortByDay = arr => [...arr].sort((a,b) => {
+          const aDiff = (dayOrder.indexOf(a.day_of_week) - todayIdx + 7) % 7;
+          const bDiff = (dayOrder.indexOf(b.day_of_week) - todayIdx + 7) % 7;
+          return aDiff - bDiff;
+        });
+        const sorted = [...sortByDay(inSeason), ...sortByDay(outOfSeason)];
+        return sorted.map(m => {
+          const mid = m.id;
+          const open = isOpen(m);
+          const dayKey = 'day_'+m.day_of_week.toLowerCase();
+          const weekOf = getWeekOf();
+          const confirmed = (ST.attendanceData||[]).some(a=>a.vendor_id===v.id&&a.market_id===mid&&a.week_of===weekOf&&a.confirmed);
+          const seasonBadge = open
+            ? `<span style="font-size:10px;padding:2px 7px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill);font-weight:500;white-space:nowrap;border:0.5px solid var(--green-mid)">In Season</span>`
+            : `<span style="font-size:10px;padding:2px 7px;background:var(--amber-lt);color:#7A4E08;border-radius:var(--r-pill);font-weight:500;white-space:nowrap;border:0.5px solid #F0D090">${m.season_start==='All Year'?'All Year':m.season_start.slice(0,3)+'–'+m.season_end.slice(0,3)}</span>`;
+          return `<div class="schedule-row" onclick="navigate('market','${m.id}')">
+            <div class="schedule-day">${t(dayKey)||shortDay(m.day_of_week)}</div>
+            <div style="flex:1"><div class="schedule-market">${m.name}</div><div class="schedule-time">${m.day_of_week}s · ${formatTimeRange(m.start_time,m.end_time)} · ${m.city}</div></div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">
+              ${seasonBadge}
+              ${confirmed?'<span style="font-size:10px;padding:2px 7px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill);font-weight:500;white-space:nowrap">✓ This week</span>':''}
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>`;
+        }).join('');
+      })():`<p style="font-size:13px;color:var(--text2)">${t('no_markets_yet')}</p>`}
     </div>
 
     <!-- MORE VENDORS NEAR YOU: free/unclaimed only, same category, manual scroll -->
@@ -4302,6 +4377,18 @@ function renderVendorProfile(id) {
   </div>`;
   document.getElementById('scrollBody').innerHTML = h;
   setTimeout(() => initSectionNavObserver('vendorSectionNav', ['vnd-about','vnd-contact','vnd-schedule','vnd-photos','vnd-products','vnd-reviews']), 100);
+  if(ST.pendingScrollSection) {
+    const sec = ST.pendingScrollSection;
+    ST.pendingScrollSection = null;
+    setTimeout(() => {
+      const el = document.getElementById(sec);
+      if(el) {
+        const sb = document.getElementById('scrollBody');
+        const offset = el.getBoundingClientRect().top + (sb ? sb.scrollTop : window.scrollY) - 65;
+        if(sb) sb.scrollTop = offset; else window.scrollTo(0, offset);
+      }
+    }, 150);
+  }
   if(isPro) loadVendorProductsDisplay(v.id);
   renderAlsoAtStrip(v);
   loadAttendanceData().then(() => { renderAlsoAtStrip(v); });
@@ -5358,7 +5445,7 @@ function renderFollowing() {
           <div class="vendor-body">
             <div class="vendor-name">${v.name}</div>
             <div class="vendor-at"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${vendorMarketLabel(v)}</div>
-            <div class="vendor-category">${v.category}</div>
+            <div class="vendor-category">${v.category}${vendorSeasonPill(v)}</div>
           </div>
           <button class="follow-btn" style="background:var(--green);color:#fff;border-color:var(--green)" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">Following</button>
         </div>`;
@@ -7313,28 +7400,72 @@ function adminDeleteVendor(id) {
   renderAdminPanel();
 }
 function openAdminAddVendor() {
+  const regions = [
+    {id:'lee-county',label:'Lee County'},
+    {id:'sarasota-bradenton',label:'Sarasota / Bradenton'},
+    {id:'tampa-bay',label:'Tampa Bay'}
+  ];
+  const categories = [...new Set(DATA.vendors.map(v=>v.category))].sort();
+  const marketOptions = [...DATA.markets].sort((a,b)=>a.name.localeCompare(b.name))
+    .map(m=>`<option value="${m.id}">${m.name} (${m.city})</option>`).join('');
   openAdminModal('Add Vendor', 'Create a new vendor listing', `
     <div class="form-field"><label class="form-label">Name *</label><input class="form-input" id="nv_name" placeholder="Vendor name"></div>
-    <div class="form-field"><label class="form-label">Category *</label><input class="form-input" id="nv_cat" placeholder="e.g. Honey & Preserves"></div>
-    <div class="form-field"><label class="form-label">Email</label><input class="form-input" id="nv_email" placeholder="vendor@email.com"></div>
+    <div class="form-field"><label class="form-label">Region *</label>
+      <select class="form-input" id="nv_region">
+        ${regions.map(r=>`<option value="${r.id}">${r.label}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-field"><label class="form-label">Category *</label>
+      <input class="form-input" id="nv_cat" placeholder="e.g. Honey & Preserves" list="nv_cat_list">
+      <datalist id="nv_cat_list">${categories.map(c=>`<option value="${c}">`).join('')}</datalist>
+    </div>
+    <div class="form-field"><label class="form-label">Email</label><input class="form-input" id="nv_email" placeholder="vendor@email.com" type="email"></div>
+    <div class="form-field"><label class="form-label">Phone</label><input class="form-input" id="nv_phone" placeholder="+1 (239) 000-0000" type="tel"></div>
     <div class="form-field"><label class="form-label">Website</label><input class="form-input" id="nv_website" placeholder="https://"></div>
+    <div class="form-field"><label class="form-label">Facebook</label><input class="form-input" id="nv_facebook" placeholder="https://facebook.com/..."></div>
+    <div class="form-field"><label class="form-label">Instagram</label><input class="form-input" id="nv_instagram" placeholder="https://instagram.com/..."></div>
+    <div class="form-field"><label class="form-label">Description</label><textarea class="form-textarea" id="nv_desc" placeholder="Describe this vendor..."></textarea></div>
+    <div class="form-field"><label class="form-label">Markets <span style="font-size:10px;color:var(--text3)">(hold Ctrl/Cmd to select multiple)</span></label>
+      <select multiple class="form-input" id="nv_markets" style="height:120px">${marketOptions}</select>
+    </div>
+    <div style="display:flex;gap:16px;margin-bottom:16px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="nv_claimed" style="width:16px;height:16px"> Claimed
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="nv_pub" checked style="width:16px;height:16px"> Published
+      </label>
+    </div>
     <button onclick="adminCreateVendor()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:500">Create vendor</button>
   `);
 }
-function adminCreateVendor() {
+async function adminCreateVendor() {
   const name = document.getElementById('nv_name').value.trim();
   const cat = document.getElementById('nv_cat').value.trim();
-  if(!name||!cat) { alert('Name and category are required.'); return; }
+  const region = document.getElementById('nv_region').value;
+  if(!name || !cat) { alert('Name and category are required.'); return; }
   const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
-  DATA.vendors.push({
-    id, name, category:cat,
-    email:document.getElementById('nv_email').value.trim(),
-    website:document.getElementById('nv_website').value.trim(),
-    markets:[], claimed:false, pro:false, published:true,
-    description:'', tagline:''
-  });
+  const slug = id;
+  const sel = document.getElementById('nv_markets');
+  const markets = Array.from(sel.selectedOptions).map(o => o.value);
+  const vendor = {
+    id, name, slug, region, category: cat,
+    email: document.getElementById('nv_email').value.trim(),
+    phone: document.getElementById('nv_phone').value.trim(),
+    website: document.getElementById('nv_website').value.trim(),
+    facebook: document.getElementById('nv_facebook').value.trim(),
+    instagram: document.getElementById('nv_instagram').value.trim(),
+    description: document.getElementById('nv_desc').value.trim(),
+    markets,
+    claimed: document.getElementById('nv_claimed').checked,
+    published: document.getElementById('nv_pub').checked,
+    pro: false, tagline: '', photo: null
+  };
+  DATA.vendors.push(vendor);
+  await dbSaveVendor(vendor);
   closeAdminModal();
   renderAdminPanel();
+  alert(`✓ Vendor "${name}" created successfully!`);
 }
 
 /* Edit market */
@@ -7401,39 +7532,192 @@ function adminDeleteMarket(id) {
 }
 function openAdminAddMarket() {
   const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const months = ['All Year','January','February','March','April','May','June','July','August','September','October','November','December'];
+  const regions = [
+    {id:'lee-county',label:'Lee County'},
+    {id:'sarasota-bradenton',label:'Sarasota / Bradenton'},
+    {id:'tampa-bay',label:'Tampa Bay'}
+  ];
+  const vendorOptions = [...DATA.vendors].sort((a,b)=>a.name.localeCompare(b.name))
+    .map(v=>`<option value="${v.id}">${v.name} (${v.category})</option>`).join('');
   openAdminModal('Add Market', 'Create a new market listing', `
     <div class="form-field"><label class="form-label">Name *</label><input class="form-input" id="nm_name" placeholder="Market name"></div>
-    <div class="form-field"><label class="form-label">City *</label><input class="form-input" id="nm_city" placeholder="Fort Myers"></div>
+    <div class="form-field"><label class="form-label">Region *</label>
+      <select class="form-input" id="nm_region">
+        ${regions.map(r=>`<option value="${r.id}">${r.label}</option>`).join('')}
+      </select>
+    </div>
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px">
+      <div class="form-field"><label class="form-label">City *</label><input class="form-input" id="nm_city" placeholder="Fort Myers"></div>
+      <div class="form-field"><label class="form-label">State</label><input class="form-input" id="nm_state" placeholder="FL" value="FL"></div>
+    </div>
     <div class="form-field"><label class="form-label">Venue</label><input class="form-input" id="nm_venue" placeholder="Lakes Regional Park"></div>
-    <div class="form-field"><label class="form-label">Address</label><input class="form-input" id="nm_address" placeholder="7330 Gladiolus Dr"></div>
+    <div class="form-field"><label class="form-label">Address <span style="font-size:10px;color:var(--text3)">(used to auto-locate on map)</span></label>
+      <div style="display:flex;gap:8px">
+        <input class="form-input" id="nm_address" placeholder="7330 Gladiolus Dr, Fort Myers, FL" style="flex:1">
+        <button onclick="geocodeMarketAddress()" style="padding:8px 12px;background:var(--green-lt);color:var(--green-dk);border:0.5px solid var(--green-mid);border-radius:var(--r-md);font-size:12px;cursor:pointer;white-space:nowrap;font-family:var(--font-sans)">📍 Locate</button>
+      </div>
+      <div id="nm_geocode_status" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
+    </div>
     <div class="form-field"><label class="form-label">Day of week</label>
       <select class="form-input" id="nm_day">${days.map(d=>`<option value="${d}">${d}</option>`).join('')}</select>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <div class="form-field"><label class="form-label">Start</label><input class="form-input" id="nm_start" placeholder="09:00"></div>
-      <div class="form-field"><label class="form-label">End</label><input class="form-input" id="nm_end" placeholder="13:00"></div>
+      <div class="form-field"><label class="form-label">Start time</label><input class="form-input" id="nm_start" placeholder="09:00" value="09:00"></div>
+      <div class="form-field"><label class="form-label">End time</label><input class="form-input" id="nm_end" placeholder="13:00" value="13:00"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="form-field"><label class="form-label">Season start</label>
+        <select class="form-input" id="nm_season_start">${months.map(m=>`<option value="${m}">${m}</option>`).join('')}</select>
+      </div>
+      <div class="form-field"><label class="form-label">Season end</label>
+        <select class="form-input" id="nm_season_end">${months.map(m=>`<option value="${m}" ${m==='All Year'?'selected':''}>${m}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="form-field"><label class="form-label">Website</label><input class="form-input" id="nm_website" placeholder="https://"></div>
+    <div class="form-field"><label class="form-label">Facebook URL</label><input class="form-input" id="nm_fb" placeholder="https://facebook.com/..."></div>
+    <div class="form-field"><label class="form-label">Description</label><textarea class="form-textarea" id="nm_desc" placeholder="Describe this market..."></textarea></div>
+    <div class="form-field"><label class="form-label">Parking notes</label><input class="form-input" id="nm_parking" placeholder="Free parking on site."></div>
+    <div class="form-field"><label class="form-label">Special notes</label><input class="form-input" id="nm_notes" placeholder="e.g. Closed Thanksgiving"></div>
+    <div class="form-field"><label class="form-label">Photo</label>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+        <button onclick="document.getElementById('nm_photo_toggle').dataset.mode='url';document.getElementById('nm_photo_url_row').style.display='';document.getElementById('nm_photo_upload_row').style.display='none';this.style.background='var(--green-lt)';this.style.color='var(--green-dk)';document.getElementById('nm_photo_upload_btn').style.background='var(--surface2)';document.getElementById('nm_photo_upload_btn').style.color='var(--text2)'" id="nm_photo_url_btn" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:11px;cursor:pointer;background:var(--green-lt);color:var(--green-dk);font-family:var(--font-sans)">🔗 URL</button>
+        <button onclick="document.getElementById('nm_photo_toggle').dataset.mode='upload';document.getElementById('nm_photo_upload_row').style.display='';document.getElementById('nm_photo_url_row').style.display='none';this.style.background='var(--green-lt)';this.style.color='var(--green-dk)';document.getElementById('nm_photo_url_btn').style.background='var(--surface2)';document.getElementById('nm_photo_url_btn').style.color='var(--text2)'" id="nm_photo_upload_btn" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:11px;cursor:pointer;background:var(--surface2);color:var(--text2);font-family:var(--font-sans)">📤 Upload</button>
+      </div>
+      <span id="nm_photo_toggle" data-mode="url"></span>
+      <div id="nm_photo_url_row"><input class="form-input" id="nm_photo_url" placeholder="https://images.unsplash.com/..."></div>
+      <div id="nm_photo_upload_row" style="display:none">
+        <input type="file" id="nm_photo_file" accept="image/*" style="font-size:12px;font-family:var(--font-sans)" onchange="previewMarketPhoto(this)">
+        <div id="nm_photo_preview" style="margin-top:6px"></div>
+      </div>
+    </div>
+    <div class="form-field"><label class="form-label">Add existing vendors to this market <span style="font-size:10px;color:var(--text3)">(hold Ctrl/Cmd to select multiple)</span></label>
+      <select multiple class="form-input" id="nm_vendors" style="height:120px">${vendorOptions}</select>
+    </div>
+    <div style="display:flex;gap:16px;margin-bottom:16px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="nm_pet" style="width:16px;height:16px"> Pet friendly
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="nm_pub" checked style="width:16px;height:16px"> Published/Live
+      </label>
     </div>
     <button onclick="adminCreateMarket()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:500">Create market</button>
   `);
 }
-function adminCreateMarket() {
+
+async function geocodeMarketAddress() {
+  const addr = document.getElementById('nm_address').value.trim();
+  if(!addr) { alert('Enter an address first.'); return; }
+  const status = document.getElementById('nm_geocode_status');
+  status.textContent = '🔍 Looking up coordinates...';
+  status.style.color = 'var(--text3)';
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr)}&limit=1`;
+    const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+    const data = await res.json();
+    if(data && data.length > 0) {
+      const { lat, lon, display_name } = data[0];
+      window._nm_lat = parseFloat(lat);
+      window._nm_lng = parseFloat(lon);
+      status.textContent = `✓ Found: ${parseFloat(lat).toFixed(4)}, ${parseFloat(lon).toFixed(4)} — ${display_name.split(',').slice(0,3).join(',')}`;
+      status.style.color = 'var(--green-dk)';
+    } else {
+      status.textContent = '⚠️ Address not found — try adding city and state';
+      status.style.color = 'var(--terra)';
+    }
+  } catch(e) {
+    status.textContent = '⚠️ Lookup failed — check your connection';
+    status.style.color = 'var(--terra)';
+  }
+}
+
+function previewMarketPhoto(input) {
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('nm_photo_preview').innerHTML = `<img src="${e.target.result}" style="width:100%;max-height:120px;object-fit:cover;border-radius:var(--r-md);margin-top:4px">`;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function adminCreateMarket() {
   const name = document.getElementById('nm_name').value.trim();
   const city = document.getElementById('nm_city').value.trim();
-  if(!name||!city) { alert('Name and city are required.'); return; }
+  const region = document.getElementById('nm_region').value;
+  if(!name || !city) { alert('Name and city are required.'); return; }
   const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
-  DATA.markets.push({
-    id, name, city, state:'FL',
+  const slug = id + '-market';
+  const seasonStart = document.getElementById('nm_season_start').value;
+  const seasonEnd = document.getElementById('nm_season_end').value;
+
+  // Handle photo — URL or upload
+  let photoUrl = '';
+  const photoMode = document.getElementById('nm_photo_toggle').dataset.mode;
+  if(photoMode === 'upload') {
+    const file = document.getElementById('nm_photo_file').files[0];
+    if(file && supabaseClient) {
+      try {
+        const ext = file.name.split('.').pop();
+        const path = `market-photos/${id}.${ext}`;
+        const { error } = await supabaseClient.storage.from('vendor-photos').upload(path, file, { upsert: true });
+        if(!error) {
+          const { data: urlData } = supabaseClient.storage.from('vendor-photos').getPublicUrl(path);
+          photoUrl = urlData.publicUrl;
+        }
+      } catch(e) { console.warn('Photo upload failed:', e); }
+    }
+  } else {
+    photoUrl = document.getElementById('nm_photo_url').value.trim();
+  }
+
+  const market = {
+    id, name, slug, region,
+    city, state: document.getElementById('nm_state').value.trim() || 'FL',
     venue: document.getElementById('nm_venue').value.trim(),
     address: document.getElementById('nm_address').value.trim(),
     day_of_week: document.getElementById('nm_day').value,
     start_time: document.getElementById('nm_start').value.trim() || '09:00',
     end_time: document.getElementById('nm_end').value.trim() || '13:00',
-    season_start:'Jan', season_end:'Dec',
-    published:true, pet_friendly:false,
-    lat:26.5629, lng:-81.8723, operator_id:''
+    season_start: seasonStart === 'All Year' ? 'All Year' : seasonStart,
+    season_end: seasonEnd === 'All Year' ? 'All Year' : seasonEnd,
+    website: document.getElementById('nm_website').value.trim(),
+    facebook: document.getElementById('nm_fb').value.trim(),
+    description: document.getElementById('nm_desc').value.trim(),
+    parking_notes: document.getElementById('nm_parking').value.trim(),
+    special_notes: document.getElementById('nm_notes').value.trim(),
+    photo: photoUrl,
+    pet_friendly: document.getElementById('nm_pet').checked,
+    published: document.getElementById('nm_pub').checked,
+    active: true,
+    lat: window._nm_lat || 26.5629,
+    lng: window._nm_lng || -81.8723,
+    operator_id: ''
+  };
+  window._nm_lat = null; window._nm_lng = null;
+
+  // Wire existing vendors to this market
+  const sel = document.getElementById('nm_vendors');
+  const selectedVendorIds = Array.from(sel.selectedOptions).map(o => o.value);
+  selectedVendorIds.forEach(vid => {
+    const v = DATA.vendors.find(x => x.id === vid);
+    if(v && !v.markets.includes(id)) v.markets.push(id);
   });
+
+  DATA.markets.push(market);
+  if(photoUrl) DATA.market_photos[id] = photoUrl;
+  await dbSaveMarket(market);
+
+  // Save updated vendor market assignments
+  for(const vid of selectedVendorIds) {
+    const v = DATA.vendors.find(x => x.id === vid);
+    if(v) await dbSaveVendor(v);
+  }
+
   closeAdminModal();
   renderAdminPanel();
+  alert(`✓ Market "${name}" created successfully!`);
 }
 
 /* Edit ad */
@@ -8662,7 +8946,7 @@ function renderAdminSettings() {
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Platform Info</div>
-        <div class="admin-row-meta">Version 1.57.5 · Lee County, FL · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
+        <div class="admin-row-meta">Version 1.59 · Lee County, FL · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Coverage Area</div>
