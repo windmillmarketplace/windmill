@@ -4,7 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.60.0 -->
+<!-- v1.60.6 -->
+<!-- Google Analytics — replace G-XXXXXXXXXX with your real Measurement ID -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-XXXXXXXXXX');
+</script>
 <meta name="description" content="Discover local farmers markets and vendors near you. Find fresh produce, artisan goods, and more at markets in your area.">
 <link rel="canonical" href="https://shopwindmill.com/" id="canonicalTag">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2331,6 +2339,7 @@ function routeFromURL() {
   // Check specific vendor sub-pages BEFORE the vendor regex
   if(path === '/vendors/join') { ST.currentPage = 'vendors-join'; return; }
   if(path === '/vendors/login') { ST.currentPage = 'vendors-login'; return; }
+  if(path === '/vendors/dashboard') { ST.currentPage = null; ST.tab = 'home'; return; }
   const marketMatch = path.match(/^\/markets\/([^/]+)\/?$/);
   const vendorMatch = path.match(/^\/vendors\/([^/]+)\/?$/);
   if(marketMatch) {
@@ -2388,7 +2397,8 @@ function renderCurrentPage() {
   if(p !== null || ST.tab !== 'explore') {
     if(sb) sb.classList.remove('explore-mode');
   }
-  if(p === 'vendor') return renderVendorProfile(ST.currentId);
+  if(p === 'vendor') { renderVendorProfile(ST.currentId); return; }
+  if(p === 'vendor-pending') return renderVendorPending();
   if(p === 'market') return renderMarketDetail(ST.currentId);
   if(p === 'area-request') { updatePageMeta('Request Your Area | Windmill','Ask us to bring Windmill to your city.','/area-request'); return renderAreaRequest(); }
   if(p === 'vendors-list') { updatePageMeta('Browse Vendors | Windmill','Browse all local market vendors on Windmill.','/vendors'); return renderVendorsList(); }
@@ -4237,17 +4247,60 @@ function renderMarketsPage() {
 }
 
 /* ── VENDOR PROFILE TEMPLATE ── */
-function renderVendorProfile(id) {
+async function renderVendorProfile(id) {
   hideFilterUI();
-  const v = getVendor(id);
+  let v = getVendor(id);
+
+  // Always fetch fresh data from Supabase for the public profile — ensures pro/trial/photo are current
+  if(supabaseClient) {
+    try {
+      const { data } = await supabaseClient
+        .from('vendors')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if(data) {
+        if(v) {
+          // Merge fresh data into local entry
+          Object.assign(v, data);
+        } else {
+          // Not in local DATA — add it
+          v = data;
+          DATA.vendors.push(v);
+        }
+      }
+    } catch(e) { console.warn('Could not fetch vendor from Supabase:', e); }
+  }
+
   if(!v) { document.getElementById('scrollBody').innerHTML='<div style="padding:24px;text-align:center;color:var(--text2)">Vendor not found.</div>'; return; }
+
+  // Track profile view — skip if viewer is the vendor themselves
+  if(supabaseClient && ST.vendorId !== v.id) {
+    try {
+      await supabaseClient.from('profile_views').insert({
+        vendor_id: v.id,
+        viewer_id: ST.user?.id || null,
+        viewer_email: ST.user?.email || null,
+        referrer: document.referrer || null
+      });
+    } catch(e) { /* non-fatal — table may not exist yet */ }
+  }
   const slug = v.slug || v.id;
   const marketNames = v.markets ? v.markets.map(mid => { const m = getMarket(mid); return m ? m.name : null; }).filter(Boolean) : [];
   const metaDesc = `${v.name} — ${v.category}${marketNames.length ? ' at ' + marketNames.join(', ') : ''} in Southwest Florida. Find them on Windmill.${v.tagline ? ' ' + v.tagline : ''}`;
   updatePageMeta(`${v.name} — ${v.category} | Windmill`, metaDesc, `/vendors/${slug}`);
   const c = vc(DATA.vendors.indexOf(v));
   const mCount = v.markets ? v.markets.filter(mid => getMarket(mid)).length : 0;
-  const isPro = v.pro || (ST.sandboxMode && ST.isProTrial) || ST.isProTrial;
+
+  // Check pro status from live data — trial counts as pro for display purposes
+  let isPro = v.pro || false;
+  if(!isPro && v.trial_start) {
+    const trialStart = new Date(v.trial_start);
+    const exp = new Date(trialStart); exp.setMonth(exp.getMonth() + 6);
+    isPro = new Date() < exp;
+  }
+  // Also allow ST.isProTrial for the currently logged-in vendor viewing their own profile
+  if(!isPro) isPro = (ST.sandboxMode && ST.isProTrial) || (ST.vendorId === v.id && ST.isProTrial);
   const isClaimed = v.claimed;
 
   let h = `<div class="profile-page">
@@ -4396,6 +4449,19 @@ function renderVendorProfile(id) {
 
     <!-- ALSO AT THIS MARKET: all tiers, different categories, auto-scroll -->
     <div id="alsoAtMarketStrip"></div>
+
+    <!-- PRE-ORDER COMING SOON — Pro vendors only -->
+    ${isPro ? `
+    <div class="profile-section" style="background:var(--amber-lt);border-top:0.5px solid #F0D090;border-bottom:0.5px solid #F0D090;margin-bottom:0">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="font-size:28px">🛒</div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600;color:#7A4E08;margin-bottom:2px">Pre-order pickup — coming soon</div>
+          <div style="font-size:12px;color:#A06820;line-height:1.5">Order ahead online and pick up at the market. No more missing out on your favorites.</div>
+        </div>
+        <button onclick="${ST.user ? `savePreOrderInterest('${v.id}','shopper')` : `openSignIn('signup')`}" style="flex-shrink:0;padding:6px 12px;background:var(--amber);color:#fff;border:none;border-radius:var(--r-pill);font-size:11px;cursor:pointer;font-weight:600;font-family:var(--font-sans);white-space:nowrap">Get notified</button>
+      </div>
+    </div>` : ''}
 
     <!-- REVIEWS -->
     <div style="height:0;overflow:hidden;visibility:hidden" id="vnd-reviews"></div>
@@ -5018,6 +5084,22 @@ function renderVendorsJoin() {
   </div>`;
 }
 
+function renderVendorPending() {
+  hideFilterUI();
+  const email = ST.user?.email || '';
+  document.getElementById('scrollBody').innerHTML = `<div class="vendor-dash" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:40px 24px">
+    <div style="font-size:52px;margin-bottom:20px">🌱</div>
+    <div style="font-family:var(--font-serif);font-size:22px;font-weight:600;color:var(--text);margin-bottom:10px">You're on the list!</div>
+    <p style="font-size:14px;color:var(--text2);line-height:1.7;max-width:340px;margin-bottom:24px">Thanks for signing up. We're setting up your vendor listing and you'll receive an email at <strong>${email}</strong> shortly with next steps.</p>
+    <div style="background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-md);padding:16px 20px;max-width:340px;width:100%;margin-bottom:24px;text-align:left">
+      <div style="font-size:12px;font-weight:600;color:var(--green-dk);margin-bottom:4px">What happens next?</div>
+      <div style="font-size:12px;color:var(--green-dk);line-height:1.7;opacity:.85">1. We review your listing request<br>2. You get an email with your login link<br>3. Your profile goes live on Windmill</div>
+    </div>
+    <p style="font-size:12px;color:var(--text3)">Questions? Email us at <a href="mailto:windmillmarketplace@gmail.com" style="color:var(--terra)">windmillmarketplace@gmail.com</a></p>
+    <button onclick="supabaseClient&&supabaseClient.auth.signOut().then(()=>{ST.role='customer';ST.user=null;ST.vendorId=null;ST.currentPage=null;ST.tab='home';renderSidebar();renderBottom();renderCurrentPage();})" style="margin-top:20px;padding:8px 20px;background:transparent;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;color:var(--text3);cursor:pointer;font-family:var(--font-sans)">Sign out</button>
+  </div>`;
+}
+
 function renderVendorsLogin() {
   hideFilterUI();
   document.getElementById('scrollBody').innerHTML = `<div style="max-width:420px;margin:0 auto;padding:32px 20px 60px">
@@ -5031,11 +5113,14 @@ function renderVendorsLogin() {
       <div style="display:flex;flex-direction:column;gap:14px">
         <div>
           <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:5px">Email address</label>
-          <input id="vendorLoginEmail" type="email" placeholder="your@email.com" class="form-input" style="width:100%">
+          <input id="vendorLoginEmail" type="email" placeholder="your@email.com" class="form-input" style="width:100%" autocomplete="email">
         </div>
         <div>
           <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:5px">Password</label>
-          <input id="vendorLoginPassword" type="password" placeholder="Minimum 8 characters" class="form-input" style="width:100%">
+          <div style="position:relative">
+            <input id="vendorLoginPassword" type="password" placeholder="Minimum 8 characters" class="form-input" style="width:100%;padding-right:40px" autocomplete="current-password">
+            <button type="button" onclick="togglePasswordVisibility('vendorLoginPassword',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);padding:4px;font-size:16px;line-height:1">👁</button>
+          </div>
         </div>
         <button onclick="submitVendorLogin()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Sign in</button>
         <div style="text-align:center">
@@ -5062,11 +5147,14 @@ function showVendorSignup() {
     <div style="display:flex;flex-direction:column;gap:14px">
       <div>
         <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:5px">Email address</label>
-        <input id="vendorSignupEmail" type="email" placeholder="your@email.com" class="form-input" style="width:100%">
+        <input id="vendorSignupEmail" type="email" placeholder="your@email.com" class="form-input" style="width:100%" autocomplete="email">
       </div>
       <div>
         <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:5px">Choose a password (min. 8 characters)</label>
-        <input id="vendorSignupPassword" type="password" placeholder="Minimum 8 characters" class="form-input" style="width:100%">
+        <div style="position:relative">
+          <input id="vendorSignupPassword" type="password" placeholder="Minimum 8 characters" class="form-input" style="width:100%;padding-right:40px" autocomplete="new-password">
+          <button type="button" onclick="togglePasswordVisibility('vendorSignupPassword',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);padding:4px;font-size:16px;line-height:1">👁</button>
+        </div>
       </div>
       <button onclick="submitVendorSignup()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Create account</button>
       <div style="text-align:center"><span style="font-size:12px;color:var(--terra);cursor:pointer" onclick="renderVendorsLogin()">← Back to sign in</span></div>
@@ -5086,6 +5174,31 @@ function showVendorForgotPassword() {
       <button onclick="submitVendorPasswordReset()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Send reset link</button>
       <div style="text-align:center"><span style="font-size:12px;color:var(--terra);cursor:pointer" onclick="renderVendorsLogin()">← Back to sign in</span></div>
     </div>`;
+}
+
+async function sendPasswordReset(email) {
+  if(!email) { alert('No email address found for your account.'); return; }
+  if(!supabaseClient) { alert('Connection error. Please try again.'); return; }
+  try {
+    await supabaseClient.auth.resetPasswordForEmail(email, {
+      redirectTo: 'https://shopwindmill.com/vendors/login'
+    });
+    const toast = document.createElement('div');
+    toast.textContent = 'Password reset link sent to ' + email;
+    toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#2C2016;color:#fff;padding:10px 20px;border-radius:20px;font-size:12px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;max-width:90vw;text-align:center';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+  } catch(e) {
+    alert('Could not send reset email: ' + (e.message || 'Please try again.'));
+  }
+}
+
+function togglePasswordVisibility(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if(!input) return;
+  const isHidden = input.type === 'password';
+  input.type = isHidden ? 'text' : 'password';
+  btn.textContent = isHidden ? '🙈' : '👁';
 }
 
 async function submitVendorLogin() {
@@ -5144,36 +5257,74 @@ async function submitVendorPasswordReset() {
 
 async function onVendorLoginSuccess(user) {
   if(!user) return;
-  // Find vendor record matching this email
-  const vendor = DATA.vendors.find(v => v.email === user.email || v.id === user.user_metadata?.vendor_id);
-  if(vendor) {
-    ST.vendorId = vendor.id;
-    ST.isProTrial = !vendor.pro && !!vendor.trial_start;
-    ST.trialStart = vendor.trial_start || null;
+
+  // First try to get fresh vendor data directly from Supabase by email
+  let vendorRecord = null;
+  if(supabaseClient) {
+    try {
+      const { data } = await supabaseClient
+        .from('vendors')
+        .select('id, name, pro, trial_start, claimed, email')
+        .eq('email', user.email)
+        .eq('claimed', true)
+        .single();
+      vendorRecord = data;
+    } catch(e) { /* fall through to local lookup */ }
+  }
+
+  // Fall back to local DATA if Supabase didn't find one
+  if(!vendorRecord) {
+    vendorRecord = DATA.vendors.find(v => v.email === user.email || v.id === user.user_metadata?.vendor_id);
+  }
+
+  if(vendorRecord) {
+    ST.vendorId = vendorRecord.id;
+    // Use live trial_start from Supabase for accurate tier detection
+    const trialStart = vendorRecord.trial_start ? new Date(vendorRecord.trial_start) : null;
+    if(trialStart) {
+      const sixMonthsLater = new Date(trialStart);
+      sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+      ST.isProTrial = !vendorRecord.pro && new Date() < sixMonthsLater;
+      ST.trialStart = trialStart;
+    } else {
+      ST.isProTrial = false;
+      ST.trialStart = null;
+    }
     ST.role = 'vendor';
     ST.user = { email: user.email, id: user.id, role: 'vendor' };
+
+    // Also sync the local DATA entry if it exists so tier shows correctly
+    const localV = DATA.vendors.find(v => v.id === vendorRecord.id);
+    if(localV) {
+      localV.pro = vendorRecord.pro;
+      localV.trial_start = vendorRecord.trial_start;
+    }
+
     // Update users table
     if(supabaseClient) {
       try {
         await supabaseClient.from('users').upsert({
-          id: user.id, email: user.email, role: 'vendor', vendor_id: vendor.id
+          id: user.id, email: user.email, role: 'vendor', vendor_id: vendorRecord.id,
+          trial_start: vendorRecord.trial_start || null
         }, {onConflict:'id'});
       } catch(e) {}
     }
     // Navigate to vendor dashboard
     ST.currentPage = null;
-    ST.tab = 'me';
+    ST.tab = 'home';
     renderCurrentPage();
     // Show welcome toast
     const toast = document.createElement('div');
-    toast.textContent = 'Welcome back, ' + (vendor.name || 'Vendor') + '!';
+    toast.textContent = 'Welcome back, ' + (vendorRecord.name || 'Vendor') + '!';
     toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#2C2016;color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;z-index:9999;font-family:var(--font-sans);white-space:nowrap';
     document.body.appendChild(toast);
     setTimeout(()=>toast.remove(), 2500);
   } else {
-    // No vendor record found — show message
-    alert('No vendor listing found for ' + user.email + '. Please make sure you use the same email you submitted when claiming your listing, or contact us at windmillmarketplace@gmail.com.');
-    await supabaseClient.auth.signOut();
+    // No vendor record found — friendly pending state instead of hard error
+    ST.role = 'vendor-pending';
+    ST.user = { email: user.email, id: user.id, role: 'vendor-pending' };
+    ST.currentPage = 'vendor-pending';
+    renderCurrentPage();
   }
 }
 
@@ -5538,6 +5689,7 @@ function renderMe() {
         </div>
       </div>
       <button onclick="openMessageModal('admin','windmill-support','Windmill Support')" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans);margin-bottom:8px">💬 Contact Windmill Support</button>
+      <button onclick="sendPasswordReset('${ST.user?.email||''}')" style="width:100%;padding:12px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;color:var(--text2);font-family:var(--font-sans);margin-bottom:8px">🔑 Change password</button>
       <button onclick="(function(){authSignOut();})()" style="width:100%;padding:12px;background:transparent;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;color:var(--text2);font-family:var(--font-sans);margin-bottom:20px">Sign out</button>
       
     <div style="margin-top:24px;border-top:0.5px solid var(--border);padding-top:20px">
@@ -5793,12 +5945,14 @@ function previewOnboardPhoto(input) {
   if(file.size > 5 * 1024 * 1024) { alert('Photo must be under 5MB'); return; }
   ST.pendingCoverPhotoFile = file;
   const previewUrl = URL.createObjectURL(file);
-  ST.pendingCoverPhoto = previewUrl;
+  // Show preview immediately in the UI
   const container = input.previousElementSibling;
   if(container) {
     container.style.background = `url(${previewUrl}) center/cover no-repeat`;
     container.innerHTML = `<div style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.5);color:#fff;font-size:11px;padding:4px 8px;border-radius:var(--r-pill)">Change photo</div>`;
   }
+  // Store the file — actual upload happens in vendorOnboardingNext step 2
+  // so we keep ST.pendingCoverPhotoFile set; blob URL is just for preview
 }
 
 async function addGalleryPhoto(input) {
@@ -5824,12 +5978,53 @@ async function addGalleryPhoto(input) {
     }
     v.gallery.push({ url: photoUrl, caption: '' });
     if(supabaseClient) await dbSaveVendor(v);
-    renderVendorProfileEdit();
+    refreshGalleryGrid(v);
   } catch(e) {
     console.warn('Gallery upload failed:', e);
     alert('Upload failed — please try again');
-    renderVendorProfileEdit();
+    refreshGalleryGrid(v);
   }
+}
+
+function refreshGalleryGrid(v) {
+  if(!v) return;
+  const isPro = v.pro || ST.isProTrial;
+  const maxPhotos = v.pro ? 10 : 5;
+  const gallery = v.gallery || [];
+
+  // Find the gallery section body — it's inside the collapsible with id 'cs_gallery'
+  const galleryBody = document.getElementById('cs_gallery');
+  if(!galleryBody) {
+    // Section not found — fall back to full re-render
+    renderVendorProfileEdit();
+    return;
+  }
+
+  const tilesHtml = gallery.map((photo,idx) => {
+    const url = typeof photo === 'object' ? photo.url : photo;
+    const cap = typeof photo === 'object' ? (photo.caption || '') : '';
+    return `<div style="border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;background:var(--surface)">
+      <div style="height:100px;background:var(--surface2);position:relative;display:flex;align-items:center;justify-content:center">
+        <img src="${url}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">
+        <button onclick="deleteGalleryPhoto(${idx})" style="position:absolute;top:4px;right:4px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);padding:3px 8px;font-size:11px;cursor:pointer;font-weight:500;z-index:2;font-family:var(--font-sans)">Delete</button>
+        <span style="font-size:11px;color:var(--text3);z-index:1">📷</span>
+      </div>
+      <div style="padding:6px 8px">
+        <input type="text" value="${cap}" placeholder="Add a caption..." onchange="updateGalleryCaption(${idx},this.value)" style="width:100%;border:none;background:transparent;font-size:11px;color:var(--text2);font-family:var(--font-sans);outline:none;box-sizing:border-box">
+        <div style="margin-top:4px;font-size:10px;color:var(--text3)">📘 Share to Facebook — coming soon</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const addBtn = gallery.length < maxPhotos
+    ? `<button onclick="document.getElementById('galleryPhotoInput').click()" style="width:100%;padding:10px;background:var(--surface2);color:var(--text2);border:0.5px dashed var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans)">+ Add photo (${gallery.length}/${maxPhotos})</button><input type="file" id="galleryPhotoInput" accept="image/jpeg,image/png,image/webp,image/heic" style="display:none" onchange="addGalleryPhoto(this)">`
+    : `<div style="text-align:center;font-size:12px;color:var(--text3);padding:8px">${v.pro ? 'Maximum 10 photos reached' : 'Maximum 5 photos reached'}</div>`;
+
+  galleryBody.innerHTML = `<div style="padding:0 0 12px">
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px">${gallery.length} of ${maxPhotos} photos · Shown on your public profile</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">${tilesHtml}</div>
+    ${addBtn}
+  </div>`;
 }
 
 function deleteGalleryPhoto(idx) {
@@ -5837,7 +6032,7 @@ function deleteGalleryPhoto(idx) {
   if(!v || !v.gallery) return;
   v.gallery.splice(idx, 1);
   if(supabaseClient) dbSaveVendor(v);
-  renderVendorProfileEdit();
+  refreshGalleryGrid(v);
 }
 
 function updateGalleryCaption(idx, caption) {
@@ -5857,30 +6052,42 @@ async function vendorOnboardingNext(step) {
   const v = vendorId ? DATA.vendors.find(x => x.id === vendorId) : null;
   const isPro = v?.pro || ST.isProTrial;
 
-  // Save data from current step
-  if(step === 2 && ST.pendingCoverPhoto) {
+  // Save data from current step — works with or without local vendor object
+  if(step === 2 && ST.pendingCoverPhotoFile && vendorId && supabaseClient) {
+    try {
+      const ext = ST.pendingCoverPhotoFile.name.split('.').pop() || 'jpg';
+      const path = `profile/${vendorId}/photo.${ext}`;
+      const url = await uploadToStorage(ST.pendingCoverPhotoFile, path);
+      if(v) v.photo = url;
+      ST.pendingOnboardPhoto = url;
+      ST.pendingCoverPhotoFile = null;
+      ST.pendingCoverPhoto = null;
+    } catch(e) { console.warn('Photo upload failed during onboarding:', e); }
+  } else if(step === 2 && ST.pendingCoverPhoto) {
     if(v) v.photo = ST.pendingCoverPhoto;
+    ST.pendingOnboardPhoto = ST.pendingCoverPhoto;
     ST.pendingCoverPhoto = null;
   }
+
   if(step === 3) {
     const desc = document.getElementById('onboardDescription')?.value?.trim();
     if(v && desc) v.description = desc;
+    ST.pendingOnboardDescription = desc || '';
   }
+
   if(step === 4) {
     if(isPro) {
-      if(v) {
-        v.website = document.getElementById('onboardWebsite')?.value?.trim() || '';
-        v.instagram = document.getElementById('onboardInstagram')?.value?.trim() || '';
-        v.facebook = document.getElementById('onboardFacebook')?.value?.trim() || '';
-      }
+      const website = document.getElementById('onboardWebsite')?.value?.trim() || '';
+      const instagram = document.getElementById('onboardInstagram')?.value?.trim() || '';
+      const facebook = document.getElementById('onboardFacebook')?.value?.trim() || '';
+      if(v) { v.website = website; v.instagram = instagram; v.facebook = facebook; }
+      ST.pendingOnboardLinks = { website, instagram, facebook };
     } else {
       const type = document.getElementById('onboardSocialType')?.value;
       const val = document.getElementById('onboardSocialValue')?.value?.trim() || '';
-      if(v) {
-        v.website = type === 'website' ? val : '';
-        v.instagram = type === 'instagram' ? val : '';
-        v.facebook = type === 'facebook' ? val : '';
-      }
+      const links = { website: type==='website'?val:'', instagram: type==='instagram'?val:'', facebook: type==='facebook'?val:'' };
+      if(v) { v.website = links.website; v.instagram = links.instagram; v.facebook = links.facebook; }
+      ST.pendingOnboardLinks = links;
     }
     // Final step — save to Supabase and mark complete
     await completeVendorOnboarding(v);
@@ -5895,17 +6102,35 @@ function vendorOnboardingSkipStep(step) {
 }
 
 async function completeVendorOnboarding(v) {
-  // Save vendor data
-  if(v && supabaseClient) {
+  const vendorId = ST.vendorId;
+
+  // Build update payload from pending state (works even if v is null)
+  const updates = {};
+  if(ST.pendingOnboardPhoto) { updates.photo = ST.pendingOnboardPhoto; ST.pendingOnboardPhoto = null; }
+  if(ST.pendingOnboardDescription !== undefined) { updates.description = ST.pendingOnboardDescription; ST.pendingOnboardDescription = undefined; }
+  if(ST.pendingOnboardLinks) { Object.assign(updates, ST.pendingOnboardLinks); ST.pendingOnboardLinks = null; }
+
+  // Save vendor data — prefer direct Supabase update so it works for all real vendors
+  if(vendorId && supabaseClient && Object.keys(updates).length > 0) {
+    try {
+      await supabaseClient.from('vendors').update(updates).eq('id', vendorId);
+      // Also update local DATA entry if present
+      if(v) Object.assign(v, updates);
+    } catch(e) { console.warn('Onboarding vendor save failed:', e); }
+  } else if(v && supabaseClient) {
     try { await dbSaveVendor(v); } catch(e) { console.warn('Save failed:', e); }
   }
+
   // Mark setup complete on user record
   if(supabaseClient && ST.user) {
     try {
       await supabaseClient.from('users').update({ profile_setup_complete: true }).eq('id', ST.user.id);
       ST.profileSetupComplete = true;
     } catch(e) { console.warn('Could not mark setup complete:', e); }
+  } else {
+    ST.profileSetupComplete = true;
   }
+
   skipVendorOnboarding();
   // Show success toast
   const toast = document.createElement('div');
@@ -5925,6 +6150,11 @@ function skipVendorOnboarding() {
 /* ── VENDOR DASHBOARD ── */
 async function renderVendorDash() {
   hideFilterUI();
+  // Update URL to /vendors/dashboard when vendor lands on their dashboard
+  if(window.location.protocol !== 'file:' && window.location.pathname !== '/vendors/dashboard') {
+    history.replaceState({page: null, tab: 'home'}, 'Vendor Dashboard | Windmill', '/vendors/dashboard');
+  }
+  document.title = 'Vendor Dashboard | Windmill';
 
   const vendorId = ST.vendorId;
   const v = vendorId ? DATA.vendors.find(x => x.id === vendorId) : null;
@@ -5933,9 +6163,14 @@ async function renderVendorDash() {
 
   // Load real follower count from Supabase
   let followerCount = 0;
+  let profileViews = 0;
   if(supabaseClient && vendorId) {
-    const { count } = await supabaseClient.from('follows').select('*', {count:'exact',head:true}).eq('vendor_id', vendorId);
-    followerCount = count || 0;
+    const [followRes, viewRes] = await Promise.all([
+      supabaseClient.from('follows').select('*', {count:'exact',head:true}).eq('vendor_id', vendorId),
+      supabaseClient.from('profile_views').select('*', {count:'exact',head:true}).eq('vendor_id', vendorId)
+    ]);
+    followerCount = followRes.count || 0;
+    profileViews = viewRes.count || 0;
   }
 
   // Trial badge
@@ -5966,6 +6201,8 @@ async function renderVendorDash() {
     { icon:'📅', label:'My Schedule', sub:`${marketCount} market${marketCount!==1?'s':''}`, tab:'markets' },
     { icon:'📦', label:'Products', sub: isPro ? `${productCount} listed` : '🔒 Pro feature', tab:'following', locked: !isPro },
     { icon:'📢', label:'Post Update', sub: isPro ? 'Reach your followers' : '🔒 Pro feature', tab:null, locked: !isPro, action: isPro ? 'showWeeklyUpdateModal()' : "navigate('vendors-join')" },
+    { icon:'💬', label:'Messages', sub: isPro ? 'View shopper messages' : '🔒 Pro feature', tab:null, locked: !isPro, action: isPro ? 'showVendorInbox()' : "navigate('vendors-join')" },
+    { icon:'🛒', label:'Pre-Orders', sub:'Coming soon', tab:null, locked:true, action:'showPreOrderComingSoon()', comingSoon:true },
   ];
 
   document.getElementById('scrollBody').innerHTML = `<div class="vendor-dash">
@@ -5977,7 +6214,7 @@ async function renderVendorDash() {
 
     <!-- STATS -->
     <div class="dash-grid">
-      <div class="dash-card"><div class="dash-card-num">0</div><div class="dash-card-label">${t('profile_views')}</div></div>
+      <div class="dash-card"><div class="dash-card-num">${profileViews}</div><div class="dash-card-label">${t('profile_views')}</div></div>
       <div class="dash-card"><div class="dash-card-num">${followerCount}</div><div class="dash-card-label">${t('followers')}</div></div>
       <div class="dash-card"><div class="dash-card-num">${marketCount}</div><div class="dash-card-label">${t('markets_label')}</div></div>
       <div class="dash-card"><div class="dash-card-num">${productCount}</div><div class="dash-card-label">${t('my_products')}</div></div>
@@ -5988,7 +6225,8 @@ async function renderVendorDash() {
       <div class="dash-section-title">Quick actions</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         ${actions.map(a=>`
-          <div onclick="${a.action || `navigate('${a.tab}')`}" style="background:${a.locked?'var(--surface2)':'var(--surface)'};border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px;cursor:pointer;opacity:${a.locked?.7:1}">
+          <div onclick="${a.action || `navigate('${a.tab}')`}" style="background:${a.locked?'var(--surface2)':'var(--surface)'};border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px;cursor:pointer;opacity:${a.locked&&!a.comingSoon?.7:1};position:relative">
+            ${a.comingSoon?`<span style="position:absolute;top:8px;right:8px;font-size:9px;padding:2px 6px;background:var(--amber-lt);color:var(--amber);border-radius:var(--r-pill);font-weight:600;border:0.5px solid #F0D090">SOON</span>`:''}
             <div style="font-size:22px;margin-bottom:6px">${a.icon}</div>
             <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px">${a.label}</div>
             <div style="font-size:11px;color:var(--text3)">${a.sub}</div>
@@ -6067,7 +6305,7 @@ function renderAdminPanel() {
   const unreadMsgs = ST.adminMessages.filter(m=>!m.read).length;
   const pendingClaims = ST.adminClaims.filter(c=>c.status==='pending').length;
 
-  const tabs = ['vendors','markets','claims','messages','users','follows','areas','ads'];
+  const tabs = ['vendors','markets','claims','messages','users','follows','areas','ads','views'];
   const tabLabels = {
     vendors:`Vendors`,
     markets:`Markets`,
@@ -6076,7 +6314,8 @@ function renderAdminPanel() {
     areas:'Areas',
     ads:'Ads',
     users:`Users`,
-    follows:`Follows`
+    follows:`Follows`,
+    views:'Views'
   };
 
   let h = `<div class="admin-panel">
@@ -6498,9 +6737,84 @@ function renderAdminPanel() {
     <button onclick="openAdminAddAd()" style="width:100%;padding:10px;background:var(--surface2);border:0.5px dashed var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;color:var(--text2);font-family:var(--font-sans)">+ Add new ad</button>`;
   }
 
+  if(ST.adminTab==='views') {
+    h += `<div style="font-size:12px;color:var(--text2);margin-bottom:12px">Recent vendor profile views — who's been snooping 👀</div>
+    <div id="adminViewsTable"><div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Loading views...</div></div>`;
+  }
+
   h += `</div>`;
   document.getElementById('scrollBody').innerHTML = h;
+  if(ST.adminTab === 'views') loadAdminViews();
 }
+
+async function loadAdminViews() {
+  const el = document.getElementById('adminViewsTable');
+  if(!el || !supabaseClient) {
+    if(el) el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Supabase not connected.</div>`;
+    return;
+  }
+  try {
+    const { data: views } = await supabaseClient
+      .from('profile_views')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if(!views || views.length === 0) {
+      el.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text3);font-size:13px">No profile views recorded yet.<br><span style="font-size:11px">Views will appear here once the profile_views table is created in Supabase.</span></div>`;
+      return;
+    }
+
+    // Group by vendor for summary
+    const byVendor = {};
+    views.forEach(v => {
+      if(!byVendor[v.vendor_id]) byVendor[v.vendor_id] = 0;
+      byVendor[v.vendor_id]++;
+    });
+    const topVendors = Object.entries(byVendor).sort((a,b) => b[1]-a[1]).slice(0,5);
+
+    let html = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:16px">
+      ${topVendors.map(([id, count]) => {
+        const vd = DATA.vendors.find(x=>x.id===id);
+        return `<div style="background:var(--green-lt);border-radius:var(--r-md);padding:10px 12px;text-align:center">
+          <div style="font-size:20px;font-weight:700;color:var(--green-dk)">${count}</div>
+          <div style="font-size:11px;color:var(--green-dk);margin-top:2px">${vd?.name||id}</div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="font-size:11px;font-weight:500;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Recent views</div>
+    <div class="admin-table">`;
+
+    views.forEach(view => {
+      const vd = DATA.vendors.find(x=>x.id===view.vendor_id);
+      const date = new Date(view.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+      let source = '📱 Direct';
+      if(view.referrer) {
+        try {
+          const host = new URL(view.referrer).hostname;
+          source = host.includes('google') ? '🔍 Google'
+            : host.includes('facebook') ? '📘 Facebook'
+            : host.includes('instagram') ? '📸 Instagram'
+            : '🔗 ' + host;
+        } catch(e) { source = '🔗 ' + view.referrer; }
+      }
+      html += `<div class="admin-row">
+        <div class="admin-row-info">
+          <div class="admin-row-name">${vd?.name || view.vendor_id}</div>
+          <div class="admin-row-meta">${view.viewer_email || 'Guest (not signed in)'} · ${source}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">${date}</div>
+        </div>
+        <span class="status-pill ${view.viewer_email?'claimed':'draft'}">${view.viewer_email?'Member':'Guest'}</span>
+      </div>`;
+    });
+
+    html += `</div>`;
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Could not load views — create the profile_views table in Supabase first.</div>`;
+  }
+}
+
 /* ── MESSAGING SYSTEM ── */
 
 function openMessageModal(type, recipientId, recipientName) {
@@ -6511,9 +6825,9 @@ function openMessageModal(type, recipientId, recipientName) {
   if(!el) return;
 
   const isAdmin = recipientId === 'windmill-support';
-  const isPro = type === 'vendor'
-    ? DATA.vendors.find(v=>v.id===recipientId)?.pro
-    : DATA.markets.find(m=>m.id===recipientId)?.pro;
+  const vendorData = type === 'vendor' ? DATA.vendors.find(v=>v.id===recipientId) : null;
+  const isPro = vendorData?.pro || (vendorData?.trial_start && (() => { const exp = new Date(vendorData.trial_start); exp.setMonth(exp.getMonth()+6); return new Date() < exp; })());
+  const messagingEnabled = vendorData?.messaging_enabled !== false; // default true for pro vendors
 
   if(!isAdmin && !isPro) {
     el.innerHTML = `
@@ -6521,6 +6835,18 @@ function openMessageModal(type, recipientId, recipientName) {
         <div style="font-size:36px;margin-bottom:12px">🔒</div>
         <div class="modal-title">Pro feature</div>
         <div class="modal-sub">${recipientName} hasn't upgraded to Pro yet. Pro vendors can receive messages from shoppers.</div>
+        <button onclick="closeModal('messageModal')" style="margin-top:16px;padding:8px 20px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:13px;cursor:pointer;font-family:var(--font-sans)">Got it</button>
+      </div>`;
+    openModal('messageModal');
+    return;
+  }
+
+  if(!isAdmin && !messagingEnabled) {
+    el.innerHTML = `
+      <div style="text-align:center;padding:20px 0">
+        <div style="font-size:36px;margin-bottom:12px">💬</div>
+        <div class="modal-title">Messages paused</div>
+        <div class="modal-sub">${recipientName} isn't accepting messages right now.</div>
         <button onclick="closeModal('messageModal')" style="margin-top:16px;padding:8px 20px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:13px;cursor:pointer;font-family:var(--font-sans)">Got it</button>
       </div>`;
     openModal('messageModal');
@@ -6573,11 +6899,13 @@ async function sendMessage(type, recipientId, recipientName) {
     await supabaseClient.from('messages').insert({
       from_name: msg.from,
       from_email: msg.from_email,
+      from_user_id: ST.user?.id || null,
       role: msg.role,
       subject: msg.subject,
-      body: `[To: ${recipientName}]
-
-${msg.body}`
+      body: msg.body,
+      recipient_type: type,
+      recipient_id: recipientId,
+      recipient_name: recipientName
     });
   }
 
@@ -6888,6 +7216,24 @@ async function onAuthSuccess(user) {
   // Set role
   if(!ST.devMode) ST.role = role;
 
+  // If vendor, also fetch fresh trial_start from vendors table to ensure tier is accurate
+  if(role === 'vendor' && vendorId && supabaseClient) {
+    try {
+      const { data: vRow } = await supabaseClient.from('vendors').select('pro, trial_start').eq('id', vendorId).single();
+      if(vRow) {
+        const ts = vRow.trial_start ? new Date(vRow.trial_start) : null;
+        ST.trialStart = ts;
+        if(ts) {
+          const exp = new Date(ts); exp.setMonth(exp.getMonth() + 6);
+          ST.isProTrial = !vRow.pro && new Date() < exp;
+        } else { ST.isProTrial = false; }
+        // Sync local DATA entry
+        const localV = DATA.vendors.find(x => x.id === vendorId);
+        if(localV) { localV.pro = vRow.pro; localV.trial_start = vRow.trial_start; }
+      }
+    } catch(e) { /* non-fatal */ }
+  }
+
   // Load follows
   await loadUserFollows();
 
@@ -6903,12 +7249,17 @@ async function onAuthSuccess(user) {
     btn.onclick = () => { ST.tab='me'; renderCurrentPage(); renderBottom(); };
   }
 
-  // Route vendor to dashboard, shopper to me page
-  if(role === 'vendor' && vendorId) {
+  // Only navigate to dashboard on fresh login — don't disrupt tab browsing
+  const alreadyInDash = window.location.pathname === '/vendors/dashboard';
+  if(role === 'vendor' && vendorId && !alreadyInDash) {
     ST.tab = 'home';
     ST.currentPage = null;
     renderCurrentPage();
     if(!ST.profileSetupComplete) setTimeout(() => showVendorOnboarding(), 800);
+  } else if(role === 'vendor' && vendorId && alreadyInDash) {
+    // Already on dashboard — just re-render to update nav, don't reset tab
+    renderBottom();
+    renderSidebar();
   } else {
     renderMe();
   }
@@ -7928,9 +8279,158 @@ function freePageHeader() {
   return `${adUnit()}<div class="upgrade-banner" style="margin:0 0 16px"><span style="font-size:18px">⭐</span><div class="upgrade-text">Upgrade to <strong>Pro</strong> to remove ads and unlock all features. <strong>$9/mo · First month free</strong></div><button class="upgrade-btn" onclick="alert('$9/mo — first month free')">Upgrade</button></div>`;
 }
 
+async function showVendorInbox() {
+  const vendorId = ST.vendorId;
+  if(!vendorId || !supabaseClient) { alert('Inbox unavailable.'); return; }
+
+  // Remove any existing inbox
+  document.getElementById('vendorInboxOverlay')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'vendorInboxOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(44,32,22,.55);z-index:3000;display:flex;align-items:flex-end;justify-content:center';
+  overlay.innerHTML = `<div style="background:var(--surface);border-radius:var(--r-lg) var(--r-lg) 0 0;width:100%;max-width:520px;padding:20px 20px 36px;max-height:85vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-shrink:0">
+      <div style="font-family:var(--font-serif);font-size:17px;font-weight:600;color:var(--text)">💬 Messages</div>
+      <button onclick="document.getElementById('vendorInboxOverlay').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3)">×</button>
+    </div>
+    <div id="vendorInboxList" style="overflow-y:auto;flex:1">
+      <div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Loading messages...</div>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
+
+  // Load messages for this vendor
+  try {
+    const { data: messages } = await supabaseClient
+      .from('messages')
+      .select('*, message_replies(*)')
+      .eq('recipient_id', vendorId)
+      .eq('recipient_type', 'vendor')
+      .order('created_at', { ascending: false });
+
+    const list = document.getElementById('vendorInboxList');
+    if(!list) return;
+
+    if(!messages || messages.length === 0) {
+      list.innerHTML = `<div style="text-align:center;padding:40px 16px">
+        <div style="font-size:36px;margin-bottom:12px">📭</div>
+        <div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:6px">No messages yet</div>
+        <div style="font-size:12px;color:var(--text3)">When shoppers message you, they'll appear here.</div>
+      </div>`;
+      return;
+    }
+
+    list.innerHTML = messages.map(msg => {
+      const replies = msg.message_replies || [];
+      const isRead = msg.read || false;
+      const date = new Date(msg.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+      return `<div style="border:0.5px solid ${isRead?'var(--border)':'var(--green-mid)'};border-radius:var(--r-md);padding:14px;margin-bottom:10px;background:${isRead?'var(--surface)':'var(--green-lt)'}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${msg.from_name || 'Shopper'} ${!isRead?'<span style="font-size:10px;padding:1px 6px;background:var(--green);color:#fff;border-radius:var(--r-pill);margin-left:4px">New</span>':''}</div>
+            <div style="font-size:11px;color:var(--text3)">${date}</div>
+          </div>
+        </div>
+        <div style="font-size:12px;font-weight:500;color:var(--text);margin-bottom:4px">${msg.subject || '(no subject)'}</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:10px">${msg.body}</div>
+        ${replies.length > 0 ? `<div style="border-top:0.5px solid var(--border);padding-top:8px;margin-bottom:8px">${replies.map(r=>`<div style="font-size:11px;color:var(--text2);padding:6px 10px;background:var(--surface2);border-radius:var(--r-sm);margin-bottom:4px"><span style="font-weight:500;color:var(--text)">${r.from_name}:</span> ${r.body}</div>`).join('')}</div>` : ''}
+        <div style="display:flex;gap:8px">
+          <input id="reply_${msg.id}" type="text" placeholder="Write a reply..." style="flex:1;padding:8px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:12px;font-family:var(--font-sans);background:var(--bg);color:var(--text);outline:none">
+          <button onclick="sendVendorReply('${msg.id}','reply_${msg.id}')" style="padding:8px 14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:12px;cursor:pointer;font-weight:500;font-family:var(--font-sans);white-space:nowrap">Send</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    // Mark all as read
+    const unreadIds = messages.filter(m => !m.read).map(m => m.id);
+    if(unreadIds.length > 0) {
+      supabaseClient.from('messages').update({ read: true }).in('id', unreadIds).then(() => {});
+    }
+  } catch(e) {
+    const list = document.getElementById('vendorInboxList');
+    if(list) list.innerHTML = `<div style="text-align:center;padding:24px;color:var(--terra);font-size:13px">Could not load messages. Please try again.</div>`;
+    console.warn('Inbox load failed:', e);
+  }
+}
+
+async function sendVendorReply(messageId, inputId) {
+  const input = document.getElementById(inputId);
+  const text = input?.value?.trim();
+  if(!text) return;
+  if(!supabaseClient) return;
+
+  const btn = input?.nextElementSibling;
+  if(btn) { btn.textContent = 'Sending...'; btn.disabled = true; }
+
+  try {
+    await supabaseClient.from('message_replies').insert({
+      message_id: messageId,
+      from_name: ST.user?.name || 'Vendor',
+      from_email: ST.user?.email || '',
+      body: text,
+      role: 'vendor'
+    });
+    if(input) input.value = '';
+    if(btn) { btn.textContent = 'Send'; btn.disabled = false; }
+    // Refresh inbox
+    showVendorInbox();
+  } catch(e) {
+    if(btn) { btn.textContent = 'Send'; btn.disabled = false; }
+    alert('Could not send reply. Please try again.');
+  }
+}
+
+function showPreOrderComingSoon() {
+  document.getElementById('preOrderModal')?.remove();
+  const modal = document.createElement('div');
+  modal.id = 'preOrderModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(44,32,22,.55);z-index:3000;display:flex;align-items:flex-end;justify-content:center';
+  modal.innerHTML = `<div style="background:var(--surface);border-radius:var(--r-lg) var(--r-lg) 0 0;width:100%;max-width:520px;padding:28px 20px 36px">
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="font-size:40px;margin-bottom:12px">🛒</div>
+      <div style="font-family:var(--font-serif);font-size:20px;font-weight:600;color:var(--text);margin-bottom:6px">Pre-Order Pickup</div>
+      <div style="font-size:13px;color:var(--text2);line-height:1.6">Let customers order and pay online before market day, then pick up at your booth. No more sold-out disappointments — for you or your customers.</div>
+    </div>
+    <div style="background:var(--green-lt);border-radius:var(--r-md);padding:14px 16px;margin-bottom:20px;font-size:12px;color:var(--green-dk);line-height:2">
+      ✓ Customers browse and order from your product catalog<br>
+      ✓ You get notified and confirm each order<br>
+      ✓ Set pickup windows per market<br>
+      ✓ Integrated with your existing product listings<br>
+      ✓ Stripe payments — funds deposited to your account
+    </div>
+    <button onclick="savePreOrderInterest('${ST.vendorId}','vendor')" style="width:100%;padding:13px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:10px">Notify me when it launches 🙋</button>
+    <button onclick="document.getElementById('preOrderModal').remove()" style="width:100%;padding:10px;background:transparent;border:none;font-size:13px;cursor:pointer;color:var(--text3);font-family:var(--font-sans)">Maybe later</button>
+  </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
+}
+
+async function savePreOrderInterest(vendorId, role) {
+  document.getElementById('preOrderModal')?.remove();
+  if(!supabaseClient) return;
+  try {
+    await supabaseClient.from('preorder_interest').insert({
+      vendor_id: vendorId,
+      user_id: ST.user?.id || null,
+      email: ST.user?.email || null,
+      role: role
+    });
+  } catch(e) { /* non-fatal — table may not exist yet */ }
+  const toast = document.createElement('div');
+  toast.textContent = "You're on the list! We'll notify you when pre-orders launch. 🛒";
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);text-align:center;max-width:90vw;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
+}
+
 function showWeeklyUpdateModal() {
   const v = ST.vendorId ? DATA.vendors.find(x => x.id === ST.vendorId) : null;
   const existing = v?.weekly_update ? (typeof v.weekly_update === 'object' ? v.weekly_update.text : v.weekly_update) : '';
+
+  // Remove any existing overlay first
+  document.getElementById('weeklyUpdateOverlay')?.remove();
 
   const overlay = document.createElement('div');
   overlay.id = 'weeklyUpdateOverlay';
@@ -7952,16 +8452,27 @@ function showWeeklyUpdateModal() {
       <button onclick="saveWeeklyUpdate()" style="width:100%;padding:13px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Post update</button>
     </div>`;
   document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if(e.target === overlay) overlay.remove(); });
   setTimeout(() => document.getElementById('weeklyUpdateText')?.focus(), 100);
 }
 
 async function saveWeeklyUpdate() {
   const text = document.getElementById('weeklyUpdateText')?.value?.trim();
   if(!text) { alert('Please write something first.'); return; }
-  const v = ST.vendorId ? DATA.vendors.find(x => x.id === ST.vendorId) : null;
-  if(!v) return;
-  v.weekly_update = { text, date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) };
-  if(supabaseClient) await dbSaveVendor(v);
+  const vendorId = ST.vendorId;
+  const v = vendorId ? DATA.vendors.find(x => x.id === vendorId) : null;
+  const update = { text, date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) };
+
+  // Save to local DATA if available
+  if(v) v.weekly_update = update;
+
+  // Save to Supabase directly by vendor ID (works even without local vendor object)
+  if(supabaseClient && vendorId) {
+    try {
+      await supabaseClient.from('vendors').update({ weekly_update: update }).eq('id', vendorId);
+    } catch(e) { console.warn('Weekly update save failed:', e); }
+  }
+
   document.getElementById('weeklyUpdateOverlay')?.remove();
   const toast = document.createElement('div');
   toast.textContent = 'Update posted ✓';
@@ -8056,7 +8567,7 @@ function renderVendorProfileEdit() {
     <div style="padding:0 0 12px">
       <div style="font-size:12px;color:var(--text2);margin-bottom:12px">${gallery.length} of ${maxPhotos} photos · Shown on your public profile</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-        ${gallery.map((photo,idx)=>{const url=typeof photo==='object'?photo.url:photo;const cap=typeof photo==='object'?(photo.caption||''):'';return `<div style="border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;background:var(--surface)"><div style="height:100px;background:url(${url}) center/cover no-repeat;position:relative"><button onclick="deleteGalleryPhoto(${idx})" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:13px;cursor:pointer;line-height:1">×</button></div><div style="padding:6px 8px"><input type="text" value="${cap}" placeholder="Add a caption..." onchange="updateGalleryCaption(${idx},this.value)" style="width:100%;border:none;background:transparent;font-size:11px;color:var(--text2);font-family:var(--font-sans);outline:none;box-sizing:border-box"><div style="margin-top:4px;font-size:10px;color:var(--text3)">📘 Share to Facebook — coming soon</div></div></div>`;}).join('')}
+        ${gallery.map((photo,idx)=>{const url=typeof photo==='object'?photo.url:photo;const cap=typeof photo==='object'?(photo.caption||''):'';return `<div style="border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;background:var(--surface)"><div style="height:100px;background:var(--surface2);position:relative;display:flex;align-items:center;justify-content:center"><img src="${url}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'"><button onclick="deleteGalleryPhoto(${idx})" style="position:absolute;top:4px;right:4px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);padding:3px 8px;font-size:11px;cursor:pointer;font-weight:500;z-index:2;font-family:var(--font-sans)">Delete</button><span style="font-size:11px;color:var(--text3);z-index:1">📷</span></div><div style="padding:6px 8px"><input type="text" value="${cap}" placeholder="Add a caption..." onchange="updateGalleryCaption(${idx},this.value)" style="width:100%;border:none;background:transparent;font-size:11px;color:var(--text2);font-family:var(--font-sans);outline:none;box-sizing:border-box"><div style="margin-top:4px;font-size:10px;color:var(--text3)">📘 Share to Facebook — coming soon</div></div></div>`;}).join('')}
       </div>
       ${gallery.length < maxPhotos ? `<button onclick="document.getElementById('galleryPhotoInput').click()" style="width:100%;padding:10px;background:var(--surface2);color:var(--text2);border:0.5px dashed var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans)">+ Add photo (${gallery.length}/${maxPhotos})</button><input type="file" id="galleryPhotoInput" accept="image/jpeg,image/png,image/webp,image/heic" style="display:none" onchange="addGalleryPhoto(this)">` : `<div style="text-align:center;font-size:12px;color:var(--text3);padding:8px">${v?.pro?'Maximum 10 photos reached':'Maximum 5 photos reached · Upgrade to Pro for 10 photos'}</div>`}
     </div>` : `<div style="padding:0 0 12px"><div class="pro-lock"><span style="font-size:20px">🔒</span><div class="pro-lock-text"><div class="pro-lock-title">Photo Gallery is a Pro feature</div><div class="pro-lock-sub">Add up to 5 photos during your free trial.</div></div><button class="pro-lock-btn" onclick="navigate('vendors-join')">Upgrade</button></div></div>`;
@@ -8445,11 +8956,23 @@ async function handleAttendanceToggle(checkbox, vendorId, marketId) {
   setTimeout(function(){toast.remove();},2200);
 }
 
-function renderVendorSchedule() {
+async function renderVendorSchedule() {
   hideFilterUI();
   const vendorId = ST.vendorId;
-  const v = vendorId ? DATA.vendors.find(x => x.id === vendorId) : null;
-  const isPro = v?.pro || ST.isProTrial;
+  let v = vendorId ? DATA.vendors.find(x => x.id === vendorId) : null;
+
+  // If vendor not in local DATA, fetch from Supabase
+  if(!v && vendorId && supabaseClient) {
+    try {
+      const { data } = await supabaseClient.from('vendors').select('id, name, markets, pro, trial_start').eq('id', vendorId).single();
+      if(data) {
+        v = data;
+        DATA.vendors.push(v); // cache it
+      }
+    } catch(e) { console.warn('Could not load vendor data:', e); }
+  }
+
+  const isPro = !!(v && (v.pro || ST.isProTrial));
   const marketIds = v?.markets || [];
 
   document.getElementById('scrollBody').innerHTML=`<div class="vendor-dash">
@@ -8495,6 +9018,15 @@ async function renderVendorProducts() {
   hideFilterUI();
   var vendorId = ST.vendorId;
   var v = vendorId ? DATA.vendors.find(function(x){return x.id===vendorId;}) : null;
+
+  // If vendor not in local DATA, fetch from Supabase
+  if(!v && vendorId && supabaseClient) {
+    try {
+      const { data } = await supabaseClient.from('vendors').select('id, name, pro, trial_start').eq('id', vendorId).single();
+      if(data) { v = data; DATA.vendors.push(v); }
+    } catch(e) { console.warn('Could not load vendor data:', e); }
+  }
+
   var isPro = !!(v && (v.pro || ST.isProTrial));
   var isTrial = !!(v && !v.pro && ST.isProTrial);
   var maxProducts = isTrial ? 10 : 25;
@@ -8586,6 +9118,10 @@ function renderVendorSettings() {
         <div style="font-size:13px;color:var(--text)">${ST.user?.email || v?.email || 'Not set'}</div>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--border)">
+        <div style="font-size:13px;color:var(--text2)">Password</div>
+        <span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="sendPasswordReset('${ST.user?.email || v?.email || ''}')">Change password →</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--border)">
         <div style="font-size:13px;color:var(--text2)">Vendor page</div>
         <div style="font-size:13px;color:var(--green)">${v ? 'shopwindmill.com/vendors/'+(v.slug||v.id) : '—'}</div>
       </div>
@@ -8594,7 +9130,9 @@ function renderVendorSettings() {
 
     <!-- NOTIFICATIONS -->
     <div class="dash-section">
-      <div class="dash-section-title">Notifications</div>
+      <div class="dash-section-title">Notifications & Messaging</div>
+      <div class="checklist-item"><div class="check-text"><div style="font-size:13px;color:var(--text)">Allow shoppers to message me</div><div style="font-size:11px;color:var(--text3)">Message button appears on your profile</div></div><div class="toggle ${ST.messagingEnabled!==false?'on':''}" onclick="toggleVendorNotif('messaging',this)"><div class="toggle-thumb"></div></div></div>
+      <div class="checklist-item"><div class="check-text"><div style="font-size:13px;color:var(--text)">Email me when I get a message</div><div style="font-size:11px;color:var(--text3)">Replies must be sent through the app</div></div><div class="toggle ${ST.notifMessages!==false?'on':''}" onclick="toggleVendorNotif('messages',this)"><div class="toggle-thumb"></div></div></div>
       <div class="checklist-item"><div class="check-text">Email when someone follows me</div><div class="toggle ${ST.notifFollower!==false?'on':''}" onclick="toggleVendorNotif('follower',this)"><div class="toggle-thumb"></div></div></div>
       <div class="checklist-item"><div class="check-text">Weekly reminder to post an update</div><div class="toggle ${ST.notifWeekly!==false?'on':''}" onclick="toggleVendorNotif('weekly',this)"><div class="toggle-thumb"></div></div></div>
     </div>
@@ -8611,9 +9149,20 @@ function renderVendorSettings() {
 
 function toggleVendorNotif(type, el) {
   el.classList.toggle('on');
-  if(type === 'follower') ST.notifFollower = el.classList.contains('on');
-  if(type === 'weekly') ST.notifWeekly = el.classList.contains('on');
-  // Could save to Supabase users table in future
+  const isOn = el.classList.contains('on');
+  if(type === 'messaging') ST.messagingEnabled = isOn;
+  if(type === 'messages') ST.notifMessages = isOn;
+  if(type === 'follower') ST.notifFollower = isOn;
+  if(type === 'weekly') ST.notifWeekly = isOn;
+  // Save messaging_enabled to Supabase vendors table
+  if(type === 'messaging' && supabaseClient && ST.vendorId) {
+    supabaseClient.from('vendors').update({ messaging_enabled: isOn }).eq('id', ST.vendorId).then(() => {});
+  }
+  // Save notification prefs to users table
+  if(supabaseClient && ST.user) {
+    const prefs = { notif_messages: ST.notifMessages, notif_follower: ST.notifFollower, notif_weekly: ST.notifWeekly };
+    supabaseClient.from('users').update(prefs).eq('id', ST.user.id).then(() => {});
+  }
 }
 
 function openUpgradeFlow() {
