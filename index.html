@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.60.6 -->
+<!-- v1.61.13 -->
 <!-- Google Analytics — replace G-XXXXXXXXXX with your real Measurement ID -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
 <script>
@@ -384,6 +384,35 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .photo-slot{aspect-ratio:1;background:var(--surface2);border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;border:0.5px dashed var(--border-med)}
 .photo-slot-text{font-size:10px;color:var(--text3);text-align:center;padding:4px}
+/* Photo horizontal scroll strip — shopper vendor page */
+.photo-strip{display:flex;flex-direction:row;gap:8px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding:2px 0 8px;scrollbar-width:none}
+.photo-strip::-webkit-scrollbar{display:none}
+.photo-thumb{flex:0 0 140px;width:140px;height:140px;border-radius:var(--r-md);overflow:hidden;cursor:pointer;position:relative;background:var(--surface2);scroll-snap-align:start}
+.photo-thumb img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .2s ease}
+.photo-thumb:hover img{transform:scale(1.05)}
+.photo-thumb-overlay{position:absolute;inset:0;background:rgba(0,0,0,0);transition:background .2s;display:flex;align-items:center;justify-content:center}
+.photo-thumb:hover .photo-thumb-overlay{background:rgba(0,0,0,.18)}
+.photo-thumb-overlay svg{opacity:0;transition:opacity .2s;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
+.photo-thumb:hover .photo-thumb-overlay svg{opacity:1}
+/* placeholder shown before IntersectionObserver triggers load */
+.photo-thumb img.lazy-pending{opacity:0;transition:opacity .3s}
+.photo-thumb img.lazy-loaded{opacity:1}
+/* Lightbox */
+.photo-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.photo-lightbox.open{opacity:1;pointer-events:all}
+.photo-lightbox-inner{display:flex;flex-direction:column;align-items:center;width:100%;max-height:100vh;padding:56px 0 24px}
+.photo-lightbox-img-wrap{position:relative;display:flex;align-items:center;justify-content:center;width:100%;padding:0 56px}
+.photo-lightbox-img-wrap img{max-width:100%;max-height:70vh;object-fit:contain;border-radius:var(--r-md);box-shadow:0 8px 40px rgba(0,0,0,.6);display:block}
+.photo-lightbox-close{position:fixed;top:16px;right:16px;background:rgba(255,255,255,.15);border:none;border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;transition:background .15s;z-index:10000}
+.photo-lightbox-close:hover{background:rgba(255,255,255,.3)}
+.photo-lightbox-arrow{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.15);border:none;border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;transition:background .15s;flex-shrink:0;z-index:2}
+.photo-lightbox-arrow:hover{background:rgba(255,255,255,.3)}
+.photo-lightbox-arrow.prev{left:8px}
+.photo-lightbox-arrow.next{right:8px}
+.photo-lightbox-arrow:disabled{opacity:.25;cursor:default}
+.photo-lightbox-meta{text-align:center;padding:10px 24px 0;width:100%}
+.photo-lightbox-counter{font-size:11px;color:rgba(255,255,255,.4);font-family:var(--font-sans);margin-bottom:4px}
+.photo-lightbox-caption{font-size:13px;color:rgba(255,255,255,.8);font-family:var(--font-sans);line-height:1.4;min-height:20px}
 .schedule-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:0.5px solid var(--border);cursor:pointer}
 .schedule-row:last-child{border-bottom:none}
 .schedule-day{width:28px;height:28px;background:var(--green-lt);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--green-dk);flex-shrink:0}
@@ -425,7 +454,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 
 /* MARKET DETAIL PAGE */
 .market-page{background:var(--bg);min-height:100%}
-.market-hero{background:var(--surface);padding:20px 16px;border-bottom:0.5px solid var(--border)}
+.market-hero{background:linear-gradient(135deg,var(--green-lt) 0%,#F5F8F2 100%);border-bottom:0.5px solid #C8D8BE;padding:20px 16px}
 @media(min-width:768px){.market-hero{padding:28px 24px}}
 .market-name-lg{font-family:var(--font-serif);font-size:22px;font-weight:600;color:var(--text);margin-bottom:4px}
 .market-subtitle{font-size:13px;color:var(--text2);margin-bottom:12px}
@@ -801,6 +830,28 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
     <div class="modal-handle"></div>
     <button class="modal-close" onclick="closeModal('messageModal')">×</button>
     <div id="messageModalContent"></div>
+  </div>
+</div>
+
+<!-- PHOTO LIGHTBOX -->
+<div class="photo-lightbox" id="photoLightbox" role="dialog" aria-modal="true" aria-label="Photo viewer">
+  <button class="photo-lightbox-close" onclick="closePhotoLightbox()" aria-label="Close">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+  </button>
+  <div class="photo-lightbox-inner">
+    <div class="photo-lightbox-img-wrap">
+      <button class="photo-lightbox-arrow prev" id="lightboxPrev" onclick="shiftLightbox(-1)" aria-label="Previous photo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <img id="lightboxImg" src="" alt="Gallery photo">
+      <button class="photo-lightbox-arrow next" id="lightboxNext" onclick="shiftLightbox(1)" aria-label="Next photo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+    </div>
+    <div class="photo-lightbox-meta">
+      <div class="photo-lightbox-counter" id="lightboxCounter"></div>
+      <div class="photo-lightbox-caption" id="lightboxCaption"></div>
+    </div>
   </div>
 </div>
 
@@ -2841,6 +2892,9 @@ function renderHome() {
   // ── SPONSORED PLACEHOLDER ──
   h += adUnit();
 
+  // ── LOGIN NUDGE — guests only ──
+  if(!ST.user) h += `<div class="login-nudge"><div class="nudge-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C4622D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div><div class="nudge-text"><div class="nudge-title">${t('nudge_title')}</div><div class="nudge-sub">${t('nudge_sub')}</div></div><button class="nudge-btn" onclick="openSignIn()">${t('signin')}</button></div>`;
+
   // ── MARKETS ROW ──
   h += `<div class="section"><div class="section-header"><span class="section-title">${t('markets_near')}</span><span class="section-more" onclick="navigate('markets')">${t('see_all')}</span></div></div>`;
 
@@ -2905,12 +2959,11 @@ function renderHome() {
     });
   }
 
-  // ── LOGIN NUDGE + AD 4 + COMMUNITY SPOTLIGHT + COMING SOON + AD 5 ──
+  // ── AD 4 + COMMUNITY SPOTLIGHT + COMING SOON + AD 5 ──
   const charity = DATA.charity[ST.region] || DATA.charity['lee-county'];
-  h += `<div class="login-nudge"><div class="nudge-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C4622D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div><div class="nudge-text"><div class="nudge-title">${t('nudge_title')}</div><div class="nudge-sub">${t('nudge_sub')}</div></div><button class="nudge-btn" onclick="openSignIn()">${t('signin')}</button></div>
-  ${adUnit()}
-  <div class="section"><div class="section-header"><span class="section-title">💚 Community Spotlight</span></div></div>
-  <div style="margin:0 16px 16px;border-radius:var(--r-lg);overflow:hidden;border:0.5px solid var(--border);background:var(--surface)">
+  h += adUnit();
+  h += `<div class="section"><div class="section-header"><span class="section-title">💚 Community Spotlight</span></div></div>`;
+  h += `<div style="margin:0 16px 16px;border-radius:var(--r-lg);overflow:hidden;border:0.5px solid var(--border);background:var(--surface)">
     <div style="position:relative;height:160px;overflow:hidden">
       <img src="${charity.photo}" alt="${charity.name}" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.style.display='none'">
       <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.1) 0%,rgba(0,0,0,.55) 100%)"></div>
@@ -4323,7 +4376,38 @@ async function renderVendorProfile(id) {
         <button class="btn-follow" onclick="handleFollow(event,'vendor','${v.id}',this)" style="${isFollowing('vendor','${v.id}')?'background:var(--green);color:#fff;border-color:var(--green)':''}">${isFollowing('vendor','${v.id}')?t('following'):t('follow')}</button>
         <button onclick="shareProfile('${v.name}','${v.id}','vendor')" style="padding:7px 14px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:transparent;color:var(--text2);font-family:var(--font-sans)">📤 ${t('share')}</button>
       </div>
-      ${(!isClaimed && !ST.sandboxMode)?`<div class="unclaimed-banner"><span style="font-size:16px">⚠️</span><div class="unclaimed-text">${t('unclaimed_text')}</div><button class="claim-btn" onclick="navigate('vendors-join')">${t('claim_free')}</button></div>`:''}
+      ${(!isClaimed && !ST.sandboxMode)?`<div style="margin-top:8px;font-size:11px;color:var(--terra);cursor:pointer" onclick="navigate('vendors-join')">Own this business? Manage your free listing →</div>`:''}
+      ${(() => {
+            const nl = vendorNextLine(v);
+            if(!nl) return '';
+            const DAY_SHORT = {Sunday:'Sun',Monday:'Mon',Tuesday:'Tue',Wednesday:'Wed',Thursday:'Thu',Friday:'Fri',Saturday:'Sat'};
+            const dayOrder = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+            const todayIdx = new Date().getDay();
+            let markets = (v.markets||[]).map(id => getMarket(id)).filter(Boolean);
+            const inSeason = markets.filter(m => isOpen(m));
+            const outOfSeason = markets.filter(m => !isOpen(m));
+            const sortByNextDay = arr => [...arr].sort((a,b) => {
+              const aDiff = (dayOrder.indexOf(getNextMarketDay(a)) - todayIdx + 7) % 7;
+              const bDiff = (dayOrder.indexOf(getNextMarketDay(b)) - todayIdx + 7) % 7;
+              return aDiff - bDiff;
+            });
+            const hasInSeason = inSeason.length > 0;
+            const sorted = hasInSeason ? [...sortByNextDay(inSeason), ...sortByNextDay(outOfSeason)] : sortByNextDay(outOfSeason);
+            const first = sorted[0];
+            if(!first) return '';
+            const nextDay = getNextMarketDay(first);
+            const diff = (dayOrder.indexOf(nextDay) - todayIdx + 7) % 7;
+            let dayLabel;
+            if(hasInSeason && isOpen(first)) {
+              dayLabel = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : DAY_SHORT[nextDay] || nextDay.slice(0,3);
+            } else {
+              dayLabel = DAY_SHORT[nextDay] || nextDay.slice(0,3);
+            }
+            return `<div style="display:flex;align-items:center;gap:5px;margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              <span style="font-size:12px;color:var(--green-dk);font-weight:500">Next: ${first.name} · ${dayLabel}</span>
+            </div>`;
+          })()}
     </div>
 
     <!-- THIS WEEK'S UPDATE -->
@@ -4331,10 +4415,7 @@ async function renderVendorProfile(id) {
       <div style="font-size:10px;font-weight:600;color:var(--green-dk);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📣 ${t('this_week')}</div>
       ${v.weekly_update ? `<p style="font-size:13px;color:var(--text);line-height:1.5">${typeof v.weekly_update === 'object' ? v.weekly_update.text : v.weekly_update}</p>` : `<p style="font-size:13px;color:var(--text2);line-height:1.5;font-style:italic">No update posted yet this week.</p>`}
     </div>` : `<div style="background:var(--surface);border-bottom:0.5px solid var(--border);padding:12px 16px">
-      <div style="font-size:11px;color:var(--text3);display:flex;align-items:center;justify-content:space-between">
-        <span style="display:flex;align-items:center;gap:6px">🔒 Weekly updates not enabled</span>
-        ${!isClaimed ? `<span style="color:var(--terra);font-size:11px;cursor:pointer" onclick="navigate('vendors-join')">Are you this vendor? Claim your listing →</span>` : `<span style="color:var(--terra);font-size:11px;cursor:pointer" onclick="navigate('vendors-join')">Unlock with Pro →</span>`}
-      </div>
+      <div style="font-size:11px;color:var(--text3)">✨ Pro vendors post weekly updates here — what they're bringing this week, special items, and more.</div>
     </div>`}
 
     <!-- SECTION NAV -->
@@ -4418,19 +4499,23 @@ async function renderVendorProfile(id) {
     <div class="profile-section">
       <div class="profile-section-title">${t('photos')}</div>
       ${isPro ? (() => {
-        const gallery = v.gallery || [];
+        let gallery = v.gallery || [];
+        // Parse gallery if it came back from Supabase as a string
+        if(typeof gallery === 'string') { try { gallery = JSON.parse(gallery); } catch(e) { gallery = []; } }
+        // Also parse any individual items that are JSON strings
+        gallery = gallery.map(p => { if(typeof p === 'string' && p.startsWith('{')) { try { return JSON.parse(p); } catch(e) { return p; } } return p; });
         if(gallery.length === 0) return `<p style="font-size:13px;color:var(--text2);font-style:italic">No photos yet.</p>`;
-        return `<div class="photo-grid">${gallery.map(photo => {
+        ST.currentGallery = gallery;
+        return `<div class="photo-strip" id="photoStrip">${gallery.map((photo, idx) => {
           const url = typeof photo === 'object' ? photo.url : photo;
-          const caption = typeof photo === 'object' ? photo.caption : '';
-          return `<div class="photo-slot" style="background:url(${url}) center/cover no-repeat;position:relative">
-            ${caption ? `<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.5);color:#fff;font-size:10px;padding:4px 6px;line-height:1.3">${caption}</div>` : ''}
+          return `<div class="photo-thumb" onclick="openPhotoLightbox(${idx})" role="button" tabindex="0" aria-label="View photo ${idx+1}">
+            <img class="lazy-pending" data-src="${url}" alt="Vendor photo ${idx+1}">
+            <div class="photo-thumb-overlay"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg></div>
           </div>`;
         }).join('')}</div>`;
-      })() : `
-      <div style="background:var(--amber-lt);border:0.5px solid #F0D090;border-radius:var(--r-md);padding:12px 14px;display:flex;align-items:center;gap:10px">
-        <span style="font-size:20px">🔒</span>
-        <div><div style="font-size:12px;font-weight:500;color:#7A4E08">${t('gallery_pro')}</div><div style="font-size:11px;color:var(--amber)">${t('gallery_pro_sub')}</div></div>
+      })() : `<div style="padding:4px 0">
+        <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:4px">Gallery photos — Pro feature</div>
+        <div style="font-size:12px;color:var(--text3);font-style:italic">This vendor hasn't added photos yet.</div>
       </div>`}
     </div>
 
@@ -4440,18 +4525,13 @@ async function renderVendorProfile(id) {
       <div class="profile-section-title">Products & Menu</div>
       ${isPro
         ? '<div id="productCatalogDisplay"><p style="font-size:13px;color:var(--text2);font-style:italic">Loading products...</p></div>'
-        : `<div style="background:var(--amber-lt);border:0.5px solid #F0D090;border-radius:var(--r-md);padding:12px 14px;display:flex;align-items:center;gap:10px">
-        <span style="font-size:20px">🔒</span>
-        <div><div style="font-size:12px;font-weight:500;color:#7A4E08">Products & Menu — Pro feature</div><div style="font-size:11px;color:var(--amber)">${isClaimed?'Upgrade to Pro to list your products':'Claim this listing to add products'}</div></div>
-        ${isClaimed?'<button onclick="navigate(\'vendors-join\')" style="padding:5px 12px;background:var(--amber);color:#fff;border:none;border-radius:var(--r-pill);font-size:11px;cursor:pointer;white-space:nowrap;font-family:var(--font-sans)">Upgrade</button>':''}
-      </div>`}
+        : `<div style="padding:4px 0">
+          <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:4px">Products & Menu — Pro feature</div>
+          <div style="font-size:12px;color:var(--text3);font-style:italic">This vendor hasn't added products yet.</div>
+        </div>`}
     </div>
 
-    <!-- ALSO AT THIS MARKET: all tiers, different categories, auto-scroll -->
-    <div id="alsoAtMarketStrip"></div>
-
-    <!-- PRE-ORDER COMING SOON — Pro vendors only -->
-    ${isPro ? `
+    <!-- PRE-ORDER COMING SOON — all tiers -->
     <div class="profile-section" style="background:var(--amber-lt);border-top:0.5px solid #F0D090;border-bottom:0.5px solid #F0D090;margin-bottom:0">
       <div style="display:flex;align-items:center;gap:12px">
         <div style="font-size:28px">🛒</div>
@@ -4461,7 +4541,10 @@ async function renderVendorProfile(id) {
         </div>
         <button onclick="${ST.user ? `savePreOrderInterest('${v.id}','shopper')` : `openSignIn('signup')`}" style="flex-shrink:0;padding:6px 12px;background:var(--amber);color:#fff;border:none;border-radius:var(--r-pill);font-size:11px;cursor:pointer;font-weight:600;font-family:var(--font-sans);white-space:nowrap">Get notified</button>
       </div>
-    </div>` : ''}
+    </div>
+
+    <!-- ALSO AT THIS MARKET: all tiers, different categories, auto-scroll -->
+    <div id="alsoAtMarketStrip"></div>
 
     <!-- REVIEWS -->
     <div style="height:0;overflow:hidden;visibility:hidden" id="vnd-reviews"></div>
@@ -4475,7 +4558,7 @@ async function renderVendorProfile(id) {
     </div>
   </div>`;
   document.getElementById('scrollBody').innerHTML = h;
-  setTimeout(() => initSectionNavObserver('vendorSectionNav', ['vnd-about','vnd-contact','vnd-schedule','vnd-photos','vnd-products','vnd-reviews']), 100);
+  setTimeout(() => { initSectionNavObserver('vendorSectionNav', ['vnd-about','vnd-contact','vnd-schedule','vnd-photos','vnd-products','vnd-reviews']); initPhotoStrip(); }, 100);
   if(ST.pendingScrollSection) {
     const sec = ST.pendingScrollSection;
     ST.pendingScrollSection = null;
@@ -5970,9 +6053,9 @@ async function addGalleryPhoto(input) {
   try {
     let photoUrl;
     if(supabaseClient) {
-      const ext = file.name.split('.').pop() || 'jpg';
-      const path = `gallery/${vendorId}/${Date.now()}.${ext}`;
-      photoUrl = await uploadToStorage(file, path);
+      const compressed = await compressImage(file, 1200, 0.80);
+      const path = `gallery/${vendorId}/${Date.now()}.jpg`;
+      photoUrl = await uploadToStorage(compressed, path);
     } else {
       photoUrl = URL.createObjectURL(file);
     }
@@ -6005,7 +6088,7 @@ function refreshGalleryGrid(v) {
     const cap = typeof photo === 'object' ? (photo.caption || '') : '';
     return `<div style="border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;background:var(--surface)">
       <div style="height:100px;background:var(--surface2);position:relative;display:flex;align-items:center;justify-content:center">
-        <img src="${url}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">
+        <img src="${url}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">
         <button onclick="deleteGalleryPhoto(${idx})" style="position:absolute;top:4px;right:4px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);padding:3px 8px;font-size:11px;cursor:pointer;font-weight:500;z-index:2;font-family:var(--font-sans)">Delete</button>
         <span style="font-size:11px;color:var(--text3);z-index:1">📷</span>
       </div>
@@ -6055,9 +6138,9 @@ async function vendorOnboardingNext(step) {
   // Save data from current step — works with or without local vendor object
   if(step === 2 && ST.pendingCoverPhotoFile && vendorId && supabaseClient) {
     try {
-      const ext = ST.pendingCoverPhotoFile.name.split('.').pop() || 'jpg';
-      const path = `profile/${vendorId}/photo.${ext}`;
-      const url = await uploadToStorage(ST.pendingCoverPhotoFile, path);
+      const compressed = await compressImage(ST.pendingCoverPhotoFile, 1200, 0.80);
+      const path = `profile/${vendorId}/photo.jpg`;
+      const url = await uploadToStorage(compressed, path);
       if(v) v.photo = url;
       ST.pendingOnboardPhoto = url;
       ST.pendingCoverPhotoFile = null;
@@ -7250,7 +7333,7 @@ async function onAuthSuccess(user) {
   }
 
   // Only navigate to dashboard on fresh login — don't disrupt tab browsing
-  const alreadyInDash = window.location.pathname === '/vendors/dashboard';
+  const alreadyInDash = ST.currentPage !== null || ST.tab !== 'home';
   if(role === 'vendor' && vendorId && !alreadyInDash) {
     ST.tab = 'home';
     ST.currentPage = null;
@@ -7366,6 +7449,29 @@ function submitAreaRequest() {
 
 /* ── SUPABASE WRITE HELPERS ── */
 /* ── SUPABASE STORAGE UPLOAD ── */
+/* ── IMAGE COMPRESSION ── */
+function compressImage(file, maxWidth, quality) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let w = img.width, h = img.height;
+        if(w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        canvas.toBlob(blob => {
+          resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
+        }, 'image/jpeg', quality);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 async function uploadToStorage(file, path) {
   if(!supabaseClient) throw new Error('Supabase not connected');
   const { data, error } = await supabaseClient.storage
@@ -7389,6 +7495,14 @@ async function dbSaveVendor(vendor) {
   }
   try {
     const { markets, ...vendorData } = vendor;
+    // Ensure gallery is a proper array of objects before saving
+    if(vendorData.gallery) {
+      vendorData.gallery = vendorData.gallery.map(p => {
+        if(typeof p === 'string' && p.startsWith('{')) { try { return JSON.parse(p); } catch(e) { return {url:p,caption:''}; } }
+        if(typeof p === 'string') return { url: p, caption: '' };
+        return p;
+      });
+    }
     const { error } = await supabaseClient.from('vendors').upsert(vendorData);
     if(error) throw error;
     // Update vendor_markets
@@ -8648,15 +8762,14 @@ async function saveVendorProfile() {
   // Profile photo — upload to Supabase Storage
   if(ST.pendingCoverPhotoFile) {
     try {
-      const ext = ST.pendingCoverPhotoFile.name.split('.').pop() || 'jpg';
-      const path = `profile/${vendorId}/photo.${ext}`;
-      const url = await uploadToStorage(ST.pendingCoverPhotoFile, path);
+      const compressed = await compressImage(ST.pendingCoverPhotoFile, 1200, 0.80);
+      const path = `profile/${vendorId}/photo.jpg`;
+      const url = await uploadToStorage(compressed, path);
       v.photo = url;
       ST.pendingCoverPhotoFile = null;
       ST.pendingCoverPhoto = null;
     } catch(e) {
       console.warn('Photo upload failed:', e);
-      // Fall back to base64 preview if storage fails
       if(ST.pendingCoverPhoto) { v.photo = ST.pendingCoverPhoto; ST.pendingCoverPhoto = null; }
     }
   }
@@ -10192,6 +10305,104 @@ function initSpotlightCarousel() {
       });
     }
   });
+}
+
+/* ── PHOTO LIGHTBOX ── */
+let _lightboxGallery = [];
+let _lightboxIdx = 0;
+
+function openPhotoLightbox(startIdx) {
+  _lightboxGallery = ST.currentGallery || [];
+  if(_lightboxGallery.length === 0) return;
+  _lightboxIdx = startIdx;
+  _renderLightboxSlide();
+  const lb = document.getElementById('photoLightbox');
+  if(lb) lb.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closePhotoLightbox() {
+  const lb = document.getElementById('photoLightbox');
+  if(lb) lb.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function shiftLightbox(dir) {
+  const total = _lightboxGallery.length;
+  _lightboxIdx = ((_lightboxIdx + dir) % total + total) % total;
+  _renderLightboxSlide();
+}
+
+function _renderLightboxSlide() {
+  const photo = _lightboxGallery[_lightboxIdx];
+  const url = typeof photo === 'object' ? photo.url : photo;
+  const caption = typeof photo === 'object' ? (photo.caption || '') : '';
+  const img = document.getElementById('lightboxImg');
+  const cap = document.getElementById('lightboxCaption');
+  const counter = document.getElementById('lightboxCounter');
+  const prev = document.getElementById('lightboxPrev');
+  const next = document.getElementById('lightboxNext');
+  if(img) img.src = url;
+  if(cap) cap.textContent = caption;
+  if(counter) counter.textContent = _lightboxGallery.length > 1 ? `${_lightboxIdx + 1} / ${_lightboxGallery.length}` : '';
+  if(prev) prev.disabled = false;
+  if(next) next.disabled = false;
+}
+
+// Keyboard + swipe support for lightbox
+document.addEventListener('keydown', e => {
+  const lb = document.getElementById('photoLightbox');
+  if(!lb || !lb.classList.contains('open')) return;
+  if(e.key === 'Escape') closePhotoLightbox();
+  if(e.key === 'ArrowLeft') shiftLightbox(-1);
+  if(e.key === 'ArrowRight') shiftLightbox(1);
+});
+
+// Close on backdrop tap (not on img/arrows/close btn)
+document.addEventListener('click', e => {
+  const lb = document.getElementById('photoLightbox');
+  if(!lb || !lb.classList.contains('open')) return;
+  if(e.target === lb) closePhotoLightbox();
+});
+
+// Swipe support
+(function() {
+  let tsX = 0;
+  document.addEventListener('touchstart', e => {
+    const lb = document.getElementById('photoLightbox');
+    if(!lb || !lb.classList.contains('open')) return;
+    tsX = e.touches[0].clientX;
+  }, {passive:true});
+  document.addEventListener('touchend', e => {
+    const lb = document.getElementById('photoLightbox');
+    if(!lb || !lb.classList.contains('open')) return;
+    const diff = tsX - e.changedTouches[0].clientX;
+    if(Math.abs(diff) > 40) shiftLightbox(diff > 0 ? 1 : -1);
+  }, {passive:true});
+})();
+
+/* ── PHOTO STRIP LAZY LOADER ── */
+function initPhotoStrip() {
+  const strip = document.getElementById('photoStrip');
+  if(!strip) return;
+  const imgs = strip.querySelectorAll('img.lazy-pending');
+  if(!imgs.length) return;
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if(entry.isIntersecting) {
+        const img = entry.target;
+        const src = img.dataset.src;
+        if(src) {
+          img.src = src;
+          img.removeAttribute('data-src');
+          img.addEventListener('load', () => img.classList.replace('lazy-pending','lazy-loaded'), {once:true});
+          img.addEventListener('error', () => img.classList.replace('lazy-pending','lazy-loaded'), {once:true});
+        }
+        observer.unobserve(img);
+      }
+    });
+  }, { root: strip, rootMargin: '0px 200px 0px 0px', threshold: 0 });
+  imgs.forEach(img => observer.observe(img));
 }
 
 /* ── INIT ── */
