@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.61.13 -->
+<!-- v1.62.11 -->
 <!-- Google Analytics — replace G-XXXXXXXXXX with your real Measurement ID -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
 <script>
@@ -873,39 +873,10 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
       </div>
       <div id="locationModalSuggestions" style="margin-top:6px;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-md);overflow:hidden;display:none"></div>
     </div>
+    <button onclick="useMyLocation()" style="width:100%;padding:10px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;color:var(--text2);font-family:var(--font-sans);margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:6px">📍 Use my location</button>
     <button class="btn-primary" onclick="applyLocationModal()">Set location</button>
     <div style="margin-top:16px">
-      <div style="font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">🌴 Lee County</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
-        <div onclick="quickSetLocation('Fort Myers, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Fort Myers</div>
-        <div onclick="quickSetLocation('Cape Coral, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Cape Coral</div>
-        <div onclick="quickSetLocation('Bonita Springs, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Bonita Springs</div>
-        <div onclick="quickSetLocation('Estero, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Estero</div>
-        <div onclick="quickSetLocation('Sanibel, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Sanibel</div>
-        <div onclick="quickSetLocation('Captiva, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Captiva</div>
-        <div onclick="quickSetLocation('Babcock Ranch, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Babcock Ranch</div>
-        <div onclick="quickSetLocation('Boca Grande, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Boca Grande</div>
-      </div>
-      <div style="font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">🌅 Sarasota / Bradenton</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
-        <div onclick="quickSetLocation('Sarasota, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Sarasota</div>
-        <div onclick="quickSetLocation('Bradenton, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Bradenton</div>
-        <div onclick="quickSetLocation('Siesta Key, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Siesta Key</div>
-        <div onclick="quickSetLocation('Venice, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Venice</div>
-        <div onclick="quickSetLocation('Lakewood Ranch, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Lakewood Ranch</div>
-        <div onclick="quickSetLocation('Anna Maria, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Anna Maria</div>
-        <div onclick="quickSetLocation('Englewood, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Englewood</div>
-      </div>
-      <div style="font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">🌆 Tampa Bay</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px">
-        <div onclick="quickSetLocation('Tampa, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Tampa</div>
-        <div onclick="quickSetLocation('St. Petersburg, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">St. Petersburg</div>
-        <div onclick="quickSetLocation('Clearwater, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Clearwater</div>
-        <div onclick="quickSetLocation('Dunedin, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Dunedin</div>
-        <div onclick="quickSetLocation('Safety Harbor, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Safety Harbor</div>
-        <div onclick="quickSetLocation('Tarpon Springs, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">Tarpon Springs</div>
-        <div onclick="quickSetLocation('St. Pete Beach, FL')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)">St. Pete Beach</div>
-      </div>
+      <div id="locationModalChips"></div>
     </div>
   </div>
 </div>
@@ -1013,6 +984,10 @@ async function loadFromSupabase() {
     const { data: vendorMarkets, error: vmErr } = await supabaseClient.from('vendor_markets').select('*');
     if(vmErr) throw vmErr;
 
+    // Load regions and cities for dynamic geography
+    const { data: regions } = await supabaseClient.from('regions').select('*').order('sort_order');
+    const { data: cities } = await supabaseClient.from('cities').select('*');
+
     // If we got data, use it
     if(vendors && vendors.length > 0) {
       // Attach markets array to each vendor
@@ -1026,6 +1001,8 @@ async function loadFromSupabase() {
       DATA.operators = operators || DATA.operators;
       DATA.markets = markets || DATA.markets;
       DATA.vendors = vendors || DATA.vendors;
+      if(regions && regions.length > 0) DATA.regions = regions;
+      if(cities && cities.length > 0) DATA.cities = cities;
 
       // Rebuild market_photos from market.photo field
       const photos = {};
@@ -1067,6 +1044,42 @@ async function loadFromSupabase() {
 
 /* ── DATA ── */
 const DATA = {
+  regions:[
+    {id:'lee-county',        label:'Lee County',              emoji:'🌴', super_region:'Southwest Florida',    sort_order:1},
+    {id:'collier-county',    label:'Naples / Collier County', emoji:'🌺', super_region:'Southwest Florida',    sort_order:2},
+    {id:'sarasota-bradenton',label:'Sarasota / Bradenton',    emoji:'🌅', super_region:'Southwest Florida',    sort_order:3},
+    {id:'tampa-bay',         label:'Tampa Bay',               emoji:'🌆', super_region:'West-Central Florida', sort_order:4}
+  ],
+  cities:[
+    {id:'fort-myers',       city:'Fort Myers',       state:'FL', lat:26.6406, lng:-81.8723, region_id:'lee-county'},
+    {id:'cape-coral',       city:'Cape Coral',       state:'FL', lat:26.5629, lng:-81.9495, region_id:'lee-county'},
+    {id:'bonita-springs',   city:'Bonita Springs',   state:'FL', lat:26.3398, lng:-81.7787, region_id:'lee-county'},
+    {id:'estero',           city:'Estero',           state:'FL', lat:26.4386, lng:-81.8068, region_id:'lee-county'},
+    {id:'sanibel',          city:'Sanibel',          state:'FL', lat:26.4407, lng:-82.0736, region_id:'lee-county'},
+    {id:'captiva',          city:'Captiva',          state:'FL', lat:26.5256, lng:-82.1908, region_id:'lee-county'},
+    {id:'fort-myers-beach', city:'Fort Myers Beach', state:'FL', lat:26.4522, lng:-81.9479, region_id:'lee-county'},
+    {id:'babcock-ranch',    city:'Babcock Ranch',    state:'FL', lat:26.7838, lng:-81.7473, region_id:'lee-county'},
+    {id:'boca-grande',      city:'Boca Grande',      state:'FL', lat:26.7506, lng:-82.2577, region_id:'lee-county'},
+    {id:'naples',           city:'Naples',           state:'FL', lat:26.1420, lng:-81.7948, region_id:'collier-county'},
+    {id:'marco-island',     city:'Marco Island',     state:'FL', lat:25.9410, lng:-81.7184, region_id:'collier-county'},
+    {id:'immokalee',        city:'Immokalee',        state:'FL', lat:26.4181, lng:-81.4162, region_id:'collier-county'},
+    {id:'ave-maria',        city:'Ave Maria',        state:'FL', lat:26.2717, lng:-81.3895, region_id:'collier-county'},
+    {id:'sarasota',         city:'Sarasota',         state:'FL', lat:27.3364, lng:-82.5307, region_id:'sarasota-bradenton'},
+    {id:'bradenton',        city:'Bradenton',        state:'FL', lat:27.4989, lng:-82.5748, region_id:'sarasota-bradenton'},
+    {id:'siesta-key',       city:'Siesta Key',       state:'FL', lat:27.2660, lng:-82.5474, region_id:'sarasota-bradenton'},
+    {id:'venice',           city:'Venice',           state:'FL', lat:27.0998, lng:-82.4543, region_id:'sarasota-bradenton'},
+    {id:'lakewood-ranch',   city:'Lakewood Ranch',   state:'FL', lat:27.4103, lng:-82.3947, region_id:'sarasota-bradenton'},
+    {id:'anna-maria',       city:'Anna Maria',       state:'FL', lat:27.5313, lng:-82.7323, region_id:'sarasota-bradenton'},
+    {id:'englewood',        city:'Englewood',        state:'FL', lat:26.9623, lng:-82.3571, region_id:'sarasota-bradenton'},
+    {id:'bradenton-beach',  city:'Bradenton Beach',  state:'FL', lat:27.4674, lng:-82.7098, region_id:'sarasota-bradenton'},
+    {id:'tampa',            city:'Tampa',            state:'FL', lat:27.9506, lng:-82.4572, region_id:'tampa-bay'},
+    {id:'st-petersburg',    city:'St. Petersburg',   state:'FL', lat:27.7676, lng:-82.6403, region_id:'tampa-bay'},
+    {id:'clearwater',       city:'Clearwater',       state:'FL', lat:27.9659, lng:-82.8001, region_id:'tampa-bay'},
+    {id:'dunedin',          city:'Dunedin',          state:'FL', lat:28.0194, lng:-82.7846, region_id:'tampa-bay'},
+    {id:'safety-harbor',    city:'Safety Harbor',    state:'FL', lat:27.9936, lng:-82.6921, region_id:'tampa-bay'},
+    {id:'tarpon-springs',   city:'Tarpon Springs',   state:'FL', lat:28.1458, lng:-82.7578, region_id:'tampa-bay'},
+    {id:'st-pete-beach',    city:'St. Pete Beach',   state:'FL', lat:27.7245, lng:-82.7423, region_id:'tampa-bay'}
+  ],
   operators:[
     {id:"local-roots",name:"Local Roots LLC",website:"https://www.buylocallee.com"},
     {id:"cape-coral-chamber",name:"Cape Coral Chamber of Commerce",website:"https://capecoralfarmersmarket.com"},
@@ -1453,7 +1466,26 @@ let ST = {
     {id:'c4',vendorId:'island-jams',vendorName:'Island Jams & Jellies',claimant:'Susan Lee',email:'susan@islandjams.com',phone:'239-555-0128',message:'This is my small business.',date:'May 25, 2026',status:'denied',denyReason:'Could not verify ownership'}
   ],
   adminMsgThread: null,
-  adminMsgTab: 'inbox'
+  adminMsgTab: 'inbox',
+  areasRegionsCollapsed: false,
+  areasCitiesCollapsed: false,
+  areasRegionsPage: 0,
+  areasCitiesPage: 0,
+  adminVendorPage: 0,
+  adminVendorSearch: '',
+  adminVendorRegion: '',
+  adminVendorCity: '',
+  adminVendorCat: '',
+  adminVendorTier: '',
+  adminVendorMarket: '',
+  adminMarketPage: 0,
+  adminMarketSearch: '',
+  adminMarketRegion: '',
+  adminMarketCity: '',
+  adminMarketTier: '',
+  adminMarketVendor: '',
+  marketVendorSearch: '',
+  marketVendorCat: ''
 };
 
 /* ── TRANSLATIONS ── */
@@ -1738,11 +1770,13 @@ function vendorNextLine(vendor) {
     dayLabel = DAY_SHORT[nextDay] || nextDay.slice(0,3);
   }
 
+  const timeLabel = first.start_time ? ' · ' + formatTime(first.start_time) : '';
+
   // Market name truncates, day never gets cut
   return `<div style="display:flex;align-items:center;gap:0;margin-top:3px;min-width:0">
     <span style="font-size:11px;color:var(--text3);white-space:nowrap;flex-shrink:0">Next:&nbsp;</span>
     <span style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0">${first.name}</span>
-    <span style="font-size:11px;color:var(--text3);white-space:nowrap;flex-shrink:0">&nbsp;· ${dayLabel}</span>
+    <span style="font-size:11px;color:var(--text3);white-space:nowrap;flex-shrink:0">&nbsp;· ${dayLabel}${timeLabel}</span>
   </div>`;
 }
 
@@ -1824,6 +1858,30 @@ function getMarketScheduleLabel(m) {
   // Single day (standard)
   const d = days[0] || '';
   return d ? d + 's' : '';
+}
+
+// Compact label for market cards — shorter format for space-constrained display
+function getMarketCardLabel(m) {
+  const DAY_SHORT = {Sunday:'Sun',Monday:'Mon',Tuesday:'Tue',Wednesday:'Wed',Thursday:'Thu',Friday:'Fri',Saturday:'Sat'};
+  const formatShortTime = t => {
+    if(!t) return '';
+    const [h] = t.split(':');
+    const hr = parseInt(h);
+    return String(hr % 12 || 12);
+  };
+  const timeShort = (s, e) => s && e ? formatShortTime(s) + '–' + formatShortTime(e) : '';
+
+  if(m.frequency && m.frequency !== 'weekly' && m.frequency !== 'biweekly') {
+    const days = getMarketDays(m);
+    const day = days[0] || m.day_of_week || '';
+    const dayShort = DAY_SHORT[day] || day.slice(0,3);
+    const ordMap = {'monthly-1st':'1st','monthly-2nd':'2nd','monthly-3rd':'3rd','monthly-4th':'4th','monthly-last':'Last'};
+    const ord = ordMap[m.frequency];
+    const time = timeShort(m.start_time, m.end_time);
+    if(ord) return 'Every ' + ord + ' ' + dayShort + (time ? ' · ' + time : '');
+  }
+  // Standard — use existing label + full time range
+  return getMarketScheduleLabel(m) + (formatTimeRange(m.start_time, m.end_time) ? ' ' + formatTimeRange(m.start_time, m.end_time) : '');
 }
 
 // Returns true if a market runs on the given day name.
@@ -2185,7 +2243,7 @@ function buildGlobalSearchResults(val) {
   )).slice(0, 5);
 
   // Cities
-  results.cities = CITY_SUGGESTIONS.filter(c =>
+  results.cities = getCitySuggestions().filter(c =>
     c.city.toLowerCase().startsWith(q) ||
     (c.city+', '+c.state).toLowerCase().startsWith(q) ||
     c.city.toLowerCase().includes(q)
@@ -2609,24 +2667,43 @@ function renderFilterStrip() {
 
 function updateLocation(val) {
   ST.location = val;
-  const lc = val.toLowerCase();
-  const leeTerms = ['fort myers','cape coral','bonita','estero','sanibel','captiva','babcock','boca grande','gateway','lehigh','miromar','fort myers beach','33901','33904','33907','33908','33909','33912','33913','33919','33921','33924','33928','33931','33935','33967','33982','34134','34135'];
-  const srqTerms = ['sarasota','bradenton','siesta key','anna maria','englewood','venice','wellen','lakewood ranch','nokomis','osprey','longboat','941','34201','34202','34205','34208','34209','34210','34211','34212','34215','34216','34217','34221','34222','34223','34228','34229','34231','34232','34233','34234','34235','34236','34237','34238','34239','34240','34241','34242','34243','34285','34292','34293'];
-  const tampTerms = ['tampa','st pete','st. pete','saint pete','clearwater','dunedin','tarpon springs','safety harbor','st pete beach','ybor','pinellas','hillsborough','727','813','33602','33603','33604','33605','33606','33607','33609','33611','33629','33701','33702','33703','33704','33705','33706','33707','33708','33709','33710','33711','33712','33713','33714','33755','33759','33760','33763','33771','33786','34689','34695','34698'];
-  
-  const inLee = leeTerms.some(t => lc.includes(t));
-  const inSRQ = srqTerms.some(t => lc.includes(t));
-  const inTampa = tampTerms.some(t => lc.includes(t));
-  
-  if(inLee) {
+  const lc = val.toLowerCase().trim();
+
+  // First: check against DATA.cities dynamically (covers all regions including future ones)
+  const cityMatch = DATA.cities.find(c =>
+    lc.includes(c.city.toLowerCase()) ||
+    (c.city + ', ' + c.state).toLowerCase() === lc
+  );
+  if(cityMatch) {
+    ST.region = cityMatch.region_id;
+    ST.currentPage = null;
+    renderFilterStrip(); renderCurrentPage();
+    return;
+  }
+
+  // Fallback: hardcoded ZIP codes and alternate city spellings not in DATA.cities
+  const leeZips = ['33901','33904','33907','33908','33909','33912','33913','33919','33921','33924','33928','33931','33935','33967','33982','34134','34135'];
+  const leeAlt  = ['lehigh','miromar','gateway'];
+  const collierZips = ['34102','34103','34104','34105','34108','34109','34110','34112','34113','34114','34116','34117','34119','34120','34140','34141','34142','34145'];
+  const collierAlt  = ['golden gate','pelican bay','vanderbilt beach','park shore'];
+  const srqZips = ['34201','34202','34205','34208','34209','34210','34211','34212','34215','34216','34217','34221','34222','34223','34228','34229','34231','34232','34233','34234','34235','34236','34237','34238','34239','34240','34241','34242','34243','34285','34292','34293'];
+  const srqAlt  = ['wellen','nokomis','osprey','longboat','941'];
+  const tampZips = ['33602','33603','33604','33605','33606','33607','33609','33611','33629','33701','33702','33703','33704','33705','33706','33707','33708','33709','33710','33711','33712','33713','33714','33755','33759','33760','33763','33771','33786','34689','34695','34698'];
+  const tampAlt  = ['st pete','st. pete','saint pete','ybor','pinellas','hillsborough','727','813'];
+
+  if([...leeZips,...leeAlt].some(t => lc.includes(t))) {
     ST.region = 'lee-county';
     ST.currentPage = null;
     renderFilterStrip(); renderCurrentPage();
-  } else if(inSRQ) {
+  } else if([...collierZips,...collierAlt].some(t => lc.includes(t))) {
+    ST.region = 'collier-county';
+    ST.currentPage = null;
+    renderFilterStrip(); renderCurrentPage();
+  } else if([...srqZips,...srqAlt].some(t => lc.includes(t))) {
     ST.region = 'sarasota-bradenton';
     ST.currentPage = null;
     renderFilterStrip(); renderCurrentPage();
-  } else if(inTampa) {
+  } else if([...tampZips,...tampAlt].some(t => lc.includes(t))) {
     ST.region = 'tampa-bay';
     ST.currentPage = null;
     renderFilterStrip(); renderCurrentPage();
@@ -2845,7 +2922,7 @@ function renderHome() {
   const regionVendors = ST.region ? DATA.vendors.filter(v=>v.published&&v.region===ST.region) : DATA.vendors.filter(v=>v.published);
   const marketCount = regionMarkets.length;
   const vendorCount2 = regionVendors.length;
-  const regionLabel = ST.region==='sarasota-bradenton'?'Sarasota / Bradenton':ST.region==='tampa-bay'?'Tampa Bay':'Lee County, FL';
+  const regionLabel = ST.region==='sarasota-bradenton'?'Sarasota / Bradenton':ST.region==='tampa-bay'?'Tampa Bay':ST.region==='collier-county'?'Naples / Collier County':'Lee County, FL';
 
   let h = '';
 
@@ -2908,11 +2985,11 @@ function renderHome() {
       h += `<div class="market-card" onclick="navigate('market','${m.id}')">
         <div class="market-img" style="background:${mbg(i)}">
           ${photo ? `<img src="${photo}" alt="${m.name}" style="width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0" loading="lazy">` : `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="${micn(i)}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2l1.5 4H21l-2 7H6L4.5 6"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>`}
-          <span class="open-badge ${open?'open':'seasonal'}">${getMarketScheduleLabel(m).replace(/s$/,'').slice(0,3).toUpperCase()}</span>
+          <span class="open-badge ${open?'open':'seasonal'}">${(()=>{ const days=getMarketDays(m); const day=days[0]||m.day_of_week||''; const DAY_SHORT={Sunday:'SUN',Monday:'MON',Tuesday:'TUE',Wednesday:'WED',Thursday:'THU',Friday:'FRI',Saturday:'SAT'}; return DAY_SHORT[day]||day.slice(0,3).toUpperCase(); })()}</span>
         </div>
         <div class="market-info">
           <div class="market-name">${m.name.replace(' Farmers Market','').replace(' Market','')}</div>
-          <div class="market-meta-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${getMarketScheduleLabel(m)} ${formatTimeRange(m.start_time,m.end_time)}</div>
+          <div class="market-meta-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${getMarketCardLabel(m)}</div>
           <div class="market-meta-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${m.city} <span style="color:var(--text3)">· ${vendorCount(m.id)} ${vendorCount(m.id)===1?'vendor':t('vendors_c')}</span></div>
           <div class="market-meta-row" style="margin-top:4px"><span style="font-size:10px;padding:2px 7px;border-radius:var(--r-pill);${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'In Season':(m.season_start==='All Year'?'All Year':m.season_start.slice(0,3)+'–'+m.season_end.slice(0,3))}</span></div>
         </div></div>`;
@@ -2992,7 +3069,6 @@ function renderHome() {
 
 /* ── VENDORS LIST PAGE ── */
 function renderVendorsList() {
-  hideFilterUI();
   const sb = document.getElementById('scrollBody');
   if(sb) sb.classList.remove('explore-mode');
 
@@ -3010,6 +3086,15 @@ function renderVendorsList() {
       );
     }
     if(catFilter) vendors = vendors.filter(v => v.category === catFilter);
+    if(ST.dateFilter) {
+      const allowedDays = ST.dateFilter.days || (ST.dateFilter.day ? [ST.dateFilter.day] : []);
+      if(allowedDays.length > 0) {
+        vendors = vendors.filter(v => v.markets.some(mid => {
+          const m = getMarket(mid);
+          return m && allowedDays.some(d => marketHasDay(m, d));
+        }));
+      }
+    }
     vendors = sortVendors(vendors);
 
     const listEl = document.getElementById('vendorsListBody');
@@ -3862,33 +3947,8 @@ function clearMapSearch() {
 }
 
 // US city suggestions database — covered cities + major US cities
-const CITY_SUGGESTIONS = [
-  // Lee County (covered — show special badge)
-  {city:'Fort Myers', state:'FL', lat:26.6406, lng:-81.8723, covered:true},
-  {city:'Cape Coral', state:'FL', lat:26.5629, lng:-81.9495, covered:true},
-  {city:'Bonita Springs', state:'FL', lat:26.3398, lng:-81.7787, covered:true},
-  {city:'Estero', state:'FL', lat:26.4386, lng:-81.8068, covered:true},
-  {city:'Sanibel', state:'FL', lat:26.4407, lng:-82.0736, covered:true},
-  {city:'Captiva', state:'FL', lat:26.5256, lng:-82.1908, covered:true},
-  {city:'Fort Myers Beach', state:'FL', lat:26.4522, lng:-81.9479, covered:true},
-  {city:'Babcock Ranch', state:'FL', lat:26.7838, lng:-81.7473, covered:true},
-  {city:'Boca Grande', state:'FL', lat:26.7506, lng:-82.2577, covered:true},
-  {city:'Sarasota', state:'FL', lat:27.3364, lng:-82.5307, covered:true},
-  {city:'Bradenton', state:'FL', lat:26.4825, lng:-82.5743, covered:true},
-  {city:'Siesta Key', state:'FL', lat:27.2660, lng:-82.5474, covered:true},
-  {city:'Venice', state:'FL', lat:27.0998, lng:-82.4543, covered:true},
-  {city:'Lakewood Ranch', state:'FL', lat:27.4103, lng:-82.3947, covered:true},
-  {city:'Anna Maria', state:'FL', lat:27.5313, lng:-82.7323, covered:true},
-  {city:'Englewood', state:'FL', lat:26.9623, lng:-82.3571, covered:true},
-  {city:'Bradenton Beach', state:'FL', lat:27.4674, lng:-82.7098, covered:true},
-  {city:'Tampa', state:'FL', lat:27.9506, lng:-82.4572, covered:true},
-  {city:'St. Petersburg', state:'FL', lat:27.7676, lng:-82.6403, covered:true},
-  {city:'Clearwater', state:'FL', lat:27.9659, lng:-82.8001, covered:true},
-  {city:'Dunedin', state:'FL', lat:28.0194, lng:-82.7846, covered:true},
-  {city:'Safety Harbor', state:'FL', lat:27.9936, lng:-82.6921, covered:true},
-  {city:'Tarpon Springs', state:'FL', lat:28.1458, lng:-82.7578, covered:true},
-  {city:'St. Pete Beach', state:'FL', lat:27.7245, lng:-82.7423, covered:true},
-  // Major US cities
+// Covered cities are built dynamically from DATA.cities at runtime (see getCitySuggestions)
+const CITY_SUGGESTIONS_UNCOVERED = [
   {city:'New York', state:'NY', lat:40.7128, lng:-74.0060, covered:false},
   {city:'Los Angeles', state:'CA', lat:34.0522, lng:-118.2437, covered:false},
   {city:'Chicago', state:'IL', lat:41.8781, lng:-87.6298, covered:false},
@@ -3936,6 +3996,13 @@ const CITY_SUGGESTIONS = [
   {city:'Honolulu', state:'HI', lat:21.3069, lng:-157.8583, covered:false}
 ];
 
+function getCitySuggestions() {
+  const covered = DATA.cities.map(c => ({
+    city: c.city, state: c.state, lat: c.lat, lng: c.lng, covered: true
+  }));
+  return [...covered, ...CITY_SUGGESTIONS_UNCOVERED];
+}
+
 function showMapSuggestions(val) {
   const dropdown = document.getElementById('mapSuggestDropdown');
   if(!dropdown) return;
@@ -3956,7 +4023,7 @@ function showMapSuggestions(val) {
   }));
 
   // Then: city suggestions
-  const cityMatches = CITY_SUGGESTIONS.filter(c =>
+  const cityMatches = getCitySuggestions().filter(c =>
     c.city.toLowerCase().startsWith(q) ||
     (c.city+', '+c.state).toLowerCase().startsWith(q) ||
     c.city.toLowerCase().includes(q)
@@ -4405,7 +4472,7 @@ async function renderVendorProfile(id) {
             }
             return `<div style="display:flex;align-items:center;gap:5px;margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border)">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              <span style="font-size:12px;color:var(--green-dk);font-weight:500">Next: ${first.name} · ${dayLabel}</span>
+              <span style="font-size:12px;color:var(--green-dk);font-weight:500">Next: ${first.name} · ${dayLabel}${first.start_time ? ' · ' + formatTimeRange(first.start_time, first.end_time) : ''}</span>
             </div>`;
           })()}
     </div>
@@ -4692,16 +4759,26 @@ function renderMarketDetail(id) {
 
     <!-- VENDORS AT THIS MARKET -->
     <div style="height:0;overflow:hidden;visibility:hidden" id="mkt-vendors"></div>
-    <div class="section"><div class="section-header"><span class="section-title">${t('vendors_at')}</span><span style="font-size:12px;color:var(--text2)">${mvs.length} ${t('vendors_c')}</span></div></div>
-    <div class="vendor-grid">${mvs.map((v,i)=>{
-      const c=vc(i);
-      return `<div class="vendor-grid-card" onclick="navigate('vendor','${v.id}')">
-        <div class="vendor-grid-avatar" style="background:${v.photo?'url('+v.photo+') center/cover no-repeat':c.bg};color:${c.c};overflow:hidden">${v.photo?'':initials(v.name)}</div>
-        <div class="vendor-grid-name">${v.name}</div>
-        <div class="vendor-grid-cat">${v.category}</div>
-        ${!v.claimed?`<div class="vendor-grid-unclaimed">${t('not_yet_claimed')}</div>`:''}
-      </div>`;
-    }).join('')}</div>
+    <div class="section"><div class="section-header"><span class="section-title">${t('vendors_at')}</span><div style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:var(--text2)" id="mktVendorCount">${mvs.length} ${t('vendors_c')}</span><button onclick="openMarketVendorFilter('${m.id}')" style="display:flex;align-items:center;gap:5px;padding:5px 11px;border:0.5px solid ${ST.marketVendorSearch||ST.marketVendorCat?'var(--green)':'var(--border-med)'};border-radius:var(--r-pill);font-size:12px;background:${ST.marketVendorSearch||ST.marketVendorCat?'var(--green-lt)':'var(--surface)'};color:${ST.marketVendorSearch||ST.marketVendorCat?'var(--green-dk)':'var(--text2)'};cursor:pointer;font-family:var(--font-sans)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="9" y1="18" x2="15" y2="18"/></svg> Filters${ST.marketVendorSearch||ST.marketVendorCat?' ✓':''}</button></div></div></div>
+    <div class="vendor-grid" id="mktVendorGrid">${(()=>{
+      let filtered = mvs;
+      if(ST.marketVendorSearch) {
+        const q = ST.marketVendorSearch.toLowerCase();
+        filtered = filtered.filter(v => v.name.toLowerCase().includes(q) || v.category.toLowerCase().includes(q));
+      }
+      if(ST.marketVendorCat) filtered = filtered.filter(v => v.category === ST.marketVendorCat);
+      setTimeout(()=>{ const el=document.getElementById('mktVendorCount'); if(el) el.textContent=filtered.length+' '+t('vendors_c'); },0);
+      if(filtered.length===0) return `<div style="padding:24px 16px;text-align:center;color:var(--text2);font-size:13px;grid-column:1/-1">No vendors match your filters. <span onclick="ST.marketVendorSearch='';ST.marketVendorCat='';renderMarketDetail(ST.currentId)" style="color:var(--terra);cursor:pointer;text-decoration:underline">Clear filters</span></div>`;
+      return filtered.map((v,i)=>{
+        const c=vc(i);
+        return `<div class="vendor-grid-card" onclick="navigate('vendor','${v.id}')">
+          <div class="vendor-grid-avatar" style="background:${v.photo?'url('+v.photo+') center/cover no-repeat':c.bg};color:${c.c};overflow:hidden">${v.photo?'':initials(v.name)}</div>
+          <div class="vendor-grid-name">${v.name}</div>
+          <div class="vendor-grid-cat">${v.category}</div>
+          ${!v.claimed?`<div class="vendor-grid-unclaimed">${t('not_yet_claimed')}</div>`:''}
+        </div>`;
+      }).join('');
+    })()}</div>
 
     <!-- REVIEWS -->
     <div style="height:0;overflow:hidden;visibility:hidden" id="mkt-reviews"></div>
@@ -5538,6 +5615,68 @@ async function submitVendorJoinRequest() {
       </div>`;
     form.scrollIntoView({behavior:'smooth'});
   }
+}
+
+function openMarketVendorFilter(marketId) {
+  const mvs = DATA.vendors.filter(v => v.published && v.markets.includes(marketId));
+  const cats = [...new Set(mvs.map(v => v.category).filter(Boolean))].sort();
+  window._mktFilterMarketId = marketId;
+  window._mktCatFilter = ST.marketVendorCat;
+
+  const chipStyle = (active) => `padding:5px 12px;border:0.5px solid ${active?'var(--green)':'var(--border-med)'};border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:${active?'var(--green-lt)':'var(--surface)'};color:${active?'var(--green-dk)':'var(--text2)'}`;
+
+  let html = `
+    <div class="form-field">
+      <label class="form-label">Search by name or category</label>
+      <div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);padding:8px 14px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="mktVendorSearchInput" value="${ST.marketVendorSearch}" placeholder="e.g. honey, produce..." style="border:none;background:transparent;outline:none;flex:1;font-size:13px;font-family:var(--font-sans);color:var(--text)">
+      </div>
+    </div>
+    <div class="form-field">
+      <label class="form-label">Category</label>
+      <div style="display:flex;flex-wrap:wrap;gap:6px" id="mktCatChips">
+        <div class="mkt-cat-chip" data-cat="" style="${chipStyle(!ST.marketVendorCat)}">All</div>
+        ${cats.map(cat => `<div class="mkt-cat-chip" data-cat="${cat.replace(/"/g,'&quot;')}" style="${chipStyle(ST.marketVendorCat===cat)}">${cat}</div>`).join('')}
+      </div>
+    </div>`;
+
+  if(ST.marketVendorSearch || ST.marketVendorCat) {
+    html += `<button onclick="mktVendorClearFilters()" style="width:100%;padding:9px;background:transparent;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;color:var(--terra);font-family:var(--font-sans);margin-bottom:8px">Clear filters</button>`;
+  }
+  html += `<button onclick="mktVendorApplyFilters()" class="btn-primary">Apply</button>`;
+
+  openAdminModal('Filter Vendors', 'Search and filter vendors at this market', html);
+
+  // Wire up chip clicks after modal renders
+  setTimeout(() => {
+    document.querySelectorAll('.mkt-cat-chip').forEach(chip => {
+      chip.addEventListener('click', function() {
+        window._mktCatFilter = this.dataset.cat;
+        document.querySelectorAll('.mkt-cat-chip').forEach(c => {
+          const active = c.dataset.cat === window._mktCatFilter;
+          c.style.border = `0.5px solid ${active?'var(--green)':'var(--border-med)'}`;
+          c.style.background = active ? 'var(--green-lt)' : 'var(--surface)';
+          c.style.color = active ? 'var(--green-dk)' : 'var(--text2)';
+        });
+      });
+    });
+  }, 50);
+}
+
+function mktVendorApplyFilters() {
+  ST.marketVendorSearch = document.getElementById('mktVendorSearchInput')?.value.trim() || '';
+  ST.marketVendorCat = window._mktCatFilter !== undefined ? window._mktCatFilter : ST.marketVendorCat;
+  closeAdminModal();
+  renderMarketDetail(window._mktFilterMarketId);
+}
+
+function mktVendorClearFilters() {
+  ST.marketVendorSearch = '';
+  ST.marketVendorCat = '';
+  window._mktCatFilter = '';
+  closeAdminModal();
+  renderMarketDetail(window._mktFilterMarketId);
 }
 
 function renderAreaRequest() {
@@ -6388,7 +6527,7 @@ function renderAdminPanel() {
   const unreadMsgs = ST.adminMessages.filter(m=>!m.read).length;
   const pendingClaims = ST.adminClaims.filter(c=>c.status==='pending').length;
 
-  const tabs = ['vendors','markets','claims','messages','users','follows','areas','ads','views'];
+  const tabs = ['areas','markets','vendors','claims','messages','users','follows','ads','views'];
   const tabLabels = {
     vendors:`Vendors`,
     markets:`Markets`,
@@ -6454,19 +6593,79 @@ function renderAdminPanel() {
     </div>` : ''}
 
     <!-- TABS -->
-    <div class="admin-tabs">${tabs.map(tab=>`<div class="admin-tab ${ST.adminTab===tab?'active':''}" onclick="setAdminTab('${tab}')">${tabLabels[tab]}</div>`).join('')}</div>`;
+    <div class="admin-tabs" id="adminTabStrip">${tabs.map(tab=>`<div class="admin-tab ${ST.adminTab===tab?'active':''}" onclick="setAdminTab('${tab}')">${tabLabels[tab]}</div>`).join('')}</div>`;
 
   /* ── VENDORS TAB ── */
   if(ST.adminTab==='vendors') {
-    h += `<div style="display:flex;gap:8px;margin-bottom:12px">
+    const VPAGE_SIZE = 20;
+    // Build filter options
+    const vRegions = [...new Set(DATA.vendors.map(v=>v.region).filter(Boolean))].sort();
+    const vCities = [...new Set(DATA.vendors.flatMap(v=>v.markets.map(mid=>{const m=getMarket(mid);return m?m.city:null;})).filter(Boolean))].sort();
+    const vCats = [...new Set(DATA.vendors.map(v=>v.category).filter(Boolean))].sort();
+    const vMarkets = [...DATA.markets].sort((a,b)=>a.name.localeCompare(b.name));
+
+    // Apply filters
+    let vFiltered = DATA.vendors.filter(v => {
+      const trialStart = v.trial_start ? new Date(v.trial_start) : null;
+      const trialExpiry = trialStart ? new Date(trialStart.getTime() + 180*24*60*60*1000) : null;
+      const daysLeft = trialExpiry ? Math.max(0, Math.ceil((trialExpiry - new Date()) / (24*60*60*1000))) : null;
+      const onTrial = trialStart && !v.pro && daysLeft > 0;
+      const tier = v.pro ? 'pro' : onTrial ? 'trial' : 'free';
+
+      if(ST.adminVendorSearch && !v.name.toLowerCase().includes(ST.adminVendorSearch.toLowerCase())) return false;
+      if(ST.adminVendorRegion && v.region !== ST.adminVendorRegion) return false;
+      if(ST.adminVendorCity && !v.markets.some(mid=>{const m=getMarket(mid);return m&&m.city===ST.adminVendorCity;})) return false;
+      if(ST.adminVendorCat && v.category !== ST.adminVendorCat) return false;
+      if(ST.adminVendorTier && tier !== ST.adminVendorTier) return false;
+      if(ST.adminVendorMarket && !v.markets.includes(ST.adminVendorMarket)) return false;
+      return true;
+    });
+
+    const vTotal = vFiltered.length;
+    const vPageCount = Math.ceil(vTotal / VPAGE_SIZE);
+    const vPage = Math.min(ST.adminVendorPage, Math.max(0, vPageCount - 1));
+    const vSlice = vFiltered.slice(vPage * VPAGE_SIZE, (vPage + 1) * VPAGE_SIZE);
+    const hasVFilters = ST.adminVendorSearch||ST.adminVendorRegion||ST.adminVendorCity||ST.adminVendorCat||ST.adminVendorTier||ST.adminVendorMarket;
+
+    const selStyle = 'flex:1;min-width:0;padding:6px 8px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:11px;font-family:var(--font-sans);color:var(--text);background:var(--surface);outline:none';
+
+    h += `<div style="display:flex;gap:8px;margin-bottom:8px">
       <div style="flex:1;display:flex;align-items:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);padding:8px 12px">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input placeholder="Search vendors..." style="border:none;background:transparent;outline:none;font-size:13px;font-family:var(--font-sans);color:var(--text);width:100%" oninput="adminFilterVendors(this.value)" id="vendorSearchInput">
+        <input placeholder="Search vendors..." value="${ST.adminVendorSearch}" style="border:none;background:transparent;outline:none;font-size:13px;font-family:var(--font-sans);color:var(--text);width:100%" oninput="ST.adminVendorSearch=this.value;ST.adminVendorPage=0;renderAdminPanel()">
       </div>
       <button onclick="openAdminAddVendor()" style="padding:8px 14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500;white-space:nowrap">+ Add</button>
     </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+      <select style="${selStyle}" onchange="ST.adminVendorRegion=this.value;ST.adminVendorPage=0;renderAdminPanel()">
+        <option value="">All regions</option>
+        ${vRegions.map(r=>`<option value="${r}" ${ST.adminVendorRegion===r?'selected':''}>${DATA.regions.find(x=>x.id===r)?.label||r}</option>`).join('')}
+      </select>
+      <select style="${selStyle}" onchange="ST.adminVendorCity=this.value;ST.adminVendorPage=0;renderAdminPanel()">
+        <option value="">All cities</option>
+        ${vCities.map(c=>`<option value="${c}" ${ST.adminVendorCity===c?'selected':''}>${c}</option>`).join('')}
+      </select>
+      <select style="${selStyle}" onchange="ST.adminVendorCat=this.value;ST.adminVendorPage=0;renderAdminPanel()">
+        <option value="">All categories</option>
+        ${vCats.map(c=>`<option value="${c}" ${ST.adminVendorCat===c?'selected':''}>${c}</option>`).join('')}
+      </select>
+      <select style="${selStyle}" onchange="ST.adminVendorTier=this.value;ST.adminVendorPage=0;renderAdminPanel()">
+        <option value="">All tiers</option>
+        <option value="free" ${ST.adminVendorTier==='free'?'selected':''}>Free</option>
+        <option value="trial" ${ST.adminVendorTier==='trial'?'selected':''}>Trial</option>
+        <option value="pro" ${ST.adminVendorTier==='pro'?'selected':''}>Pro</option>
+      </select>
+      <select style="${selStyle};grid-column:1/-1" onchange="ST.adminVendorMarket=this.value;ST.adminVendorPage=0;renderAdminPanel()">
+        <option value="">All markets</option>
+        ${vMarkets.map(m=>`<option value="${m.id}" ${ST.adminVendorMarket===m.id?'selected':''}>${m.name}</option>`).join('')}
+      </select>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <span style="font-size:12px;color:var(--text3)">${vTotal} vendor${vTotal===1?'':'s'}${hasVFilters?' (filtered)':''}</span>
+      ${hasVFilters ? `<button onclick="ST.adminVendorSearch='';ST.adminVendorRegion='';ST.adminVendorCity='';ST.adminVendorCat='';ST.adminVendorTier='';ST.adminVendorMarket='';ST.adminVendorPage=0;renderAdminPanel()" style="font-size:11px;color:var(--terra);background:none;border:none;cursor:pointer;padding:0">Clear filters</button>` : ''}
+    </div>
     <div class="admin-table" id="adminVendorTable">`;
-    DATA.vendors.forEach(v => {
+    vSlice.forEach(v => {
       const trialStart = v.trial_start ? new Date(v.trial_start) : null;
       const trialExpiry = trialStart ? new Date(trialStart.getTime() + 180*24*60*60*1000) : null;
       const daysLeft = trialExpiry ? Math.max(0, Math.ceil((trialExpiry - new Date()) / (24*60*60*1000))) : null;
@@ -6490,19 +6689,85 @@ function renderAdminPanel() {
       </div>`;
     });
     h += `</div>`;
+    if(vPageCount > 1) {
+      h += `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:12px;color:var(--text2)">
+        <span>Page ${vPage+1} of ${vPageCount}</span>
+        <div style="display:flex;gap:6px">
+          <button onclick="ST.adminVendorPage=Math.max(0,ST.adminVendorPage-1);renderAdminPanel()" ${vPage===0?'disabled':''} style="padding:4px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);background:var(--surface2);font-size:12px;cursor:pointer;color:var(--text2)">← Prev</button>
+          <button onclick="ST.adminVendorPage=Math.min(${vPageCount-1},ST.adminVendorPage+1);renderAdminPanel()" ${vPage>=vPageCount-1?'disabled':''} style="padding:4px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);background:var(--surface2);font-size:12px;cursor:pointer;color:var(--text2)">Next →</button>
+        </div>
+      </div>`;
+    }
   }
 
   /* ── MARKETS TAB ── */
   if(ST.adminTab==='markets') {
-    h += `<div style="display:flex;gap:8px;margin-bottom:12px">
+    const MPAGE_SIZE = 20;
+    const mRegions = [...new Set(DATA.markets.map(m=>m.region).filter(Boolean))].sort();
+    const mCities = [...new Set(DATA.markets.map(m=>m.city).filter(Boolean))].sort();
+    const mVendors = [...DATA.vendors].sort((a,b)=>a.name.localeCompare(b.name));
+
+    let mFiltered = DATA.markets.filter(m => {
+      if(ST.adminMarketSearch && !m.name.toLowerCase().includes(ST.adminMarketSearch.toLowerCase())) return false;
+      if(ST.adminMarketRegion && m.region !== ST.adminMarketRegion) return false;
+      if(ST.adminMarketCity && m.city !== ST.adminMarketCity) return false;
+      if(ST.adminMarketTier) {
+        const vendors = DATA.vendors.filter(v=>v.markets.includes(m.id));
+        const hasPro = vendors.some(v=>v.pro);
+        const hasTrial = vendors.some(v=>{
+          const ts=v.trial_start?new Date(v.trial_start):null;
+          const exp=ts?new Date(ts.getTime()+180*24*60*60*1000):null;
+          return ts&&!v.pro&&exp&&new Date()<exp;
+        });
+        if(ST.adminMarketTier==='pro' && !hasPro) return false;
+        if(ST.adminMarketTier==='trial' && !hasTrial) return false;
+        if(ST.adminMarketTier==='free' && (hasPro||hasTrial)) return false;
+      }
+      if(ST.adminMarketVendor && !DATA.vendors.find(v=>v.id===ST.adminMarketVendor&&v.markets.includes(m.id))) return false;
+      return true;
+    });
+
+    const mTotal = mFiltered.length;
+    const mPageCount = Math.ceil(mTotal / MPAGE_SIZE);
+    const mPage = Math.min(ST.adminMarketPage, Math.max(0, mPageCount - 1));
+    const mSlice = mFiltered.slice(mPage * MPAGE_SIZE, (mPage + 1) * MPAGE_SIZE);
+    const hasMFilters = ST.adminMarketSearch||ST.adminMarketRegion||ST.adminMarketCity||ST.adminMarketTier||ST.adminMarketVendor;
+
+    const selStyle = 'flex:1;min-width:0;padding:6px 8px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:11px;font-family:var(--font-sans);color:var(--text);background:var(--surface);outline:none';
+
+    h += `<div style="display:flex;gap:8px;margin-bottom:8px">
       <div style="flex:1;display:flex;align-items:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);padding:8px 12px">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input placeholder="Search markets..." style="border:none;background:transparent;outline:none;font-size:13px;font-family:var(--font-sans);color:var(--text);width:100%" oninput="adminFilterMarkets(this.value)">
+        <input placeholder="Search markets..." value="${ST.adminMarketSearch}" style="border:none;background:transparent;outline:none;font-size:13px;font-family:var(--font-sans);color:var(--text);width:100%" oninput="ST.adminMarketSearch=this.value;ST.adminMarketPage=0;renderAdminPanel()">
       </div>
       <button onclick="openAdminAddMarket()" style="padding:8px 14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500;white-space:nowrap">+ Add</button>
     </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+      <select style="${selStyle}" onchange="ST.adminMarketRegion=this.value;ST.adminMarketPage=0;renderAdminPanel()">
+        <option value="">All regions</option>
+        ${mRegions.map(r=>`<option value="${r}" ${ST.adminMarketRegion===r?'selected':''}>${DATA.regions.find(x=>x.id===r)?.label||r}</option>`).join('')}
+      </select>
+      <select style="${selStyle}" onchange="ST.adminMarketCity=this.value;ST.adminMarketPage=0;renderAdminPanel()">
+        <option value="">All cities</option>
+        ${mCities.map(c=>`<option value="${c}" ${ST.adminMarketCity===c?'selected':''}>${c}</option>`).join('')}
+      </select>
+      <select style="${selStyle}" onchange="ST.adminMarketTier=this.value;ST.adminMarketPage=0;renderAdminPanel()">
+        <option value="">All tiers</option>
+        <option value="free" ${ST.adminMarketTier==='free'?'selected':''}>Has Free vendors</option>
+        <option value="trial" ${ST.adminMarketTier==='trial'?'selected':''}>Has Trial vendors</option>
+        <option value="pro" ${ST.adminMarketTier==='pro'?'selected':''}>Has Pro vendors</option>
+      </select>
+      <select style="${selStyle}" onchange="ST.adminMarketVendor=this.value;ST.adminMarketPage=0;renderAdminPanel()">
+        <option value="">All vendors</option>
+        ${mVendors.map(v=>`<option value="${v.id}" ${ST.adminMarketVendor===v.id?'selected':''}>${v.name}</option>`).join('')}
+      </select>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <span style="font-size:12px;color:var(--text3)">${mTotal} market${mTotal===1?'':'s'}${hasMFilters?' (filtered)':''}</span>
+      ${hasMFilters ? `<button onclick="ST.adminMarketSearch='';ST.adminMarketRegion='';ST.adminMarketCity='';ST.adminMarketTier='';ST.adminMarketVendor='';ST.adminMarketPage=0;renderAdminPanel()" style="font-size:11px;color:var(--terra);background:none;border:none;cursor:pointer;padding:0">Clear filters</button>` : ''}
+    </div>
     <div class="admin-table" id="adminMarketTable">`;
-    DATA.markets.forEach(m => {
+    mSlice.forEach(m => {
       const op = getOperator(m.operator_id);
       h += `<div class="admin-row" data-name="${m.name.toLowerCase()}">
         <div class="admin-row-info">
@@ -6517,6 +6782,15 @@ function renderAdminPanel() {
       </div>`;
     });
     h += `</div>`;
+    if(mPageCount > 1) {
+      h += `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:12px;color:var(--text2)">
+        <span>Page ${mPage+1} of ${mPageCount}</span>
+        <div style="display:flex;gap:6px">
+          <button onclick="ST.adminMarketPage=Math.max(0,ST.adminMarketPage-1);renderAdminPanel()" ${mPage===0?'disabled':''} style="padding:4px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);background:var(--surface2);font-size:12px;cursor:pointer;color:var(--text2)">← Prev</button>
+          <button onclick="ST.adminMarketPage=Math.min(${mPageCount-1},ST.adminMarketPage+1);renderAdminPanel()" ${mPage>=mPageCount-1?'disabled':''} style="padding:4px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);background:var(--surface2);font-size:12px;cursor:pointer;color:var(--text2)">Next →</button>
+        </div>
+      </div>`;
+    }
   }
 
   /* ── CLAIMS TAB ── */
@@ -6780,16 +7054,95 @@ function renderAdminPanel() {
 
   /* ── AREAS TAB (renamed from Expansion) ── */
   if(ST.adminTab==='areas') {
-    h += `<div class="expansion-tool">
-      <div class="expansion-title">🔍 Search for new areas to expand to</div>
-      <div class="expansion-search">
-        <input class="expansion-input" id="expInput" placeholder="City, state (e.g. Tampa, FL)">
-        <button class="expansion-btn" onclick="runExpansionSearch()">Search</button>
-      </div>
-      <div id="expResults" style="margin-top:12px;font-size:12px;color:var(--text3)">Enter a city to search for farmers markets in that area. In production this connects to the USDA Farmers Market Directory API.</div>
-    </div>
-    <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:10px">Incoming Area Requests (${ST.areaRequests.length})</div>
-    <div class="admin-table">`;
+    const AREAS_PAGE_SIZE = 20;
+
+    // ── REGIONS SECTION ──
+    const regionsCollapsed = ST.areasRegionsCollapsed;
+    const regPage = ST.areasRegionsPage || 0;
+    const regTotal = DATA.regions.length;
+    const regPageCount = Math.ceil(regTotal / AREAS_PAGE_SIZE);
+    const regSlice = DATA.regions.slice(regPage * AREAS_PAGE_SIZE, (regPage + 1) * AREAS_PAGE_SIZE);
+
+    h += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;cursor:pointer" onclick="ST.areasRegionsCollapsed=!ST.areasRegionsCollapsed;renderAdminPanel()">
+      <div style="font-size:13px;font-weight:600;color:var(--text)">Regions <span style="font-size:11px;font-weight:400;color:var(--text3)">(${regTotal})</span></div>
+      <span style="font-size:16px;color:var(--text3)">${regionsCollapsed ? '▸' : '▾'}</span>
+    </div>`;
+
+    if(!regionsCollapsed) {
+      h += `<div style="font-size:12px;color:var(--text2);margin-bottom:12px">Geographic regions used to group markets and cities.</div>`;
+      h += `<div class="admin-table" style="margin-bottom:8px">`;
+      regSlice.forEach(r => {
+        h += `<div class="admin-row">
+          <div style="font-size:22px;flex-shrink:0;width:36px;text-align:center">${r.emoji}</div>
+          <div class="admin-row-info">
+            <div class="admin-row-name">${r.label}</div>
+            <div class="admin-row-meta">${r.super_region} · ID: ${r.id}</div>
+          </div>
+          <div class="admin-row-actions">
+            <span style="font-size:11px;color:var(--text3)">${DATA.cities.filter(c=>c.region_id===r.id).length} cities</span>
+          </div>
+        </div>`;
+      });
+      h += `</div>`;
+      if(regPageCount > 1) {
+        h += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:12px;color:var(--text2)">
+          <span>Page ${regPage+1} of ${regPageCount}</span>
+          <div style="display:flex;gap:6px">
+            <button onclick="ST.areasRegionsPage=Math.max(0,ST.areasRegionsPage-1);renderAdminPanel()" ${regPage===0?'disabled':''} style="padding:4px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);background:var(--surface2);font-size:12px;cursor:pointer;color:var(--text2)">← Prev</button>
+            <button onclick="ST.areasRegionsPage=Math.min(${regPageCount-1},ST.areasRegionsPage+1);renderAdminPanel()" ${regPage>=regPageCount-1?'disabled':''} style="padding:4px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);background:var(--surface2);font-size:12px;cursor:pointer;color:var(--text2)">Next →</button>
+          </div>
+        </div>`;
+      }
+      h += `<button onclick="openAdminAddRegion()" style="width:100%;padding:10px;background:var(--surface2);border:0.5px dashed var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;color:var(--text2);font-family:var(--font-sans);margin-bottom:24px">+ Add new region</button>`;
+    }
+
+    // ── CITIES SECTION ──
+    const citiesCollapsed = ST.areasCitiesCollapsed;
+    const citPage = ST.areasCitiesPage || 0;
+    const allCities = [...DATA.cities].sort((a,b) => {
+      const ra = DATA.regions.find(r=>r.id===a.region_id);
+      const rb = DATA.regions.find(r=>r.id===b.region_id);
+      const so = (ra?.sort_order||99) - (rb?.sort_order||99);
+      return so !== 0 ? so : a.city.localeCompare(b.city);
+    });
+    const citTotal = allCities.length;
+    const citPageCount = Math.ceil(citTotal / AREAS_PAGE_SIZE);
+    const citSlice = allCities.slice(citPage * AREAS_PAGE_SIZE, (citPage + 1) * AREAS_PAGE_SIZE);
+
+    h += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;cursor:pointer" onclick="ST.areasCitiesCollapsed=!ST.areasCitiesCollapsed;renderAdminPanel()">
+      <div style="font-size:13px;font-weight:600;color:var(--text)">Cities <span style="font-size:11px;font-weight:400;color:var(--text3)">(${citTotal})</span></div>
+      <span style="font-size:16px;color:var(--text3)">${citiesCollapsed ? '▸' : '▾'}</span>
+    </div>`;
+
+    if(!citiesCollapsed) {
+      h += `<div style="font-size:12px;color:var(--text2);margin-bottom:12px">Covered cities appear as location chips in the app and in search suggestions.</div>`;
+      h += `<div class="admin-table" style="margin-bottom:8px">`;
+      citSlice.forEach(c => {
+        const region = DATA.regions.find(r=>r.id===c.region_id);
+        h += `<div class="admin-row">
+          <div style="font-size:16px;flex-shrink:0;width:36px;text-align:center">📍</div>
+          <div class="admin-row-info">
+            <div class="admin-row-name">${c.city}, ${c.state}</div>
+            <div class="admin-row-meta">${region ? region.emoji+' '+region.label : c.region_id} · ${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}</div>
+          </div>
+        </div>`;
+      });
+      h += `</div>`;
+      if(citPageCount > 1) {
+        h += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:12px;color:var(--text2)">
+          <span>Page ${citPage+1} of ${citPageCount}</span>
+          <div style="display:flex;gap:6px">
+            <button onclick="ST.areasCitiesPage=Math.max(0,ST.areasCitiesPage-1);renderAdminPanel()" ${citPage===0?'disabled':''} style="padding:4px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);background:var(--surface2);font-size:12px;cursor:pointer;color:var(--text2)">← Prev</button>
+            <button onclick="ST.areasCitiesPage=Math.min(${citPageCount-1},ST.areasCitiesPage+1);renderAdminPanel()" ${citPage>=citPageCount-1?'disabled':''} style="padding:4px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);background:var(--surface2);font-size:12px;cursor:pointer;color:var(--text2)">Next →</button>
+          </div>
+        </div>`;
+      }
+      h += `<button onclick="openAdminAddCity()" style="width:100%;padding:10px;background:var(--surface2);border:0.5px dashed var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;color:var(--text2);font-family:var(--font-sans);margin-bottom:24px">+ Add new city</button>`;
+    }
+
+    // ── INCOMING AREA REQUESTS ──
+    h += `<div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:10px">Incoming Area Requests (${ST.areaRequests.length})</div>`;
+    h += `<div class="admin-table">`;
     if(ST.areaRequests.length===0) {
       h += `<div style="padding:24px;text-align:center;color:var(--text2);font-size:13px">No area requests</div>`;
     } else {
@@ -7332,8 +7685,11 @@ async function onAuthSuccess(user) {
     btn.onclick = () => { ST.tab='me'; renderCurrentPage(); renderBottom(); };
   }
 
-  // Only navigate to dashboard on fresh login — don't disrupt tab browsing
+  // Only navigate on fresh login — don't disrupt if user is already browsing
   const alreadyInDash = ST.currentPage !== null || ST.tab !== 'home';
+  const isFreshLogin = !ST.user || ST._sessionInitialized === false;
+  ST._sessionInitialized = true;
+
   if(role === 'vendor' && vendorId && !alreadyInDash) {
     ST.tab = 'home';
     ST.currentPage = null;
@@ -7343,16 +7699,22 @@ async function onAuthSuccess(user) {
     // Already on dashboard — just re-render to update nav, don't reset tab
     renderBottom();
     renderSidebar();
-  } else {
+  } else if(isFreshLogin) {
     renderMe();
+  } else {
+    // Session refresh — just update nav silently
+    renderBottom();
+    renderSidebar();
   }
 
-  // Show welcome toast
-  const toast = document.createElement('div');
-  toast.textContent = `Welcome back, ${name.split(' ')[0]}! 👋`;
-  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 3000);
+  // Show welcome toast on fresh login only
+  if(isFreshLogin) {
+    const toast = document.createElement('div');
+    toast.textContent = `Welcome back, ${name.split(' ')[0]}! 👋`;
+    toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+  }
 }
 
 async function loadUserFollows() {
@@ -7638,9 +8000,15 @@ function setAdminTab(tab) {
     });
   }
   renderAdminPanel();
+  // Scroll active tab into view on mobile
+  setTimeout(() => {
+    const strip = document.getElementById('adminTabStrip');
+    if(strip) {
+      const active = strip.querySelector('.admin-tab.active');
+      if(active) active.scrollIntoView({behavior:'smooth', block:'nearest', inline:'center'});
+    }
+  }, 50);
 }
-
-/* Search filters */
 function adminFilterVendors(q) {
   document.querySelectorAll('#adminVendorTable .admin-row').forEach(row=>{
     row.style.display = (row.dataset.name||'').includes(q.toLowerCase()) || !q ? '' : 'none';
@@ -7898,11 +8266,7 @@ function adminDeleteVendor(id) {
   renderAdminPanel();
 }
 function openAdminAddVendor() {
-  const regions = [
-    {id:'lee-county',label:'Lee County'},
-    {id:'sarasota-bradenton',label:'Sarasota / Bradenton'},
-    {id:'tampa-bay',label:'Tampa Bay'}
-  ];
+  const regions = DATA.regions.map(r => ({id: r.id, label: r.label}));
   const categories = [...new Set(DATA.vendors.map(v=>v.category))].sort();
   const marketOptions = [...DATA.markets].sort((a,b)=>a.name.localeCompare(b.name))
     .map(m=>`<option value="${m.id}">${m.name} (${m.city})</option>`).join('');
@@ -8031,11 +8395,7 @@ function adminDeleteMarket(id) {
 function openAdminAddMarket() {
   const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   const months = ['All Year','January','February','March','April','May','June','July','August','September','October','November','December'];
-  const regions = [
-    {id:'lee-county',label:'Lee County'},
-    {id:'sarasota-bradenton',label:'Sarasota / Bradenton'},
-    {id:'tampa-bay',label:'Tampa Bay'}
-  ];
+  const regions = DATA.regions.map(r => ({id: r.id, label: r.label}));
   const vendorOptions = [...DATA.vendors].sort((a,b)=>a.name.localeCompare(b.name))
     .map(v=>`<option value="${v.id}">${v.name} (${v.category})</option>`).join('');
   openAdminModal('Add Market', 'Create a new market listing', `
@@ -8328,6 +8688,110 @@ async function adminSendIndividualMessage() {
   alert('Message sent to '+recipient);
   ST.adminMsgTab = 'inbox';
   renderAdminPanel();
+}
+
+function openAdminAddRegion() {
+  const superRegions = [...new Set(DATA.regions.map(r => r.super_region))];
+  openAdminModal('Add Region', 'Create a new geographic region', `
+    <div class="form-field"><label class="form-label">Region ID * <span style="font-size:10px;color:var(--text3)">(lowercase, hyphens only — e.g. orlando-area)</span></label>
+      <input class="form-input" id="nr_id" placeholder="e.g. orlando-area"></div>
+    <div class="form-field"><label class="form-label">Label *</label>
+      <input class="form-input" id="nr_label" placeholder="e.g. Orlando / Central Florida"></div>
+    <div class="form-field"><label class="form-label">Emoji</label>
+      <input class="form-input" id="nr_emoji" placeholder="e.g. 🌟" value="📍" maxlength="4"></div>
+    <div class="form-field"><label class="form-label">Super Region</label>
+      <input class="form-input" id="nr_super" placeholder="e.g. Central Florida" list="nr_super_list">
+      <datalist id="nr_super_list">${superRegions.map(s=>`<option value="${s}">`).join('')}</datalist>
+    </div>
+    <div class="form-field"><label class="form-label">Sort Order <span style="font-size:10px;color:var(--text3)">(lower = appears first)</span></label>
+      <input class="form-input" id="nr_sort" type="number" placeholder="e.g. 5" value="${DATA.regions.length + 1}"></div>
+    <button class="btn-primary" onclick="saveAdminAddRegion()">Save Region</button>
+  `);
+}
+
+async function saveAdminAddRegion() {
+  const id = document.getElementById('nr_id')?.value.trim().toLowerCase().replace(/\s+/g,'-');
+  const label = document.getElementById('nr_label')?.value.trim();
+  const emoji = document.getElementById('nr_emoji')?.value.trim() || '📍';
+  const super_region = document.getElementById('nr_super')?.value.trim() || 'Other';
+  const sort_order = parseInt(document.getElementById('nr_sort')?.value) || DATA.regions.length + 1;
+  if(!id || !label) { alert('Region ID and Label are required.'); return; }
+  if(DATA.regions.find(r => r.id === id)) { alert('A region with that ID already exists.'); return; }
+  const newRegion = { id, label, emoji, super_region, sort_order };
+  if(supabaseClient) {
+    const { error } = await supabaseClient.from('regions').insert(newRegion);
+    if(error) { alert('Error saving region: ' + error.message); return; }
+  }
+  DATA.regions.push(newRegion);
+  DATA.regions.sort((a,b) => a.sort_order - b.sort_order);
+  closeAdminModal();
+  setAdminTab('areas');
+}
+
+function openAdminAddCity() {
+  const regionOptions = DATA.regions.map(r => `<option value="${r.id}">${r.emoji} ${r.label}</option>`).join('');
+  openAdminModal('Add City', 'Add a covered city to a region', `
+    <div class="form-field"><label class="form-label">City *</label>
+      <input class="form-input" id="nc_city" placeholder="e.g. Naples" oninput="adminGeocodeCity()"></div>
+    <div class="form-field"><label class="form-label">State</label>
+      <input class="form-input" id="nc_state" placeholder="FL" value="FL"></div>
+    <div class="form-field"><label class="form-label">Region *</label>
+      <select class="form-input" id="nc_region">${regionOptions}</select></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="form-field"><label class="form-label">Latitude</label>
+        <input class="form-input" id="nc_lat" placeholder="e.g. 26.1420"></div>
+      <div class="form-field"><label class="form-label">Longitude</label>
+        <input class="form-input" id="nc_lng" placeholder="e.g. -81.7948"></div>
+    </div>
+    <div id="nc_geocode_status" style="font-size:11px;color:var(--text3);margin-bottom:8px"></div>
+    <button class="btn-primary" onclick="saveAdminAddCity()">Save City</button>
+  `);
+}
+
+let geocodeCityTimer = null;
+function adminGeocodeCity() {
+  clearTimeout(geocodeCityTimer);
+  geocodeCityTimer = setTimeout(async () => {
+    const city = document.getElementById('nc_city')?.value.trim();
+    const state = document.getElementById('nc_state')?.value.trim() || 'FL';
+    const status = document.getElementById('nc_geocode_status');
+    if(!city || city.length < 3) return;
+    if(status) status.textContent = '🔍 Looking up coordinates...';
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?city=${encodeURIComponent(city)}&state=${encodeURIComponent(state)}&country=US&format=json&limit=1`);
+      const data = await res.json();
+      if(data && data[0]) {
+        document.getElementById('nc_lat').value = parseFloat(data[0].lat).toFixed(4);
+        document.getElementById('nc_lng').value = parseFloat(data[0].lon).toFixed(4);
+        if(status) status.textContent = '✓ Coordinates found automatically';
+      } else {
+        if(status) status.textContent = 'Could not auto-locate. Enter coordinates manually.';
+      }
+    } catch(e) {
+      if(status) status.textContent = 'Geocoding failed. Enter coordinates manually.';
+    }
+  }, 600);
+}
+
+async function saveAdminAddCity() {
+  const city = document.getElementById('nc_city')?.value.trim();
+  const state = document.getElementById('nc_state')?.value.trim() || 'FL';
+  const region_id = document.getElementById('nc_region')?.value;
+  const lat = parseFloat(document.getElementById('nc_lat')?.value);
+  const lng = parseFloat(document.getElementById('nc_lng')?.value);
+  if(!city || !region_id || isNaN(lat) || isNaN(lng)) {
+    alert('City, region, and coordinates are all required.');
+    return;
+  }
+  const id = city.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
+  const newCity = { id, city, state, lat, lng, region_id };
+  if(supabaseClient) {
+    const { error } = await supabaseClient.from('cities').insert(newCity);
+    if(error) { alert('Error saving city: ' + error.message); return; }
+  }
+  DATA.cities.push(newCity);
+  closeAdminModal();
+  setAdminTab('areas');
 }
 
 function runExpansionSearch() {
@@ -9642,7 +10106,7 @@ function renderAdminSettings() {
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Platform Info</div>
-        <div class="admin-row-meta">Version 1.59.4 · Lee County, FL · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
+        <div class="admin-row-meta">Version 1.62.11 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Coverage Area</div>
@@ -10099,11 +10563,33 @@ function expandTopbar() {
 }
 
 /* ── LOCATION MODAL ── */
+function renderLocationModalChips() {
+  const container = document.getElementById('locationModalChips');
+  if(!container) return;
+  // Group cities by region
+  const chipStyle = `padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text2)`;
+  let html = '';
+  const regions = [...DATA.regions].sort((a,b) => a.sort_order - b.sort_order);
+  regions.forEach((region, idx) => {
+    const regionCities = DATA.cities.filter(c => c.region_id === region.id);
+    if(regionCities.length === 0) return;
+    const isLast = idx === regions.length - 1;
+    html += `<div style="font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">${region.emoji} ${region.label}</div>`;
+    html += `<div style="display:flex;flex-wrap:wrap;gap:6px;${isLast ? '' : 'margin-bottom:14px'}">`;
+    regionCities.forEach(c => {
+      html += `<div onclick="quickSetLocation('${c.city}, ${c.state}')" style="${chipStyle}">${c.city}</div>`;
+    });
+    html += `</div>`;
+  });
+  container.innerHTML = html;
+}
+
 function openLocationModal() {
   const inp = document.getElementById('locationModalInput');
   if(inp) { inp.value = ST.location; }
   const sug = document.getElementById('locationModalSuggestions');
   if(sug) sug.style.display = 'none';
+  renderLocationModalChips();
   openModal('locationModal');
 }
 
@@ -10112,7 +10598,7 @@ function locationModalPredict(val) {
   if(!sug) return;
   if(!val || val.length < 2) { sug.style.display = 'none'; return; }
   const q = val.toLowerCase();
-  const matches = CITY_SUGGESTIONS.filter(c =>
+  const matches = getCitySuggestions().filter(c =>
     c.city.toLowerCase().startsWith(q) ||
     (c.city + ', ' + c.state).toLowerCase().startsWith(q) ||
     c.city.toLowerCase().includes(q)
@@ -10138,6 +10624,37 @@ function locationModalPickCity(cityStr) {
   if(sug) sug.style.display = 'none';
   closeModal('locationModal');
   updateLocation(cityStr);
+}
+
+function useMyLocation() {
+  if(!navigator.geolocation) {
+    alert('Geolocation is not supported by your browser.');
+    return;
+  }
+  const btn = document.querySelector('[onclick="useMyLocation()"]');
+  if(btn) btn.textContent = '📍 Locating...';
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const { latitude: lat, longitude: lng } = pos.coords;
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+        const data = await res.json();
+        const city = data.address?.city || data.address?.town || data.address?.village || data.address?.county || '';
+        const state = data.address?.state_code || data.address?.state || '';
+        const locationStr = city ? `${city}, ${state}` : `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        closeModal('locationModal');
+        updateLocation(locationStr);
+      } catch(e) {
+        if(btn) btn.textContent = '📍 Use my location';
+        alert('Could not determine your city. Please type your location.');
+      }
+    },
+    () => {
+      if(btn) btn.textContent = '📍 Use my location';
+      alert('Location access was denied. Please type your location.');
+    },
+    { timeout: 8000 }
+  );
 }
 
 function applyLocationModal() {
