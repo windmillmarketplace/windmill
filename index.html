@@ -665,7 +665,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 <body>
 
 <!-- ROLE BAR -->
-<div class="role-bar">
+<div class="role-bar hidden">
   <span class="role-bar-label">👁 Preview:</span>
   <button class="role-btn active" onclick="switchRole('customer',this)">Customer</button>
   <button class="role-btn" onclick="switchRole('vendor',this)">Vendor</button>
@@ -1024,11 +1024,13 @@ async function loadFromSupabase() {
             email: c.email,
             phone: c.phone || '',
             message: c.message || '',
+            role: c.role || '',
             date: c.created_at ? new Date(c.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '',
             status: c.status || 'pending',
             denyReason: c.deny_reason || '',
             proRequested: c.pro_requested || false,
-            upgradeRequest: c.upgrade_request || false
+            upgradeRequest: c.upgrade_request || false,
+            claim_type: c.claim_type || 'vendor'
           }));
         }
       } catch(e) { console.warn('Claims load failed:', e); }
@@ -1992,6 +1994,7 @@ function sponsoredCard() {
 /* ── ROLE SWITCHER ── */
 function switchRole(role, btn) {
   ST.role = role; ST.tab = 'home'; ST.currentPage = null; ST.currentId = null;
+  const rb = document.querySelector('.role-bar'); if(rb) rb.classList.remove('hidden');
   document.querySelectorAll('.role-bar > .role-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   // Show vendor tier selector in dev mode
@@ -2448,6 +2451,8 @@ function routeFromURL() {
   // Check specific vendor sub-pages BEFORE the vendor regex
   if(path === '/vendors/join') { ST.currentPage = 'vendors-join'; return; }
   if(path === '/vendors/login') { ST.currentPage = 'vendors-login'; return; }
+  if(path === '/markets/join') { ST.currentPage = 'markets-join'; return; }
+  if(path === '/markets/login') { ST.currentPage = 'markets-login'; return; }
   if(path === '/vendors/dashboard') { ST.currentPage = null; ST.tab = 'home'; return; }
   const marketMatch = path.match(/^\/markets\/([^/]+)\/?$/);
   const vendorMatch = path.match(/^\/vendors\/([^/]+)\/?$/);
@@ -2515,6 +2520,8 @@ function renderCurrentPage() {
   if(p === 'category') { updatePageMeta('Category | Windmill','Browse vendors and markets by category.','/categories/'+ST.currentId); return renderCategoryPage(ST.currentId); }
   if(p === 'vendors-join') { updatePageMeta('Join Windmill as a Vendor | Grow Your Farmers Market Business','Claim your free vendor listing on Windmill. Be found between markets, showcase your products, and connect with customers.','/vendors/join'); return renderVendorsJoin(); }
   if(p === 'vendors-login') { updatePageMeta('Vendor Sign In | Windmill','Sign in to your Windmill vendor dashboard.','/vendors/login'); return renderVendorsLogin(); }
+  if(p === 'markets-join') { updatePageMeta('List Your Market on Windmill | Reach More Shoppers','Claim your market listing on Windmill. Help shoppers find your market, follow your vendors, and come back every week.','/markets/join'); return renderMarketsJoin(); }
+  if(p === 'markets-login') { updatePageMeta('Market Operator Sign In | Windmill','Sign in to your Windmill operator dashboard.','/markets/login'); return renderMarketsLogin(); }
   if(p === 'demo-vendor-free') return renderDemoVendorFree();
   if(p === 'demo-vendor-pro') {    // Inject Empanada Queen demo data into vendors if not already there
     const dv = DATA.demo_vendors[1];
@@ -2633,7 +2640,7 @@ function renderFilterStrip() {
   const isCustomer = ST.role==='customer' || ST.role==='friends-family';
   const onHome = ST.tab==='home' && !ST.currentPage;
   const onExplore = ST.tab==='explore' && !ST.currentPage;
-  const showPills = isCustomer && !onHome && ST.currentPage!=='vendor' && ST.currentPage!=='market' && ST.currentPage!=='area-request' && ST.currentPage!=='vendors-join' && ST.currentPage!=='vendors-login';
+  const showPills = isCustomer && !onHome && ST.currentPage!=='vendor' && ST.currentPage!=='market' && ST.currentPage!=='area-request' && ST.currentPage!=='vendors-join' && ST.currentPage!=='vendors-login' && ST.currentPage!=='markets-join' && ST.currentPage!=='markets-login';
 
   // Desktop filter strip — hide on home, show with location+pills on markets/explore
   const el = document.getElementById('filterStrip');
@@ -3493,7 +3500,7 @@ function renderMapModeContent() {
               <div style="font-size:10px;color:var(--text3);margin-top:2px">${v.category}${vendorSeasonPill(v)}</div>
               ${vendorNextLine(v)}
             </div>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" onclick="event.stopPropagation();navigate('vendor','${v.id}')" style="cursor:pointer;flex-shrink:0"><polyline points="9 18 15 12 9 6"/></svg>
+            <div onclick="event.stopPropagation();navigate('vendor','${v.id}')" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--surface2);flex-shrink:0;cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
           </div>`;
         }).join('')}
       </div>`;
@@ -3634,7 +3641,7 @@ function initWindmillMap() {
                   ${m.pet_friendly?'<span class="market-pill">🐾</span>':''}
                 </div>
               </div>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" onclick="event.stopPropagation();navigate('market','${m.id}')"><polyline points="9 18 15 12 9 6"/></svg>
+              <div onclick="event.stopPropagation();navigate('market','${m.id}')" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--surface2);flex-shrink:0;cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
             </div>`
           };
         });
@@ -3894,7 +3901,7 @@ function renderMapCards(markets) {
             ${m.pet_friendly?'<span class="market-pill">🐾</span>':''}
           </div>
         </div>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" onclick="event.stopPropagation();navigate('market','${m.id}')"><polyline points="9 18 15 12 9 6"/></svg>
+        <div onclick="event.stopPropagation();navigate('market','${m.id}')" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--surface2);flex-shrink:0;cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
       </div>`
     };
   });
@@ -4663,24 +4670,25 @@ function renderMarketDetail(id) {
         <div style="position:relative;height:160px;overflow:hidden">
           <img src="${photo}" alt="${m.name}" style="width:100%;height:100%;object-fit:cover">
           <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.25) 0%,rgba(0,0,0,.55) 100%)"></div>
-          <div style="position:absolute;top:14px;left:16px">
-            <div class="profile-back" onclick="goBack()" style="color:#fff;margin-bottom:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> ${t('back')}</div>
-          </div>
+
         </div>
         <div style="padding:14px 16px 16px">
       ` : `
         <div class="profile-back" onclick="goBack()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> ${t('back')}</div>
         <div style="padding:0">
       `}
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px">
-          <div style="flex:1;min-width:0">
-            <div class="market-name-lg" style="margin-bottom:2px">${m.name}</div>
+        <div style="margin-bottom:10px">
+          <div style="margin-bottom:6px">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px">
+              <div class="market-name-lg" style="margin:0;word-break:break-word">${m.name}</div>
+              ${m.pro ? `<span style="font-size:10px;padding:2px 7px;background:var(--green);color:#fff;border-radius:var(--r-pill);font-weight:500;flex-shrink:0;white-space:nowrap">✓ Pro</span>` : ''}
+            </div>
             <div class="market-subtitle">${m.venue} · ${m.city}, ${m.state}</div>
           </div>
-          <div style="display:flex;gap:6px;flex-shrink:0;margin-top:2px">
-          <button class="btn-follow" onclick="handleFollow(event,'market','${m.id}',this)" style="${isFollowing('market','${m.id}')?'background:var(--green);color:#fff;border-color:var(--green)':''}">${isFollowing('market','${m.id}')?t('following'):t('follow')}</button>
-          <button onclick="openMessageModal('market','${m.id}','${m.name}')" style="padding:7px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);font-family:var(--font-sans);white-space:nowrap">💬 Message</button>
-        </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn-follow" onclick="handleFollow(event,'market','${m.id}',this)" style="${isFollowing('market','${m.id}')?'background:var(--green);color:#fff;border-color:var(--green)':''}">${isFollowing('market','${m.id}')?t('following'):t('follow')}</button>
+            <button onclick="openMessageModal('market','${m.id}','${m.name}')" style="padding:7px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);font-family:var(--font-sans);white-space:nowrap">💬 Message</button>
+          </div>
         </div>
         <div class="market-badges">
           <span class="badge-pill ${isOpen(m)?'green':'amber'}" style="cursor:pointer" onclick="scrollToSection('mkt-info','marketSectionNav',document.querySelector('#marketSectionNav .section-nav-btn:nth-child(2)'))">${isOpen(m)?t('open_season'):t('seasonal')}</span>
@@ -4695,6 +4703,7 @@ function renderMarketDetail(id) {
           <span style="flex:1;font-size:12px;color:var(--text)">${m.address}, ${m.city}, ${m.state}</span>
           <span style="font-size:11px;color:var(--terra);font-weight:500;white-space:nowrap">Get directions →</span>
         </a>
+        ${!m.claimed ? `<div style="margin-top:8px;font-size:11px;color:var(--terra);cursor:pointer" onclick="navigate('markets-join')">Do you operate this market? Manage your free listing →</div>` : ''}
       </div>
     </div>
 
@@ -4707,6 +4716,21 @@ function renderMarketDetail(id) {
       <button class="section-nav-btn" onclick="scrollToSection('mkt-vendors','marketSectionNav',this)">Vendors</button>
       <button class="section-nav-btn" onclick="scrollToSection('mkt-reviews','marketSectionNav',this)">Reviews</button>
     </div>
+
+    ${(()=>{
+      const mOp = getOperator(m.operator_id);
+      if(m.pro && mOp && mOp.announcement) {
+        return `<div style="background:var(--surface);border-bottom:0.5px solid var(--border);padding:14px 16px">
+          <div style="font-size:10px;font-weight:600;color:var(--green-dk);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📣 Announcement</div>
+          <p style="font-size:13px;color:var(--text);line-height:1.5;margin:0 0 6px">${mOp.announcement.text}</p>
+          <div style="font-size:10px;color:var(--text3)">${mOp.announcement.date}</div>
+        </div>`;
+      } else {
+        return `<div style="background:var(--surface);border-bottom:0.5px solid var(--border);padding:12px 16px">
+          <div style="font-size:11px;color:var(--text3)">✨ Pro markets post weekly updates here — upcoming events, featured vendors, and what's happening this week.</div>
+        </div>`;
+      }
+    })()}
 
     <!-- ABOUT -->
     <div style="height:0;overflow:hidden;visibility:hidden" id="mkt-about"></div>
@@ -4750,11 +4774,22 @@ function renderMarketDetail(id) {
     <div style="height:0;overflow:hidden;visibility:hidden" id="mkt-gallery"></div>
     <div class="profile-section">
       <div class="profile-section-title">Market Gallery</div>
-      <div style="background:var(--amber-lt);border:0.5px solid #F0D090;border-radius:var(--r-md);padding:10px 12px;display:flex;align-items:center;gap:10px">
-        <span style="font-size:18px">🔒</span>
-        <div style="flex:1"><div style="font-size:12px;font-weight:500;color:#7A4E08">Market photo gallery is an Operator Pro feature</div><div style="font-size:10px;color:var(--amber)">Claim this market to add photos, show off your venue, and attract more visitors</div></div>
-        <button onclick="openModal('claimModal')" style="font-size:10px;padding:5px 10px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);cursor:pointer;white-space:nowrap;font-family:var(--font-sans)">Claim</button>
-      </div>
+      ${(()=>{
+        const mPhotos = DATA.market_photos[m.id] ? [DATA.market_photos[m.id]] : [];
+        const allPhotos = (m.pro && mPhotos.length > 0) ? mPhotos.map(u=>({url:u,caption:m.name})) : [];
+        if(m.pro && allPhotos.length > 0) {
+          ST.currentGallery = allPhotos;
+          return `<div class="photo-strip">${allPhotos.map((p,idx)=>`<div class="photo-thumb" onclick="openPhotoLightbox(${idx})" role="button" tabindex="0"><img class="lazy-pending" data-src="${p.url}" alt="Market photo ${idx+1}"><div class="photo-thumb-overlay"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg></div></div>`).join('')}</div>`;
+        } else if(m.pro) {
+          return `<p style="font-size:13px;color:var(--text2);font-style:italic">No photos added yet.</p>`;
+        } else {
+          return `<div style="background:var(--amber-lt);border:0.5px solid #F0D090;border-radius:var(--r-md);padding:10px 12px;display:flex;align-items:center;gap:10px">
+            <span style="font-size:18px">🔒</span>
+            <div style="flex:1"><div style="font-size:12px;font-weight:500;color:#7A4E08">Market photo gallery is an Operator Pro feature</div><div style="font-size:10px;color:var(--amber)">Claim this market to add photos, show off your venue, and attract more visitors</div></div>
+            <button onclick="navigate('markets-join')" style="font-size:10px;padding:5px 10px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);cursor:pointer;white-space:nowrap;font-family:var(--font-sans)">Claim</button>
+          </div>`;
+        }
+      })()}
     </div>
 
     <!-- VENDORS AT THIS MARKET -->
@@ -5130,11 +5165,7 @@ function renderVendorsJoin() {
           <div style="padding:9px 12px;text-align:center;border-left:0.5px solid var(--border);font-size:13px">${row[1]?'✅':'—'}</div>
           <div style="padding:9px 12px;text-align:center;border-left:0.5px solid var(--border);font-size:13px">${row[2]?'✅':'—'}</div>
         </div>`).join('')}
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;background:var(--green-lt)">
-        <div style="padding:10px 12px;font-size:12px;font-weight:600;color:var(--text)">Price</div>
-        <div style="padding:10px 12px;text-align:center;border-left:0.5px solid var(--border);font-size:12px;font-weight:600;color:var(--text)">${c.price_free}</div>
-        <div style="padding:10px 12px;text-align:center;border-left:0.5px solid var(--border);font-size:11px;font-weight:600;color:var(--green-dk)">${c.price_pro}</div>
-      </div>
+
     </div>
 
     <!-- FOUNDING MEMBER BAND -->
@@ -5617,6 +5648,748 @@ async function submitVendorJoinRequest() {
   }
 }
 
+/* ── MARKETS JOIN PAGE ── */
+function renderMarketsJoin() {
+  hideFilterUI();
+  const lang = ST.lang || 'en';
+  const content = {
+    en: {
+      hero_label: "🏪 Windmill for Market Operators",
+      hero_title: "Help shoppers find your market — and keep coming back",
+      hero_sub: "Your own market page. Your vendor roster. Your schedule. All in one place.",
+      cta_main: "Claim Your Market Free — 6 Months on Us",
+      no_card: "No credit card needed. No commitment.",
+      trusted: "Serving markets across Lee County and Naples",
+      vp1_title: "Be discovered by local shoppers",
+      vp1_body: "Shoppers use Windmill to find markets near them. Your market page puts you in front of them every time they search.",
+      vp2_title: "Your vendors get discovered too",
+      vp2_body: "Every vendor on your roster gets their own Windmill profile. When shoppers find your market, they find your vendors — and follow them back week after week.",
+      vp3_title: "Your market's digital home base",
+      vp3_body: "Hours, location, photos, events — everything a shopper needs, all in one place they can bookmark and share.",
+      vp4_title: "Drive repeat foot traffic",
+      vp4_body: "Shoppers follow your market and get notified about what's new. Build a loyal community that shows up week after week.",
+      demo_label: "See a real Pro market page →",
+      free_label: "Free",
+      pro_label: "Pro",
+      feat_listing: "Public market listing",
+      feat_hours: "Edit hours & description",
+      feat_contact: "Contact info",
+      feat_vendors: "Confirm your vendor roster",
+      feat_website: "Link to your website",
+      feat_social: "Social links (Facebook, Instagram & more)",
+      feat_photos: "Add photos to your market page",
+      feat_events: "Event announcements",
+      feat_spotlight: "Spotlight featured placement",
+      feat_messaging: "Shopper messaging",
+      feat_analytics: "Analytics & page views",
+      feat_layout: "Market layout & booth map",
+      feat_layout_note: "coming soon",
+      price_free: "Free",
+      price_pro: "Free for 6 months, then TBD",
+      founding_title: "Be a Windmill Founding Operator",
+      founding_body: "We're just getting started in Southwest Florida. The first operators who claim their markets get 6 months of Pro completely free — no card, no commitment. Help us build something great for your community.",
+      founding_cta: "Claim your founding spot",
+      how_title: "How it works",
+      step1_title: "Your market is already on Windmill",
+      step1_body: "Search for your market below. We've already built the listing — you just need to claim it.",
+      step2_title: "Claim it as the operator",
+      step2_body: "Tell us you run this market. We verify and approve within 24 hours.",
+      step3_title: "Tag all your markets in onboarding",
+      step3_body: "After approval, log in and tag every market you operate. One account, all your markets.",
+      faq_title: "Questions we hear a lot",
+      faq1_q: "What is Windmill?",
+      faq1_a: "Windmill is a local marketplace that connects shoppers to farmers markets in their area. Shoppers discover markets, follow vendors, and plan their visits. As an operator, your Windmill page is how those shoppers find you — and keep coming back.",
+      faq2_q: "Is this really free?",
+      faq2_a: "Yes. Claiming and managing your market listing is free. Pro features — photos, spotlight placement, event announcements — are free for your first 6 months as a founding operator. No credit card needed.",
+      faq3_q: "I manage multiple markets. Do I need separate accounts?",
+      faq3_a: "No. Claim your first market here and create one account. After you're approved, our onboarding flow lets you tag all the markets you operate — one login, all your markets.",
+      faq4_q: "How do I know nobody else can claim my market?",
+      faq4_a: "Every claim is manually reviewed and verified by our team before approval. We confirm you're the actual operator before activating anything.",
+      faq5_q: "Our market already has a website and Facebook. Why do we need this?",
+      faq5_a: "Windmill isn't a replacement — it's a discovery layer. Shoppers are already using Windmill to find markets near them. Your Windmill page links to your website and socials, sending you more traffic.",
+      faq6_q: "What markets are on Windmill right now?",
+      faq6_a: "We're live with markets across Lee County and the Naples area including Lakes Park, Babcock Ranch, Cape Coral, Third Street South, Vanderbilt, and more.",
+      faq7_q: "How long does approval take?",
+      faq7_a: "We review and approve most claims within 24 hours. You'll get an email as soon as you're approved.",
+      footer_q: "Questions? We're real people.",
+      footer_signin: "Already have an account?",
+      footer_signin_link: "Sign in",
+      back: "← Back",
+      claim_title: "Claim your market listing",
+      claim_sub: "Search for your market below to get started.",
+      claim_market_label: "Market name",
+      claim_market_placeholder: "Search for your market...",
+      claim_your_name: "Your name",
+      claim_email: "Email address",
+      claim_phone: "Phone number",
+      claim_role: "Your role",
+      claim_role_placeholder: "Select your role",
+      claim_role_manager: "Market Manager",
+      claim_role_director: "Market Director",
+      claim_role_owner: "Owner / Organizer",
+      claim_role_other: "Other",
+      claim_multi: "I manage additional markets",
+      claim_message: "Tell us about your market (optional)",
+      claim_submit: "Request to claim — it's free",
+      claim_note: "We'll verify and get back to you within 24 hours.",
+      already_claimed: "Already claimed your listing?",
+      already_claimed_link: "Sign in here →",
+    },
+    es: {
+      hero_label: "🏪 Windmill para Operadores de Mercado",
+      hero_title: "Ayuda a los compradores a encontrar tu mercado — y que regresen",
+      hero_sub: "Tu propia página de mercado. Tu lista de vendedores. Tu horario. Todo en un lugar.",
+      cta_main: "Reclama tu mercado gratis — 6 meses on Us",
+      no_card: "Sin tarjeta de crédito. Sin compromiso.",
+      trusted: "Sirviendo mercados en Lee County y Nápoles",
+      vp1_title: "Sé descubierto por compradores locales",
+      vp1_body: "Los compradores usan Windmill para encontrar mercados cerca de ellos. Tu página te pone frente a ellos cada vez que buscan.",
+      vp2_title: "Tus vendedores también se descubren",
+      vp2_body: "Cada vendedor en tu lista tiene su propio perfil en Windmill. Cuando los compradores encuentran tu mercado, encuentran a tus vendedores — y los siguen semana tras semana.",
+      vp3_title: "La base digital de tu mercado",
+      vp3_body: "Horarios, ubicación, fotos, eventos — todo lo que un comprador necesita, en un solo lugar.",
+      vp4_title: "Genera visitas repetidas",
+      vp4_body: "Los compradores siguen tu mercado y reciben notificaciones. Construye una comunidad leal que regrese cada semana.",
+      demo_label: "Ver una página Pro real →",
+      free_label: "Gratis",
+      pro_label: "Pro",
+      feat_listing: "Perfil público del mercado",
+      feat_hours: "Editar horarios y descripción",
+      feat_contact: "Información de contacto",
+      feat_vendors: "Confirmar lista de vendedores",
+      feat_website: "Enlace a tu sitio web",
+      feat_social: "Redes sociales (Facebook, Instagram y más)",
+      feat_photos: "Agregar fotos a tu página",
+      feat_events: "Anuncios de eventos",
+      feat_spotlight: "Destacado en el Spotlight",
+      feat_messaging: "Mensajes de compradores",
+      feat_analytics: "Analíticas y vistas",
+      feat_layout: "Mapa del mercado y puestos",
+      feat_layout_note: "próximamente",
+      price_free: "Gratis",
+      price_pro: "Gratis 6 meses, luego TBD",
+      founding_title: "Sé un Operador Fundador de Windmill",
+      founding_body: "Estamos comenzando en el suroeste de Florida. Los primeros operadores obtienen 6 meses de Pro completamente gratis — sin tarjeta, sin compromiso.",
+      founding_cta: "Reclama tu lugar fundador",
+      how_title: "Cómo funciona",
+      step1_title: "Tu mercado ya está en Windmill",
+      step1_body: "Busca tu mercado abajo. Ya hemos creado el perfil — solo necesitas reclamarlo.",
+      step2_title: "Reclamalo como operador",
+      step2_body: "Dinos que operas este mercado. Verificamos y aprobamos en 24 horas.",
+      step3_title: "Etiqueta todos tus mercados",
+      step3_body: "Después de la aprobación, etiqueta todos los mercados que operas. Una cuenta, todos tus mercados.",
+      faq_title: "Preguntas frecuentes",
+      faq1_q: "¿Qué es Windmill?",
+      faq1_a: "Windmill conecta a los compradores con los mercados de agricultores. Como operador, tu página es como los compradores te encuentran.",
+      faq2_q: "¿Es realmente gratis?",
+      faq2_a: "Sí. Reclamar y gestionar tu perfil es gratis. Las funciones Pro son gratis los primeros 6 meses. Sin tarjeta de crédito.",
+      faq3_q: "¿Gestiono varios mercados. Necesito cuentas separadas?",
+      faq3_a: "No. Reclamas tu primer mercado y creas una cuenta. Luego etiquetas todos los mercados que operas.",
+      faq4_q: "¿Cómo sé que nadie más puede reclamar mi mercado?",
+      faq4_a: "Cada solicitud es revisada manualmente por nuestro equipo antes de ser aprobada.",
+      faq5_q: "Ya tenemos sitio web y Facebook. ¿Por qué necesitamos esto?",
+      faq5_a: "Windmill no es un reemplazo — es una capa de descubrimiento que envía más tráfico a tu sitio.",
+      faq6_q: "¿Qué mercados están en Windmill ahora?",
+      faq6_a: "Estamos en vivo con mercados en Lee County y el área de Nápoles.",
+      faq7_q: "¿Cuánto tiempo tarda la aprobación?",
+      faq7_a: "Revisamos y aprobamos la mayoría en 24 horas.",
+      footer_q: "¿Preguntas? Somos personas reales.",
+      footer_signin: "¿Ya tienes una cuenta?",
+      footer_signin_link: "Iniciar sesión",
+      back: "← Volver",
+      claim_title: "Reclama tu mercado",
+      claim_sub: "Busca tu mercado abajo para comenzar.",
+      claim_market_label: "Nombre del mercado",
+      claim_market_placeholder: "Busca tu mercado...",
+      claim_your_name: "Tu nombre",
+      claim_email: "Correo electrónico",
+      claim_phone: "Teléfono",
+      claim_role: "Tu función",
+      claim_role_placeholder: "Selecciona tu función",
+      claim_role_manager: "Gerente de Mercado",
+      claim_role_director: "Director de Mercado",
+      claim_role_owner: "Propietario / Organizador",
+      claim_role_other: "Otro",
+      claim_multi: "Gestiono mercados adicionales",
+      claim_message: "Cuéntanos sobre tu mercado (opcional)",
+      claim_submit: "Solicitar reclamación — es gratis",
+      claim_note: "Verificaremos y te responderemos en 24 horas.",
+      already_claimed: "¿Ya reclamaste tu perfil?",
+      already_claimed_link: "Inicia sesión aquí →",
+    },
+    pt: {
+      hero_label: "🏪 Windmill para Operadores de Feira",
+      hero_title: "Ajude os compradores a encontrar sua feira — e voltar sempre",
+      hero_sub: "Sua própria página de feira. Sua lista de vendedores. Seu horário. Tudo em um lugar.",
+      cta_main: "Reivindique sua feira grátis — 6 meses por nossa conta",
+      no_card: "Sem cartão de crédito. Sem compromisso.",
+      trusted: "Atendendo feiras em Lee County e Naples",
+      vp1_title: "Seja descoberto por compradores locais",
+      vp1_body: "Os compradores usam o Windmill para encontrar feiras perto deles. Sua página coloca você na frente deles toda vez que buscam.",
+      vp2_title: "Seus vendedores também são descobertos",
+      vp2_body: "Cada vendedor na sua lista tem seu próprio perfil no Windmill. Quando os compradores encontram sua feira, encontram seus vendedores — e os seguem semana após semana.",
+      vp3_title: "A base digital da sua feira",
+      vp3_body: "Horários, localização, fotos, eventos — tudo que um comprador precisa, em um só lugar.",
+      vp4_title: "Gere visitas repetidas",
+      vp4_body: "Os compradores seguem sua feira e recebem notificações. Construa uma comunidade fiel que aparece toda semana.",
+      demo_label: "Ver uma página Pro real →",
+      free_label: "Grátis",
+      pro_label: "Pro",
+      feat_listing: "Página pública da feira",
+      feat_hours: "Editar horários e descrição",
+      feat_contact: "Contato",
+      feat_vendors: "Confirmar lista de vendedores",
+      feat_website: "Link para seu site",
+      feat_social: "Redes sociais (Facebook, Instagram e mais)",
+      feat_photos: "Adicionar fotos à sua página",
+      feat_events: "Anúncios de eventos",
+      feat_spotlight: "Destaque no Spotlight",
+      feat_messaging: "Mensagens de compradores",
+      feat_analytics: "Análises e visualizações",
+      feat_layout: "Mapa da feira e boxes",
+      feat_layout_note: "em breve",
+      price_free: "Grátis",
+      price_pro: "Grátis por 6 meses, depois TBD",
+      founding_title: "Seja um Operador Fundador do Windmill",
+      founding_body: "Estamos começando no sudoeste da Flórida. Os primeiros operadores recebem 6 meses de Pro completamente grátis — sem cartão, sem compromisso.",
+      founding_cta: "Garanta sua vaga fundadora",
+      how_title: "Como funciona",
+      step1_title: "Sua feira já está no Windmill",
+      step1_body: "Procure sua feira abaixo. Já criamos o perfil — você só precisa reivindicá-lo.",
+      step2_title: "Reivindique como operador",
+      step2_body: "Diga-nos que você opera esta feira. Verificamos e aprovamos em 24 horas.",
+      step3_title: "Marque todas as suas feiras",
+      step3_body: "Após a aprovação, marque todas as feiras que você opera. Uma conta, todas as suas feiras.",
+      faq_title: "Perguntas frequentes",
+      faq1_q: "O que é o Windmill?",
+      faq1_a: "Windmill conecta compradores a feiras locais. Como operador, sua página é como os compradores te encontram.",
+      faq2_q: "É realmente grátis?",
+      faq2_a: "Sim. Reivindicar e gerenciar seu perfil é grátis. O Pro é grátis pelos primeiros 6 meses. Sem cartão de crédito.",
+      faq3_q: "Gerencio várias feiras. Preciso de contas separadas?",
+      faq3_a: "Não. Você reivindica sua primeira feira e cria uma conta. Depois marca todas as feiras que opera.",
+      faq4_q: "Como sei que ninguém mais pode reivindicar minha feira?",
+      faq4_a: "Cada solicitação é revisada manualmente pela nossa equipe antes de ser aprovada.",
+      faq5_q: "Nossa feira já tem site e Facebook. Por que precisamos disso?",
+      faq5_a: "O Windmill não é um substituto — é uma camada de descoberta que envia mais tráfego ao seu site.",
+      faq6_q: "Quais feiras estão no Windmill agora?",
+      faq6_a: "Estamos no ar com feiras em Lee County e a área de Naples.",
+      faq7_q: "Quanto tempo leva a aprovação?",
+      faq7_a: "Revisamos e aprovamos a maioria em 24 horas.",
+      footer_q: "Dúvidas? Somos pessoas reais.",
+      footer_signin: "Já tem uma conta?",
+      footer_signin_link: "Entrar",
+      back: "← Voltar",
+      claim_title: "Reivindique sua feira",
+      claim_sub: "Procure sua feira abaixo para começar.",
+      claim_market_label: "Nome da feira",
+      claim_market_placeholder: "Procure sua feira...",
+      claim_your_name: "Seu nome",
+      claim_email: "E-mail",
+      claim_phone: "Telefone",
+      claim_role: "Sua função",
+      claim_role_placeholder: "Selecione sua função",
+      claim_role_manager: "Gerente de Feira",
+      claim_role_director: "Diretor de Feira",
+      claim_role_owner: "Proprietário / Organizador",
+      claim_role_other: "Outro",
+      claim_multi: "Gerencio feiras adicionais",
+      claim_message: "Conte-nos sobre sua feira (opcional)",
+      claim_submit: "Solicitar reivindicação — é grátis",
+      claim_note: "Verificaremos e responderemos em 24 horas.",
+      already_claimed: "Já reivindicou seu perfil?",
+      already_claimed_link: "Entre aqui →",
+    }
+  };
+  const c = content[lang] || content.en;
+
+  document.getElementById('scrollBody').innerHTML = `
+  <div style="font-family:var(--font-sans);max-width:680px;margin:0 auto;padding-bottom:60px">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px 0">
+      <button onclick="goBack()" style="background:none;border:none;color:var(--terra);font-size:13px;cursor:pointer;font-family:var(--font-sans);padding:0">${c.back}</button>
+      <div style="display:flex;gap:6px">
+        ${['en','es','pt'].map(l=>`<button onclick="ST.lang='${l}';renderMarketsJoin()" style="padding:4px 10px;border-radius:var(--r-pill);border:0.5px solid ${(ST.lang||'en')===l?'var(--green)':'var(--border)'};background:${(ST.lang||'en')===l?'var(--green)':'var(--surface)'};color:${(ST.lang||'en')===l?'#fff':'var(--text2)'};font-size:11px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">${l.toUpperCase()}</button>`).join('')}
+      </div>
+    </div>
+
+    <div style="padding:32px 20px 28px;text-align:center;background:linear-gradient(160deg,var(--green-lt) 0%,var(--terra-lt) 100%);margin:12px 16px 0;border-radius:var(--r-lg);border:0.5px solid var(--border)">
+      <div style="font-size:13px;font-weight:700;letter-spacing:.08em;color:var(--green-dk);text-transform:uppercase;margin-bottom:10px">${c.hero_label}</div>
+      <h1 style="font-family:var(--font-serif);font-size:22px;font-weight:600;color:var(--text);line-height:1.35;margin:0 0 12px">${c.hero_title}</h1>
+      <p style="font-size:14px;color:var(--text2);line-height:1.6;margin:0 0 24px">${c.hero_sub}</p>
+      <button onclick="document.getElementById('marketClaimForm').scrollIntoView({behavior:'smooth'})" style="width:100%;padding:14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:13px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:12px">${c.cta_main}</button>
+      <div style="font-size:11px;color:var(--text3)">${c.no_card}</div>
+    </div>
+
+    <div style="text-align:center;padding:16px 20px;font-size:12px;color:var(--text3)">${c.trusted}</div>
+
+    <div style="padding:0 16px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px">
+      ${[
+        {icon:'🔍',title:c.vp1_title,body:c.vp1_body},
+        {icon:'🧑‍🤝‍🧑',title:c.vp2_title,body:c.vp2_body},
+        {icon:'📍',title:c.vp3_title,body:c.vp3_body},
+        {icon:'📣',title:c.vp4_title,body:c.vp4_body}
+      ].map(vp=>`
+        <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px">
+          <div style="font-size:22px;margin-bottom:8px">${vp.icon}</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;line-height:1.3">${vp.title}</div>
+          <div style="font-size:12px;color:var(--text2);line-height:1.5">${vp.body}</div>
+        </div>`).join('')}
+    </div>
+
+    <div style="padding:0 16px;margin-bottom:28px">
+      <button onclick="document.getElementById('marketClaimForm').scrollIntoView({behavior:'smooth'})" style="width:100%;padding:13px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">${c.cta_main}</button>
+      <div style="text-align:center;margin-top:8px;font-size:11px;color:var(--text3)">${c.no_card}</div>
+    </div>
+
+    <div style="margin:0 16px 28px">
+      <div style="font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--text3);text-transform:uppercase;margin-bottom:10px;text-align:center">See a real Pro market page</div>
+      <div style="background:var(--surface);border:1.5px solid var(--green);border-radius:var(--r-lg);overflow:hidden;cursor:pointer" onclick="navigate('demo-operator-pro')">
+        <div style="height:90px;background:linear-gradient(135deg,#1a3a2a 0%,#2D5016 50%,#4A7C2F 100%);display:flex;align-items:center;justify-content:center;font-size:40px">🏪</div>
+        <div style="padding:14px 16px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <div style="font-size:14px;font-weight:600;color:var(--text)">Suncoast Market Collective</div>
+            <span style="font-size:10px;padding:2px 7px;background:var(--green);color:#fff;border-radius:var(--r-pill);font-weight:500">✓ Pro</span>
+          </div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:8px">SW Florida · 6 weekly markets · 200+ vendors</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+            <span style="font-size:11px;padding:3px 8px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill)">Photos</span>
+            <span style="font-size:11px;padding:3px 8px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill)">Events</span>
+            <span style="font-size:11px;padding:3px 8px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill)">Full roster</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div style="font-size:11px;color:var(--text3);font-style:italic">Tap to explore this Pro page</div>
+            <span style="font-size:12px;color:var(--terra);font-weight:600">${c.demo_label}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin:0 16px 28px;border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;background:var(--surface2);border-bottom:0.5px solid var(--border)">
+        <div style="padding:10px 12px;font-size:12px;font-weight:600;color:var(--text2)">Feature</div>
+        <div style="padding:10px 12px;font-size:12px;font-weight:600;color:var(--text);text-align:center;border-left:0.5px solid var(--border)">${c.free_label}</div>
+        <div style="padding:10px 12px;font-size:12px;font-weight:600;color:var(--green-dk);text-align:center;border-left:0.5px solid var(--border)">⭐ ${c.pro_label}</div>
+      </div>
+      ${[
+        [c.feat_listing, true, true],
+        [c.feat_hours, true, true],
+        [c.feat_contact, true, true],
+        [c.feat_vendors, true, true],
+        [c.feat_website, true, true],
+        [c.feat_social, false, true],
+        [c.feat_photos, false, true],
+        [c.feat_events, false, true],
+        [c.feat_spotlight, false, true],
+        [c.feat_messaging, false, true],
+        [c.feat_analytics, false, true],
+        [c.feat_layout, false, 'soon'],
+      ].map((row,i)=>`
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-bottom:0.5px solid var(--border);background:${i%2===0?'var(--surface)':'var(--bg)'}">
+          <div style="padding:9px 12px;font-size:12px;color:var(--text2)">${row[0]}</div>
+          <div style="padding:9px 12px;text-align:center;border-left:0.5px solid var(--border);font-size:13px">${row[1]?'✅':'—'}</div>
+          <div style="padding:9px 12px;text-align:center;border-left:0.5px solid var(--border);font-size:${row[2]==='soon'?'10px':'13px'};color:${row[2]==='soon'?'var(--text3)':'inherit'}">${row[2]===true?'✅':row[2]==='soon'?('🗺️ '+c.feat_layout_note):'—'}</div>
+        </div>`).join('')}
+    </div>
+
+    <div style="margin:0 16px 28px;background:var(--green);border-radius:var(--r-lg);padding:24px 20px;text-align:center">
+      <div style="font-size:24px;margin-bottom:10px">🏪</div>
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:#fff;margin-bottom:10px;line-height:1.3">${c.founding_title}</div>
+      <p style="font-size:13px;color:rgba(255,255,255,0.85);line-height:1.6;margin:0 0 20px">${c.founding_body}</p>
+      <button onclick="document.getElementById('marketClaimForm').scrollIntoView({behavior:'smooth'})" style="padding:13px 28px;background:#fff;color:var(--green-dk);border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">${c.founding_cta}</button>
+      <div style="margin-top:10px;font-size:11px;color:rgba(255,255,255,0.7)">${c.no_card}</div>
+    </div>
+
+    <div style="padding:0 16px;margin-bottom:28px">
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:16px;text-align:center">${c.how_title}</div>
+      ${[
+        {num:'1',title:c.step1_title,body:c.step1_body},
+        {num:'2',title:c.step2_title,body:c.step2_body},
+        {num:'3',title:c.step3_title,body:c.step3_body}
+      ].map(s=>`
+        <div style="display:flex;gap:14px;margin-bottom:16px;align-items:flex-start">
+          <div style="width:32px;height:32px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0">${s.num}</div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px">${s.title}</div>
+            <div style="font-size:12px;color:var(--text2);line-height:1.5">${s.body}</div>
+          </div>
+        </div>`).join('')}
+    </div>
+
+    <div id="marketClaimForm" style="margin:0 16px 28px;background:var(--surface);border:1.5px solid var(--green);border-radius:var(--r-lg);padding:24px 20px">
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:6px;text-align:center">${c.claim_title}</div>
+      <div style="font-size:12px;color:var(--text2);text-align:center;margin-bottom:6px;line-height:1.5">${c.claim_sub}</div>
+      <div style="text-align:center;margin-bottom:16px">
+        <span style="font-size:12px;color:var(--text3)">${c.already_claimed} </span>
+        <span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="navigate('markets-login')">${c.already_claimed_link}</span>
+      </div>
+      <div style="position:relative;margin-bottom:14px">
+        <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px">${c.claim_market_label}</div>
+        <input id="joinMarketSearch" type="text" placeholder="${c.claim_market_placeholder}"
+          style="width:100%;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none"
+          oninput="renderMarketJoinSuggestions(this.value)" autocomplete="off">
+        <div id="joinMarketSuggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:0.5px solid var(--border-med);border-radius:0 0 var(--r-md) var(--r-md);z-index:100;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.1)"></div>
+      </div>
+      <div style="margin-bottom:14px">
+        <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px">${c.claim_your_name}</div>
+        <input id="joinMarketYourName" type="text" placeholder="Alex Rivera"
+          style="width:100%;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none">
+      </div>
+      <div style="margin-bottom:14px">
+        <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px">${c.claim_email}</div>
+        <input id="joinMarketEmail" type="email" placeholder="you@yourmarket.com"
+          style="width:100%;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none">
+      </div>
+      <div style="margin-bottom:14px">
+        <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px">${c.claim_phone}</div>
+        <input id="joinMarketPhone" type="tel" placeholder="239-555-0100"
+          style="width:100%;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none">
+      </div>
+      <div style="margin-bottom:14px">
+        <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px">${c.claim_role}</div>
+        <select id="joinMarketRole"
+          style="width:100%;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none;-webkit-appearance:none;appearance:none">
+          <option value="">${c.claim_role_placeholder}</option>
+          <option value="manager">${c.claim_role_manager}</option>
+          <option value="director">${c.claim_role_director}</option>
+          <option value="owner">${c.claim_role_owner}</option>
+          <option value="other">${c.claim_role_other}</option>
+        </select>
+      </div>
+      <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px;background:var(--surface2);border:0.5px solid var(--border);border-radius:var(--r-md);padding:12px 14px;cursor:pointer" onclick="document.getElementById('joinMultiMarket').click()">
+        <input type="checkbox" id="joinMultiMarket" style="width:16px;height:16px;cursor:pointer;accent-color:var(--green);flex-shrink:0">
+        <label for="joinMultiMarket" style="font-size:12px;color:var(--text2);cursor:pointer;line-height:1.4">${c.claim_multi}</label>
+      </div>
+      <div style="margin-bottom:20px">
+        <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px">${c.claim_message}</div>
+        <textarea id="joinMarketMessage" placeholder="e.g. I manage Lakes Park Farmers Market and the Cape Coral Downtown Market"
+          style="width:100%;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none;resize:vertical;min-height:80px"></textarea>
+      </div>
+      <button onclick="submitMarketJoinRequest()" style="width:100%;padding:14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:10px">${c.claim_submit}</button>
+      <div style="text-align:center;font-size:11px;color:var(--text3)">${c.claim_note}</div>
+    </div>
+
+    <div style="padding:0 16px;margin-bottom:28px">
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:16px;text-align:center">${c.faq_title}</div>
+      ${[
+        [c.faq1_q, c.faq1_a],
+        [c.faq2_q, c.faq2_a],
+        [c.faq3_q, c.faq3_a],
+        [c.faq4_q, c.faq4_a],
+        [c.faq5_q, c.faq5_a],
+        [c.faq6_q, c.faq6_a],
+        [c.faq7_q, c.faq7_a],
+      ].map((faq,i)=>`
+        <div style="border-bottom:0.5px solid var(--border);padding:14px 0" onclick="this.querySelector('.mfaq-ans').style.display=this.querySelector('.mfaq-ans').style.display==='block'?'none':'block'">
+          <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer">
+            <div style="font-size:13px;font-weight:500;color:var(--text);line-height:1.4;padding-right:12px">${faq[0]}</div>
+            <div style="font-size:16px;color:var(--text3);flex-shrink:0">＋</div>
+          </div>
+          <div class="mfaq-ans" style="display:none;font-size:12px;color:var(--text2);line-height:1.6;margin-top:8px">${faq[1]}</div>
+        </div>`).join('')}
+    </div>
+
+    <div style="padding:0 16px;margin-bottom:28px;text-align:center">
+      <button onclick="document.getElementById('marketClaimForm').scrollIntoView({behavior:'smooth'})" style="width:100%;padding:14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:13px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:8px">${c.cta_main}</button>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:16px">${c.no_card}</div>
+    </div>
+
+    <div style="padding:20px 16px;border-top:0.5px solid var(--border);text-align:center">
+      <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">${c.footer_q}</div>
+      <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
+      <div style="margin-top:12px;font-size:12px;color:var(--text3)">${c.footer_signin} <span style="color:var(--terra);cursor:pointer" onclick="navigate('markets-login')">${c.footer_signin_link}</span></div>
+    </div>
+
+  </div>`;
+}
+
+function renderMarketJoinSuggestions(q) {
+  const box = document.getElementById('joinMarketSuggestions');
+  if(!box) return;
+  if(!q || q.length < 2) { box.style.display='none'; return; }
+  const matches = DATA.markets.filter(m => m.name.toLowerCase().includes(q.toLowerCase())).slice(0,6);
+  if(!matches.length) { box.style.display='none'; return; }
+  box.style.display = 'block';
+  box.innerHTML = matches.map(m => `
+    <div onclick="document.getElementById('joinMarketSearch').value='${m.name.replace(/'/g,"\\'")}';ST.claimMarketId='${m.id}';document.getElementById('joinMarketSuggestions').style.display='none'"
+      style="padding:10px 14px;cursor:pointer;border-bottom:0.5px solid var(--border);font-size:13px;color:var(--text)"
+      onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+      <span style="font-weight:500">${m.name}</span>
+      <span style="font-size:11px;color:var(--text3);margin-left:6px">${m.city||''}</span>
+      ${m.claimed ? '<span style="font-size:10px;color:var(--green);margin-left:6px">✓ Claimed</span>' : ''}
+    </div>`).join('');
+}
+
+function renderMarketPending() {
+  hideFilterUI();
+  const email = ST.user?.email || '';
+  document.getElementById('scrollBody').innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:40px 24px">
+    <div style="font-size:52px;margin-bottom:20px">🏪</div>
+    <div style="font-family:var(--font-serif);font-size:22px;font-weight:600;color:var(--text);margin-bottom:10px">You're on the list!</div>
+    <p style="font-size:14px;color:var(--text2);line-height:1.7;max-width:340px;margin-bottom:24px">Thanks for reaching out. We're reviewing your market claim and you'll receive an email at <strong>${email}</strong> shortly with next steps.</p>
+    <div style="background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-md);padding:16px 20px;max-width:340px;width:100%;margin-bottom:24px;text-align:left">
+      <div style="font-size:12px;font-weight:600;color:var(--green-dk);margin-bottom:4px">What happens next?</div>
+      <div style="font-size:12px;color:var(--green-dk);line-height:1.7;opacity:.85">1. We verify you operate this market<br>2. You get an email with your login link<br>3. Tag all your markets in onboarding<br>4. Your market page goes live</div>
+    </div>
+    <p style="font-size:12px;color:var(--text3)">Questions? Email us at <a href="mailto:hello@shopwindmill.com" style="color:var(--terra)">hello@shopwindmill.com</a></p>
+  </div>`;
+}
+
+async function submitMarketJoinRequest() {
+  const marketName = document.getElementById('joinMarketSearch')?.value?.trim();
+  const yourName = document.getElementById('joinMarketYourName')?.value?.trim();
+  const email = document.getElementById('joinMarketEmail')?.value?.trim();
+  const phone = document.getElementById('joinMarketPhone')?.value?.trim();
+  const role = document.getElementById('joinMarketRole')?.value;
+  const multiMarket = document.getElementById('joinMultiMarket')?.checked;
+  const message = document.getElementById('joinMarketMessage')?.value?.trim();
+
+  if(!marketName || !yourName || !email) {
+    alert('Please fill in the market name, your name, and email address.');
+    return;
+  }
+
+  const marketId = ST.claimMarketId || marketName.toLowerCase().replace(/\s+/g,'-');
+  const multiNote = multiMarket ? ' [Manages additional markets]' : '';
+
+  // Save to Supabase claims table with claim_type = 'market'
+  if(supabaseClient) {
+    try {
+      await supabaseClient.from('claims').insert({
+        vendor_id: marketId,
+        vendor_name: marketName,
+        claimant_name: yourName,
+        email: email,
+        phone: phone || '',
+        message: (message||'') + multiNote,
+        status: 'pending',
+        pro_requested: false,
+        upgrade_request: false,
+        claim_type: 'market'
+      });
+    } catch(e) { console.warn('Market claim save failed:', e); }
+  }
+
+  // Push to local admin claims with type flag
+  ST.adminClaims.unshift({
+    id: 'mc' + Date.now(),
+    vendorId: marketId,
+    vendorName: marketName,
+    claimant: yourName,
+    email: email,
+    phone: phone || '',
+    message: (message||'') + multiNote,
+    role: role || '',
+    date: new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}),
+    status: 'pending',
+    claim_type: 'market'
+  });
+
+  // Email to admin
+  sendWindmillEmail(
+    '🏪 New market claim — ' + marketName,
+    '<h2>New Market Operator Claim</h2>' +
+    '<p><strong>Market:</strong> ' + marketName + '</p>' +
+    '<p><strong>Claimant:</strong> ' + yourName + '</p>' +
+    '<p><strong>Email:</strong> ' + email + '</p>' +
+    '<p><strong>Phone:</strong> ' + (phone||'Not provided') + '</p>' +
+    '<p><strong>Role:</strong> ' + (role||'Not specified') + '</p>' +
+    '<p><strong>Manages additional markets:</strong> ' + (multiMarket?'Yes':'No') + '</p>' +
+    '<p><strong>Message:</strong> ' + (message||'None') + '</p>' +
+    '<p><a href="https://shopwindmill.com" style="background:#5C7A4E;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:12px">Review in Admin Dashboard →</a></p>'
+  );
+
+  // Confirmation email to operator
+  sendWindmillEmail(
+    '🏪 We received your Windmill market request!',
+    '<h2>Thanks, ' + yourName + '!</h2>' +
+    '<p>We\'ve received your request to claim <strong>' + marketName + '</strong> on Windmill.</p>' +
+    '<p>We\'ll verify your listing and get back to you within 24 hours with next steps.</p>' +
+    '<div style="background:#f0f7ee;border-radius:8px;padding:16px;margin:16px 0;font-size:14px;line-height:2">' +
+    '✓ Free market listing<br>✓ Tag all your markets in one account<br>✓ Your page at shopwindmill.com</div>' +
+    '<p style="color:#666;font-size:13px">Questions? Reply to this email and we\'ll get right back to you.</p>' +
+    '<p style="color:#666;font-size:13px">— The Windmill Team</p>',
+    email
+  );
+
+  // Inline success state
+  const form = document.getElementById('marketClaimForm');
+  if(form) {
+    form.innerHTML = `
+      <div style="text-align:center;padding:20px 0">
+        <div style="font-size:48px;margin-bottom:16px">🏪</div>
+        <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:10px">Request received!</div>
+        <p style="font-size:13px;color:var(--text2);line-height:1.6;margin:0 0 8px">We've received your claim for <strong>${marketName}</strong>.</p>
+        <p style="font-size:13px;color:var(--text2);line-height:1.6;margin:0 0 20px">We'll verify and get back to you at <strong>${email}</strong> within 24 hours.</p>
+        <div style="background:var(--green-lt);border-radius:var(--r-md);padding:12px;font-size:12px;color:var(--green-dk);line-height:1.6">
+          ✓ Free market listing<br>✓ One account for all your markets<br>✓ No credit card needed
+        </div>
+      </div>`;
+    form.scrollIntoView({behavior:'smooth'});
+  }
+}
+
+/* ── MARKETS LOGIN PAGE ── */
+function renderMarketsLogin() {
+  hideFilterUI();
+  document.getElementById('scrollBody').innerHTML = `<div style="max-width:420px;margin:0 auto;padding:32px 20px 60px">
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="font-size:32px;margin-bottom:8px">🏪</div>
+      <div style="font-family:var(--font-serif);font-size:22px;font-weight:600;color:var(--text);margin-bottom:6px">Market Operator Sign In</div>
+      <div style="font-size:13px;color:var(--text2)">Sign in to manage your market listings on Windmill</div>
+    </div>
+
+    <div id="marketLoginForm" style="background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-lg);padding:24px 20px">
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div>
+          <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:5px">Email address</label>
+          <input id="marketLoginEmail" type="email" placeholder="your@email.com" class="form-input" style="width:100%" autocomplete="email">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:5px">Password</label>
+          <div style="position:relative">
+            <input id="marketLoginPassword" type="password" placeholder="Minimum 8 characters" class="form-input" style="width:100%;padding-right:40px" autocomplete="current-password">
+            <button type="button" onclick="togglePasswordVisibility('marketLoginPassword',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);padding:4px;font-size:16px;line-height:1">👁</button>
+          </div>
+        </div>
+        <button onclick="submitMarketLogin()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Sign in</button>
+        <div style="text-align:center">
+          <span style="font-size:12px;color:var(--text3)">New operator? </span>
+          <span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="navigate('markets-join')">Claim your market →</span>
+        </div>
+        <div style="border-top:0.5px solid var(--border);padding-top:12px;text-align:center">
+          <div style="font-size:12px;color:var(--text3);margin-bottom:8px">First time signing in? Create your password:</div>
+          <button onclick="showMarketSignup()" style="width:100%;padding:10px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans);color:var(--text)">Create account with email</button>
+        </div>
+        <div style="text-align:center">
+          <span style="font-size:11px;color:var(--text3);cursor:pointer" onclick="showMarketForgotPassword()">Forgot password?</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:center;margin-top:20px">
+      <span style="font-size:12px;color:var(--text3)">Looking for vendor sign in? </span>
+      <span style="font-size:12px;color:var(--terra);cursor:pointer" onclick="navigate('vendors-login')">Vendor sign in →</span>
+    </div>
+  </div>`;
+}
+
+async function submitMarketLogin() {
+  const email = document.getElementById('marketLoginEmail')?.value?.trim();
+  const password = document.getElementById('marketLoginPassword')?.value;
+  const btn = document.querySelector('#marketLoginForm button[onclick="submitMarketLogin()"]');
+  if(!email || !password) { alert('Please enter your email and password.'); return; }
+  if(btn) { btn.disabled=true; btn.textContent='Signing in...'; }
+  try {
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if(error) throw error;
+    ST.user = data.user;
+    // Check operators table for this email
+    const { data: ops } = await supabaseClient.from('operators').select('*').eq('email', email);
+    if(ops && ops.length > 0) {
+      ST.role = 'operator';
+      ST.operatorId = ops[0].id;
+      renderSidebar(); renderBottom();
+      // Operator dashboard placeholder
+      document.getElementById('scrollBody').innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:40px 24px">
+        <div style="font-size:52px;margin-bottom:20px">🏪</div>
+        <div style="font-family:var(--font-serif);font-size:22px;font-weight:600;color:var(--text);margin-bottom:10px">Welcome, ${ops[0].name||email}!</div>
+        <p style="font-size:14px;color:var(--text2);line-height:1.7;max-width:340px">Your operator dashboard is coming soon. We'll notify you when it's ready.</p>
+      </div>`;
+    } else {
+      // Not in operators table — might be a pending claim
+      renderMarketPending();
+    }
+  } catch(e) {
+    if(btn) { btn.disabled=false; btn.textContent='Sign in'; }
+    alert('Sign in failed: ' + (e.message||'Please check your email and password.'));
+  }
+}
+
+function showMarketSignup() {
+  const form = document.getElementById('marketLoginForm');
+  if(!form) return;
+  form.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div style="text-align:center;margin-bottom:4px">
+        <div style="font-size:13px;font-weight:600;color:var(--text)">Create your operator account</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">Use the email you submitted in your claim request</div>
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:5px">Email address</label>
+        <input id="marketSignupEmail" type="email" placeholder="your@email.com" class="form-input" style="width:100%" autocomplete="email">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:5px">Choose a password</label>
+        <div style="position:relative">
+          <input id="marketSignupPassword" type="password" placeholder="Minimum 8 characters" class="form-input" style="width:100%;padding-right:40px" autocomplete="new-password">
+          <button type="button" onclick="togglePasswordVisibility('marketSignupPassword',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);padding:4px;font-size:16px;line-height:1">👁</button>
+        </div>
+      </div>
+      <button onclick="submitMarketSignup()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Create account</button>
+      <div style="text-align:center">
+        <span style="font-size:12px;color:var(--terra);cursor:pointer" onclick="renderMarketsLogin()">← Back to sign in</span>
+      </div>
+    </div>`;
+}
+
+async function submitMarketSignup() {
+  const email = document.getElementById('marketSignupEmail')?.value?.trim();
+  const password = document.getElementById('marketSignupPassword')?.value;
+  if(!email || !password) { alert('Please enter your email and a password.'); return; }
+  if(password.length < 8) { alert('Password must be at least 8 characters.'); return; }
+  const btn = document.querySelector('#marketLoginForm button[onclick="submitMarketSignup()"]');
+  if(btn) { btn.disabled=true; btn.textContent='Creating account...'; }
+  try {
+    const { data, error } = await supabaseClient.auth.signUp({ email, password });
+    if(error) throw error;
+    ST.user = data.user;
+    renderMarketPending();
+  } catch(e) {
+    if(btn) { btn.disabled=false; btn.textContent='Create account'; }
+    alert('Account creation failed: ' + (e.message||'Please try again.'));
+  }
+}
+
+function showMarketForgotPassword() {
+  const form = document.getElementById('marketLoginForm');
+  if(!form) return;
+  form.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div style="text-align:center;margin-bottom:4px">
+        <div style="font-size:13px;font-weight:600;color:var(--text)">Reset your password</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">We'll send you a reset link</div>
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:5px">Email address</label>
+        <input id="marketForgotEmail" type="email" placeholder="your@email.com" class="form-input" style="width:100%" autocomplete="email">
+      </div>
+      <button onclick="submitMarketForgotPassword()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Send reset link</button>
+      <div style="text-align:center">
+        <span style="font-size:12px;color:var(--terra);cursor:pointer" onclick="renderMarketsLogin()">← Back to sign in</span>
+      </div>
+    </div>`;
+}
+
+async function submitMarketForgotPassword() {
+  const email = document.getElementById('marketForgotEmail')?.value?.trim();
+  if(!email) { alert('Please enter your email address.'); return; }
+  const btn = document.querySelector('#marketLoginForm button[onclick="submitMarketForgotPassword()"]');
+  if(btn) { btn.disabled=true; btn.textContent='Sending...'; }
+  try {
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: 'https://shopwindmill.com/markets/login' });
+    if(error) throw error;
+    document.getElementById('marketLoginForm').innerHTML = `
+      <div style="text-align:center;padding:20px 0">
+        <div style="font-size:40px;margin-bottom:12px">📧</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:8px">Check your email</div>
+        <div style="font-size:13px;color:var(--text2);line-height:1.6">We've sent a password reset link to <strong>${email}</strong>.</div>
+      </div>`;
+  } catch(e) {
+    if(btn) { btn.disabled=false; btn.textContent='Send reset link'; }
+    alert('Reset failed: ' + (e.message||'Please try again.'));
+  }
+}
+
 function openMarketVendorFilter(marketId) {
   const mvs = DATA.vendors.filter(v => v.published && v.markets.includes(marketId));
   const cats = [...new Set(mvs.map(v => v.category).filter(Boolean))].sort();
@@ -5997,7 +6770,7 @@ function renderMe() {
       <div style="background:var(--terra-lt);border:0.5px solid #ECC4B0;border-radius:var(--r-md);padding:16px">
         <div style="font-size:13px;font-weight:500;color:#7A2E10;margin-bottom:4px">${t('claim_vendor_me')}</div>
         <div style="font-size:12px;color:var(--terra-mid);margin-bottom:12px">${t('claim_vendor_sub')}</div>
-        <button onclick="openModal('claimModal')" style="width:100%;padding:10px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500">${t('claim_cta')}</button>
+        <button onclick="navigate('vendors-join')" style="width:100%;padding:10px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500">${t('claim_cta')}</button>
       </div>
     </div>
     
@@ -6795,8 +7568,19 @@ function renderAdminPanel() {
 
   /* ── CLAIMS TAB ── */
   if(ST.adminTab==='claims') {
-    const pending = ST.adminClaims.filter(c=>c.status==='pending');
-    const history = ST.adminClaims.filter(c=>c.status!=='pending');
+    if(!ST.adminClaimsType) ST.adminClaimsType = 'vendor';
+    const vendorClaims = ST.adminClaims.filter(c => c.claim_type !== 'market');
+    const marketClaims = ST.adminClaims.filter(c => c.claim_type === 'market');
+    const activeList = ST.adminClaimsType === 'market' ? marketClaims : vendorClaims;
+    const pending = activeList.filter(c=>c.status==='pending');
+    const history = activeList.filter(c=>c.status!=='pending');
+
+    // Type toggle: Vendors / Markets
+    h += `<div style="display:flex;gap:6px;margin-bottom:10px">
+      <button onclick="ST.adminClaimsType='vendor';ST.adminClaimsTab='pending';renderAdminPanel()" style="flex:1;padding:8px;border-radius:var(--r-pill);border:0.5px solid ${ST.adminClaimsType!=='market'?'var(--green)':'var(--border)'};background:${ST.adminClaimsType!=='market'?'var(--green-lt)':'var(--surface)'};color:${ST.adminClaimsType!=='market'?'var(--green-dk)':'var(--text2)'};font-size:12px;cursor:pointer;font-weight:${ST.adminClaimsType!=='market'?'600':'400'}">🌾 Vendors (${vendorClaims.length})</button>
+      <button onclick="ST.adminClaimsType='market';ST.adminClaimsTab='pending';renderAdminPanel()" style="flex:1;padding:8px;border-radius:var(--r-pill);border:0.5px solid ${ST.adminClaimsType==='market'?'var(--green)':'var(--border)'};background:${ST.adminClaimsType==='market'?'var(--green-lt)':'var(--surface)'};color:${ST.adminClaimsType==='market'?'var(--green-dk)':'var(--text2)'};font-size:12px;cursor:pointer;font-weight:${ST.adminClaimsType==='market'?'600':'400'}">🏪 Markets (${marketClaims.length})</button>
+    </div>`;
+
     h += `<div class="admin-subtabs">
       <button class="admin-subtab ${ST.adminClaimsTab!=='history'?'active':''}" onclick="ST.adminClaimsTab='pending';renderAdminPanel()">Pending (${pending.length})</button>
       <button class="admin-subtab ${ST.adminClaimsTab==='history'?'active':''}" onclick="ST.adminClaimsTab='history';renderAdminPanel()">History (${history.length})</button>
@@ -6807,11 +7591,16 @@ function renderAdminPanel() {
     } else {
       h += `<div class="admin-table">`;
       showList.forEach(c => {
+        const isMarketClaim = c.claim_type === 'market';
         h += `<div class="request-row">
           <div class="request-info">
-            <div class="request-city">${c.vendorName}</div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div class="request-city">${c.vendorName}</div>
+              ${isMarketClaim ? `<span style="font-size:10px;padding:1px 6px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill);border:0.5px solid var(--green-mid)">Market</span>` : ''}
+              ${c.message&&c.message.includes('Manages additional markets') ? `<span style="font-size:10px;padding:1px 6px;background:var(--amber-lt);color:#7A4E08;border-radius:var(--r-pill);border:0.5px solid #F0D090">Multi-market</span>` : ''}
+            </div>
             <div class="request-markets">Claimed by: ${c.claimant} · ${c.email}</div>
-            <div class="request-contact">${c.phone} · ${c.date}</div>
+            <div class="request-contact">${c.phone||''}${c.phone&&c.role?' · ':''}${c.role||''} · ${c.date}</div>
             ${c.message?`<div style="font-size:11px;color:var(--text);margin-top:4px;font-style:italic">"${c.message}"</div>`:''}
             ${c.status==='denied'&&c.denyReason?`<div style="font-size:11px;color:var(--terra);margin-top:2px">Denied: ${c.denyReason}</div>`:''}
           </div>
@@ -6819,7 +7608,7 @@ function renderAdminPanel() {
             ${c.status==='pending' ? `
               <button class="action-btn publish" onclick="adminApproveClaim('${c.id}')">✓ Approve</button>
               <button class="action-btn edit" style="color:var(--terra);border-color:var(--terra)" onclick="adminDenyClaim('${c.id}')">✗ Deny</button>
-              <button class="action-btn preview" onclick="navigate('vendor','${c.vendorId}')">View</button>
+              <button class="action-btn preview" onclick="navigate('${isMarketClaim?'market':'vendor'}','${c.vendorId}')">View</button>
             ` : `<span class="status-pill ${c.status==='approved'?'claimed':'draft'}">${c.status==='approved'?'Approved':'Denied'}</span>`}
           </div>
         </div>`;
@@ -10106,7 +10895,7 @@ function renderAdminSettings() {
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Platform Info</div>
-        <div class="admin-row-meta">Version 1.62.11 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
+        <div class="admin-row-meta">Version 1.64 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Coverage Area</div>
@@ -10322,7 +11111,7 @@ function renderDemoOperatorFree() {
     <div style="padding:0 16px 24px"><div style="background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-lg);padding:16px;text-align:center">
       <div style="font-size:13px;font-weight:500;color:var(--green-dk);margin-bottom:4px">Are you a vendor with ${op.name}?</div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Claim your free vendor listing to connect with customers.</div>
-      <button onclick="openModal('claimModal')" style="padding:8px 20px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500">Claim my listing — free</button>
+      <button onclick="navigate('vendors-join')" style="padding:8px 20px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500">Claim my listing — free</button>
     </div></div>
   </div>`;
 }
@@ -10331,73 +11120,170 @@ function renderDemoOperatorFree() {
 function renderDemoOperatorPro() {
   hideFilterUI();
   const op = DATA.demo_operators[1];
+  const eq = DATA.demo_vendors ? DATA.demo_vendors[1] : null;
+  const lakesParkVendors = DATA.vendors.filter(v => v.markets && v.markets.includes('lakes-park') && v.published).slice(0,9);
+  const allDemoVendors = eq ? [eq, ...lakesParkVendors] : lakesParkVendors;
+  ST.demoOpVendors = allDemoVendors;
+  ST.currentGallery = op.photos;
+
   document.getElementById('scrollBody').innerHTML = `<div class="market-page">
-    <div class="market-hero" style="background:linear-gradient(160deg,#EEF2EB 0%,var(--surface) 60%)">
-      <div class="profile-back" onclick="goBack()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> Back</div>
-      <div style="background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-sm);padding:7px 12px;font-size:11px;color:var(--green-dk);margin-bottom:12px;display:flex;align-items:center;gap:6px">⭐ Demo preview — Operator Pro page <span style="margin-left:auto;font-weight:500">Operator Pro</span></div>
-      ${op.sponsor ? `<div style="background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-sm);padding:6px 12px;font-size:10px;color:var(--text3);margin-bottom:10px">Presented by <strong style="color:var(--text2)">${op.sponsor.name}</strong> — ${op.sponsor.tagline}</div>` : ''}
-      <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:12px">
-        <img src="${op.photo}" style="width:72px;height:72px;border-radius:16px;object-fit:cover;flex-shrink:0;border:2px solid var(--green-mid)" onerror="this.style.display='none'">
-        <div style="flex:1">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
-            <div class="market-name-lg" style="font-size:18px;margin:0">${op.name}</div>
-            <span style="font-size:10px;padding:2px 7px;background:var(--green);color:#fff;border-radius:var(--r-pill);font-weight:500;flex-shrink:0">✓ Pro</span>
+
+    <div class="market-hero" style="padding:0">
+      <div style="position:relative;height:160px;overflow:hidden">
+        <img src="${op.photos[0].url}" alt="${op.name}" style="width:100%;height:100%;object-fit:cover">
+        <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.25) 0%,rgba(0,0,0,.55) 100%)"></div>
+
+      </div>
+      <div style="padding:14px 16px 16px">
+        <div style="background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-sm);padding:7px 12px;font-size:11px;color:var(--green-dk);margin-bottom:12px;display:flex;align-items:center;gap:6px">⭐ Demo preview — Operator Pro page <span style="margin-left:auto;font-weight:500">Operator Pro</span></div>
+        <div style="margin-bottom:10px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:6px">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px">
+                <div class="market-name-lg" style="margin:0;word-break:break-word">${op.name}</div>
+                <span style="font-size:10px;padding:2px 7px;background:var(--green);color:#fff;border-radius:var(--r-pill);font-weight:500;flex-shrink:0;white-space:nowrap">✓ Pro</span>
+              </div>
+              <div class="market-subtitle" style="margin-bottom:10px">${op.tagline}</div>
+            </div>
           </div>
-          <div style="font-size:12px;color:var(--text2);font-style:italic;margin-bottom:8px">${op.tagline}</div>
-          <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center">
-            <span class="badge-pill green">🏪 ${op.market_count} markets</span>
-            <span class="badge-pill green">👥 ${op.vendor_count} vendors</span>
-            <button id="shareBtn" onclick="shareProfile('${op.name}','${op.slug}','operator')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:11px;cursor:pointer;background:transparent;color:var(--text2);font-family:var(--font-sans)">📤 Share</button>
+          <div style="display:flex;gap:6px">
+            <button class="btn-follow" style="background:var(--green);color:#fff;border-color:var(--green)">❤️ Follow</button>
+            <button style="padding:7px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);font-family:var(--font-sans);white-space:nowrap">💬 Message</button>
+            <button id="shareBtn" onclick="shareProfile('${op.name}','${op.slug}','operator')" style="padding:7px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);font-family:var(--font-sans)">📤 Share</button>
           </div>
         </div>
+        <div class="market-badges">
+          <span class="badge-pill green" style="cursor:pointer" onclick="scrollToSection('dop-about','demoOpSectionNav',document.querySelector('#demoOpSectionNav .section-nav-btn:nth-child(1)'))">✓ Open this season</span>
+          <span class="badge-pill gray" style="cursor:pointer" onclick="scrollToSection('dop-about','demoOpSectionNav',document.querySelector('#demoOpSectionNav .section-nav-btn:nth-child(1)'))">📅 Wednesdays & Saturdays</span>
+          <span class="badge-pill gray" style="cursor:pointer" onclick="scrollToSection('dop-about','demoOpSectionNav',document.querySelector('#demoOpSectionNav .section-nav-btn:nth-child(1)'))">🕗 9am–1pm</span>
+          <span class="badge-pill green" style="cursor:pointer" onclick="scrollToSection('dop-about','demoOpSectionNav',document.querySelector('#demoOpSectionNav .section-nav-btn:nth-child(1)'))">🐾 Pets welcome</span>
+          <span class="badge-pill gray" style="cursor:pointer" onclick="scrollToSection('dop-vendors','demoOpSectionNav',document.querySelector('#demoOpSectionNav .section-nav-btn:nth-child(4)'))">👥 ${op.vendor_count} vendors</span>
+        </div>
+        <a href="https://maps.google.com/?q=Southwest+Florida" target="_blank" rel="noopener"
+          style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);text-decoration:none;margin-top:10px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <span style="flex:1;font-size:12px;color:var(--text)">Multiple locations across SW Florida</span>
+          <span style="font-size:11px;color:var(--terra);font-weight:500;white-space:nowrap">Get directions →</span>
+        </a>
       </div>
+    </div>
+
+    <div class="section-nav" id="demoOpSectionNav">
+      <button class="section-nav-btn active" onclick="scrollToSection('dop-about','demoOpSectionNav',this)">About</button>
+      <button class="section-nav-btn" onclick="scrollToSection('dop-contact','demoOpSectionNav',this)">Contact</button>
+      <button class="section-nav-btn" onclick="scrollToSection('dop-gallery','demoOpSectionNav',this)">Gallery</button>
+      <button class="section-nav-btn" onclick="scrollToSection('dop-vendors','demoOpSectionNav',this)">Vendors</button>
+      <button class="section-nav-btn" onclick="scrollToSection('dop-reviews','demoOpSectionNav',this)">Reviews</button>
     </div>
 
     ${op.announcement ? `<div style="background:var(--surface);border-bottom:0.5px solid var(--border);padding:14px 16px">
       <div style="font-size:10px;font-weight:600;color:var(--green-dk);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📣 Announcement</div>
-      <p style="font-size:13px;color:var(--text);line-height:1.5">${op.announcement.text}</p>
-      <div style="font-size:10px;color:var(--text3);margin-top:6px">${op.announcement.date}</div>
+      <p style="font-size:13px;color:var(--text);line-height:1.5;margin:0 0 6px">${op.announcement.text}</p>
+      <div style="font-size:10px;color:var(--text3)">${op.announcement.date}</div>
     </div>` : ''}
 
+    <div style="height:0;overflow:hidden;visibility:hidden" id="dop-about"></div>
     <div class="profile-section">
       <div class="profile-section-title">About</div>
       <p style="font-size:13px;color:var(--text);line-height:1.6">${op.description}</p>
     </div>
 
+    <div style="height:0;overflow:hidden;visibility:hidden" id="dop-contact"></div>
     <div class="profile-section">
-      <div class="profile-section-title">Links & Social</div>
+      <div class="profile-section-title">Contact & Links</div>
       <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><div><div class="info-row-label">Website</div><a class="info-row-link" href="${op.website}" target="_blank">${op.website.replace('https://','')}</a></div></div>
-      <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/></svg><div><div class="info-row-label">Instagram</div><a class="info-row-link" href="${op.instagram}" target="_blank">${op.instagram.replace('https://','')}</a></div></div>
+      <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg><div><div class="info-row-label">Instagram</div><a class="info-row-link" href="${op.instagram}" target="_blank">${op.instagram.replace('https://','')}</a></div></div>
       <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg><div><div class="info-row-label">Facebook</div><a class="info-row-link" href="${op.facebook}" target="_blank">${op.facebook.replace('https://','')}</a></div></div>
-      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-        <button onclick="window.open('https://www.facebook.com/sharer/sharer.php?u=https://shopwindmill.com/operators/${op.slug}','_blank')" style="display:flex;align-items:center;gap:6px;padding:7px 12px;border:0.5px solid #1877F2;border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:#EBF1FB;color:#1877F2">👍 Share to Facebook</button>
-        <button onclick="navigator.clipboard.writeText('Come visit us at the market! 🌿 ${op.name} shopwindmill.com/operators/${op.slug}');alert('Caption copied!')" style="display:flex;align-items:center;gap:6px;padding:7px 12px;border:0.5px solid #E1306C;border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:#FDF0F5;color:#E1306C">📸 Copy for Instagram</button>
-      </div>
     </div>
 
+    <div style="height:0;overflow:hidden;visibility:hidden" id="dop-gallery"></div>
     <div class="profile-section">
       <div class="profile-section-title">Market Gallery</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
-        ${op.photos.map(p=>`<div style="position:relative;aspect-ratio:1;border-radius:var(--r-sm);overflow:hidden;cursor:pointer" onclick="this.nextElementSibling.style.display='flex'">
-          <img src="${p.url}" style="width:100%;height:100%;object-fit:cover" loading="lazy">
-          <div style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.7);align-items:flex-end;padding:8px;border-radius:var(--r-sm)" onclick="this.style.display='none'">
-            <div style="font-size:10px;color:#fff;line-height:1.4">${p.caption}</div>
-          </div>
-        </div>`).join('')}
-      </div>
+      <div class="photo-strip" id="photoStrip">${op.photos.map((p,idx)=>`<div class="photo-thumb" onclick="openPhotoLightbox(${idx})" role="button" tabindex="0" aria-label="View photo ${idx+1}"><img class="lazy-pending" data-src="${p.url}" alt="Market photo ${idx+1}"><div class="photo-thumb-overlay"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg></div></div>`).join('')}</div>
       <div style="font-size:10px;color:var(--text3);margin-top:8px;text-align:center">Tap any photo to see caption</div>
+    </div>
+
+    <div style="height:0;overflow:hidden;visibility:hidden" id="dop-vendors"></div>
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">Vendors at our markets</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:12px;color:var(--text2)" id="demoOpVendorCount">${allDemoVendors.length} vendors</span>
+          <button onclick="openMarketVendorFilter('lakes-park')" style="display:flex;align-items:center;gap:5px;padding:5px 11px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;background:var(--surface);color:var(--text2);cursor:pointer;font-family:var(--font-sans)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="9" y1="18" x2="15" y2="18"/></svg> Filter</button>
+        </div>
+      </div>
+    </div>
+    <div class="vendor-grid" id="demoOpVendorGrid">
+      ${allDemoVendors.map((v,i)=>{
+        const col = vc(i);
+        const isPro = v.id === 'demo-vendor-pro' || v.tier === 'pro';
+        return `<div class="vendor-grid-card" onclick="navigate('${v.id==='demo-vendor-pro'?'demo-vendor-pro':'vendor'}','${v.id}')">
+          <div class="vendor-grid-avatar" style="background:${v.photo?'url('+v.photo+') center/cover no-repeat':col.bg};color:${col.c};overflow:hidden">${v.photo?'':initials(v.name)}</div>
+          <div class="vendor-grid-name">${v.name}</div>
+          <div class="vendor-grid-cat">${v.category}</div>
+          ${isPro?'<div class="vendor-grid-unclaimed" style="background:var(--green-lt);color:var(--green-dk);border-color:var(--green-mid)">✓ Pro</div>':''}
+        </div>`;
+      }).join('')}
+    </div>
+
+    <div style="height:0;overflow:hidden;visibility:hidden" id="dop-reviews"></div>
+    <div class="profile-section" style="margin-bottom:16px">
+      <div class="profile-section-title">Reviews <span style="color:var(--amber);font-size:13px">★★★★★</span> <span style="font-size:11px;color:var(--text2)">(38 reviews)</span></div>
+      ${[
+        {name:'Sandra L.',stars:5,text:'The Suncoast markets are the best in Southwest Florida. I go every Saturday without fail. The vendor variety is incredible — produce, flowers, food, crafts. My whole family looks forward to it.',date:'1 week ago'},
+        {name:'Tom R.',stars:5,text:'Well-organized, clean, and the vendors are top notch. Love that they move indoors when it rains. The Fort Myers Saturday market is our weekly tradition.',date:'3 weeks ago'}
+      ].map(r=>`<div style="padding:10px 0;border-bottom:0.5px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <div style="font-size:12px;font-weight:500;color:var(--text)">${r.name}</div>
+          <div style="color:var(--amber);font-size:11px">${'★'.repeat(r.stars)}</div>
+          <div style="font-size:10px;color:var(--text3);margin-left:auto">${r.date}</div>
+        </div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.5">${r.text}</div>
+      </div>`).join('')}
+      <button style="margin-top:12px;padding:7px 16px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-family:var(--font-sans)" onclick="openSignIn()">Write a review</button>
     </div>
 
     <div style="padding:0 16px 24px">
       <div style="background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-lg);padding:16px;text-align:center">
-        <div style="font-size:13px;font-weight:500;color:var(--green-dk);margin-bottom:4px">Vendor at one of our markets?</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Claim your free listing and join over ${op.vendor_count} vendors on Windmill.</div>
-        <button onclick="openModal('claimModal')" style="padding:8px 20px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500">Claim my listing — free</button>
+        <div style="font-size:13px;font-weight:500;color:var(--green-dk);margin-bottom:4px">Are you a vendor at one of our markets?</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Claim your free vendor listing and connect with shoppers.</div>
+        <button onclick="navigate('vendors-join')" style="padding:8px 20px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500">Claim my listing — free</button>
       </div>
     </div>
+
   </div>`;
+  setTimeout(() => {
+    initSectionNavObserver('demoOpSectionNav', ['dop-about','dop-contact','dop-gallery','dop-vendors','dop-reviews']);
+    initPhotoStrip();
+  }, 100);
 }
 
+function filterDemoOpVendors() {
+  const searchBox = document.getElementById('demoOpVendorSearch');
+  if(!searchBox) return;
+  const isVisible = searchBox.style.display !== 'none';
+  searchBox.style.display = isVisible ? 'none' : 'block';
+  if(!isVisible) document.getElementById('demoOpVendorInput')?.focus();
+}
+
+function renderDemoOpVendorGrid(q) {
+  const grid = document.getElementById('demoOpVendorGrid');
+  const countEl = document.getElementById('demoOpVendorCount');
+  const vendors = ST.demoOpVendors || [];
+  const filtered = q ? vendors.filter(v => v.name.toLowerCase().includes(q.toLowerCase()) || v.category.toLowerCase().includes(q.toLowerCase())) : vendors;
+  if(countEl) countEl.textContent = filtered.length + ' vendors';
+  if(!grid) return;
+  grid.innerHTML = filtered.map((v,i) => {
+    const col = vc(i);
+    const isPro = v.id === 'demo-vendor-pro' || v.tier === 'pro';
+    return `<div class="vendor-grid-card" onclick="navigate('${v.id==='demo-vendor-pro'?'demo-vendor-pro':'vendor'}','${v.id}')">
+      <div class="vendor-grid-avatar" style="background:${v.photo?'url('+v.photo+') center/cover no-repeat':col.bg};color:${col.c};overflow:hidden">${v.photo?'':initials(v.name)}</div>
+      <div class="vendor-grid-name">${v.name}</div>
+      <div class="vendor-grid-cat">${v.category}</div>
+      ${isPro?'<div class="vendor-grid-unclaimed" style="background:var(--green-lt);color:var(--green-dk);border-color:var(--green-mid)">✓ Pro</div>':''}
+    </div>`;
+  }).join('') || `<div style="padding:24px 16px;text-align:center;color:var(--text2);font-size:13px;grid-column:1/-1">No vendors match your search.</div>`;
+}
 /* ── MODALS ── */
 function openModal(id) { document.getElementById(id)?.classList.remove('hidden'); }
 function closeModal(id) { document.getElementById(id)?.classList.add('hidden'); }
