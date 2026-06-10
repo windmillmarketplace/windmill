@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.65 -->
+<!-- v1.65.11 -->
 <!-- Google Analytics -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-S8FMXZ1YJL"></script>
 <script>
@@ -663,6 +663,12 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
   <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%23EEF2EB'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%235C7A4E'/%3E%3Cline x1='16' y1='12.5' x2='16' y2='4' stroke='%235C7A4E' stroke-width='2.2' stroke-linecap='round'/%3E%3Cline x1='16' y1='19.5' x2='16' y2='28' stroke='%235C7A4E' stroke-width='2.2' stroke-linecap='round'/%3E%3Cline x1='12.5' y1='16' x2='4' y2='16' stroke='%235C7A4E' stroke-width='2.2' stroke-linecap='round'/%3E%3Cline x1='19.5' y1='16' x2='28' y2='16' stroke='%235C7A4E' stroke-width='2.2' stroke-linecap='round'/%3E%3Cline x1='14.2' y1='14.2' x2='7.8' y2='7.8' stroke='%23C4622D' stroke-width='1.5' stroke-linecap='round' opacity='.7'/%3E%3Cline x1='17.8' y1='17.8' x2='24.2' y2='24.2' stroke='%23C4622D' stroke-width='1.5' stroke-linecap='round' opacity='.7'/%3E%3Cline x1='17.8' y1='14.2' x2='24.2' y2='7.8' stroke='%23C4622D' stroke-width='1.5' stroke-linecap='round' opacity='.7'/%3E%3Cline x1='14.2' y1='17.8' x2='7.8' y2='24.2' stroke='%23C4622D' stroke-width='1.5' stroke-linecap='round' opacity='.7'/%3E%3C/svg%3E">
 </head>
 <body>
+
+<!-- VIEW SITE RETURN BAR -->
+<div id="viewSiteBar" style="display:none;position:fixed;bottom:64px;left:0;right:0;z-index:9990;background:#2C5F3E;padding:10px 16px;align-items:center;justify-content:space-between">
+  <span style="font-size:12px;color:#fff;font-family:var(--font-sans)">🌐 Browsing as shopper</span>
+  <button onclick="ST.viewSiteMode=false;navigate('home')" style="padding:5px 14px;background:#fff;color:#2C5F3E;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">← Back to dashboard</button>
+</div>
 
 <!-- ROLE BAR -->
 <div class="role-bar hidden">
@@ -1475,6 +1481,9 @@ let ST = {
   areasCitiesPage: 0,
   adminVendorPage: 0,
   adminVendorSearch: '',
+  adminMarketInactiveOnly: false,
+  adminVendorInactiveOnly: false,
+  viewSiteMode: false,
   adminVendorRegion: '',
   adminVendorCity: '',
   adminVendorCat: '',
@@ -1734,39 +1743,38 @@ const initials = n => n.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase(
 const getMarket = id => DATA.markets.find(m=>m.id===id);
 const getVendor = id => DATA.vendors.find(v=>v.id===id);
 
-// Returns next upcoming in-season market with day label for vendor cards
-// Unified vendor card next line: "Next: [Market Name truncated] · Sun"
+// Returns next upcoming market line for vendor cards.
+// Uses vendorAnchorMarket to show the closest in-season market (or closest overall if none in season).
 function vendorNextLine(vendor) {
   const DAY_SHORT = {Sunday:'Sun',Monday:'Mon',Tuesday:'Tue',Wednesday:'Wed',Thursday:'Thu',Friday:'Fri',Saturday:'Sat'};
-  const dayOrder = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   const todayIdx = new Date().getDay();
-  let markets = (vendor.markets||[]).map(id => getMarket(id)).filter(Boolean);
-  if(!markets.length) return '';
+  const dayOrder = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
-  // Apply active date filter — use marketHasDay for multi-day support
+  // Apply active date filter first
   const activeDays = ST.dateFilter?.days || (ST.dateFilter?.day ? [ST.dateFilter.day] : []);
+  let anchor = null;
   if(activeDays.length > 0) {
-    const filtered = markets.filter(m => activeDays.some(d => marketHasDay(m, d)));
-    if(filtered.length) markets = filtered;
+    // When date filter active, find closest market matching the filter
+    let best = null, bestDiff = 999;
+    (vendor.markets||[]).forEach(mid => {
+      const m = getMarket(mid);
+      if(!m) return;
+      if(!activeDays.some(d => marketHasDay(m, d))) return;
+      const diff = (dayOrder.indexOf(getNextMarketDay(m)) - todayIdx + 7) % 7;
+      if(diff < bestDiff) { bestDiff = diff; best = m; }
+    });
+    if(best) anchor = { market: best, diff: bestDiff, inSeason: isOpen(best) };
+  } else {
+    anchor = vendorAnchorMarket(vendor);
   }
 
-  const inSeason = markets.filter(m => isOpen(m));
-  const outOfSeason = markets.filter(m => !isOpen(m));
-  // Sort by next upcoming day, using getNextMarketDay for multi-day support
-  const sortByNextDay = arr => [...arr].sort((a,b) => {
-    const aDiff = (dayOrder.indexOf(getNextMarketDay(a)) - todayIdx + 7) % 7;
-    const bDiff = (dayOrder.indexOf(getNextMarketDay(b)) - todayIdx + 7) % 7;
-    return aDiff - bDiff;
-  });
-  const hasInSeason = inSeason.length > 0;
-  const sorted = hasInSeason ? [...sortByNextDay(inSeason), ...sortByNextDay(outOfSeason)] : sortByNextDay(outOfSeason);
-  const first = sorted[0];
-  if(!first) return '';
-
+  if(!anchor || !anchor.market) return '';
+  const first = anchor.market;
   const nextDay = getNextMarketDay(first);
-  const diff = (dayOrder.indexOf(nextDay) - todayIdx + 7) % 7;
+  const diff = anchor.diff;
+
   let dayLabel;
-  if(hasInSeason && isOpen(first)) {
+  if(anchor.inSeason) {
     dayLabel = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : DAY_SHORT[nextDay] || nextDay.slice(0,3);
   } else {
     dayLabel = DAY_SHORT[nextDay] || nextDay.slice(0,3);
@@ -1774,7 +1782,6 @@ function vendorNextLine(vendor) {
 
   const timeLabel = first.start_time ? ' · ' + formatTime(first.start_time) : '';
 
-  // Market name truncates, day never gets cut
   return `<div style="display:flex;align-items:center;gap:0;margin-top:3px;min-width:0">
     <span style="font-size:11px;color:var(--text3);white-space:nowrap;flex-shrink:0">Next:&nbsp;</span>
     <span style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0">${first.name}</span>
@@ -1794,7 +1801,12 @@ function vendorMarketBadges(vendor) {
 // Returns inline season pill for vendor cards (home/explore) — appended after category
 function vendorSeasonPill(vendor) {
   const inSeason = vendor.markets.some(mid => { const m = getMarket(mid); return m && isOpen(m); });
-  if(inSeason) return `<span style="margin-left:5px;padding:1px 6px;border-radius:99px;font-size:10px;font-weight:500;background:var(--green-lt);color:var(--green-dk);border:0.5px solid var(--green-mid)">In Season</span>`;
+  if(inSeason) {
+    const anchor = vendorAnchorMarket(vendor);
+    const isAllYear = anchor && anchor.market && anchor.market.season_start === 'All Year';
+    const label = isAllYear ? 'Year Round' : 'In Season';
+    return `<span style="margin-left:5px;padding:1px 6px;border-radius:99px;font-size:10px;font-weight:500;background:var(--green-lt);color:var(--green-dk);border:0.5px solid var(--green-mid)">${label}</span>`;
+  }
   // Find best out-of-season market for date range label
   const markets = vendor.markets.map(id => getMarket(id)).filter(Boolean);
   if(!markets.length) return '';
@@ -2216,7 +2228,7 @@ function buildGlobalSearchResults(val) {
   const results = {markets:[], vendors:[], cities:[]};
 
   // Markets — search within current region first, fall back to all if none found
-  const regionMarkets = DATA.markets.filter(m =>
+  const regionMarkets = DATA.markets.filter(m => m.published !== false &&
     (!ST.region || m.region === ST.region) && (
       m.name.toLowerCase().includes(q) ||
       m.city.toLowerCase().includes(q) ||
@@ -2278,7 +2290,7 @@ function showGlobalSearchDropdown(results, val) {
             <div class="gs-item-name">${m.name}</div>
             <div class="gs-item-sub">${m.city} · ${getMarketScheduleLabel(m)} ${formatTimeRange(m.start_time,m.end_time)}</div>
           </div>
-          <span class="gs-item-badge" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'In Season':(m.season_start==='All Year'?'All Year':m.season_start.slice(0,3)+'–'+m.season_end.slice(0,3))}</span>
+          <span class="gs-item-badge" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?(m.season_start==='All Year'?'Year Round':'In Season'):(m.season_start.slice(0,3)+'–'+m.season_end.slice(0,3))}</span>
         </div>`;
       });
     }
@@ -2504,6 +2516,12 @@ function navigate(page, id) {
 }
 
 function renderCurrentPage() {
+  // Show/hide view site return bar
+  const vsBar = document.getElementById('viewSiteBar');
+  if(vsBar) {
+    const isVendorOrOp = ST.user && (ST.user.role === 'vendor' || ST.user.role === 'operator');
+    vsBar.style.display = (ST.viewSiteMode && isVendorOrOp) ? 'flex' : 'none';
+  }
   // Remove explore-mode class when not on explore
   const sb = document.getElementById('scrollBody');
   const p = ST.currentPage;
@@ -2556,6 +2574,7 @@ function renderCurrentPage() {
 }
 
 function renderVendorSubPage() {
+  if(ST.viewSiteMode) { renderHome(); return; }
   const sub = ST.tab;
   if(sub === 'explore') return renderVendorProfileEdit();
   if(sub === 'markets') return renderVendorSchedule();
@@ -2565,6 +2584,7 @@ function renderVendorSubPage() {
 }
 
 function renderOperatorSubPage() {
+  if(ST.viewSiteMode) { renderHome(); return; }
   const sub = ST.tab;
   if(sub === 'markets') return renderOperatorMarkets();
   if(sub === 'explore') return renderOperatorVendors();
@@ -2592,10 +2612,11 @@ function renderSidebar() {
   const maps = {
     customer:[{id:'home',e:'🏠',l:'Home'},{id:'explore',e:'🔍',l:'Explore'},{id:'markets',e:'📍',l:'Markets'},{id:'following',e:'❤️',l:'Following'},{id:'me',e:'👤',l:'My Account'}],
     vendor:[{id:'home',e:'📊',l:'Dashboard'},{id:'explore',e:'👤',l:'My Profile'},{id:'markets',e:'📅',l:'Schedule'},{id:'following',e:'📦',l:'Products'},{id:'me',e:'⚙️',l:'Settings'}],
-    operator:[{id:'home',e:'📊',l:'Dashboard'},{id:'markets',e:'🏪',l:'My Markets'},{id:'explore',e:'👥',l:'Vendor Roster'},{id:'following',e:'📣',l:'Announcements'},{id:'me',e:'⚙️',l:'Settings'}],
+    operator:[{id:'home',e:'📊',l:'Dashboard'},{id:'markets',e:'🏪',l:'My Markets'},{id:'explore',e:'👥',l:'Vendor Roster'},{id:'following',e:'📅',l:'Schedule'},{id:'me',e:'⚙️',l:'Settings'}],
     admin:[{id:'home',e:'📊',l:'Dashboard'},{id:'markets',e:'🏪',l:'Markets'},{id:'explore',e:'👥',l:'Vendors'},{id:'following',e:'📋',l:'Claim Requests'},{id:'me',e:'🗺️',l:'Expansion'},{id:'admin-ads',e:'📢',l:'Ads'},{id:'admin-settings',e:'⚙️',l:'Settings'}]
   };
-  nav.innerHTML = (maps[ST.role]||maps.customer).map(item=>`
+  const navRole = ST.viewSiteMode ? 'customer' : ST.role;
+  nav.innerHTML = (maps[navRole]||maps.customer).map(item=>`
     <div class="sidebar-nav-item ${ST.tab===item.id?'active':''}" onclick="navigate('${item.id}')">
       <span>${item.e}</span><span>${item.l}</span>
     </div>`).join('');
@@ -2811,6 +2832,7 @@ function applyDateFilter(markets) {
 /* ── APPLY ALL FILTERS TO MARKETS ── */
 function applyAllFilters(markets) {
   let ms = [...markets];
+  ms = ms.filter(m => m.published !== false); // hide draft markets from public
   if(ST.region) ms = ms.filter(m => m.region === ST.region);
   ms = applyDateFilter(ms);
   if(ST.filters.open) ms = ms.filter(m => isOpen(m));
@@ -2870,26 +2892,36 @@ function applyVendorFilters(vendors) {
   return vs;
 }
 
-// Shared vendor sort: in-season markets first, then by next upcoming day
-function sortVendors(vendors) {
+// Returns the best market anchor for a vendor: closest in-season market first,
+// falling back to closest out-of-season market. Returns {market, diff, inSeason}.
+function vendorAnchorMarket(vendor) {
   const dayOrder = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   const todayIdx = new Date().getDay();
-  const nextDay = (vendor) => {
-    const diffs = vendor.markets.map(mid => {
-      const m = getMarket(mid);
-      if(!m) return 99;
-      const inSeason = isOpen(m);
-      const diff = (dayOrder.indexOf(getNextMarketDay(m)) - todayIdx + 7) % 7;
-      return inSeason ? diff : diff + 100; // push out-of-season further back
-    });
-    return diffs.length ? Math.min(...diffs) : 999;
-  };
+  let bestInSeason = null, bestInSeasonDiff = 999;
+  let bestOutOfSeason = null, bestOutOfSeasonDiff = 999;
+  (vendor.markets || []).forEach(mid => {
+    const m = getMarket(mid);
+    if(!m) return;
+    const diff = (dayOrder.indexOf(getNextMarketDay(m)) - todayIdx + 7) % 7;
+    if(isOpen(m)) {
+      if(diff < bestInSeasonDiff) { bestInSeasonDiff = diff; bestInSeason = m; }
+    } else {
+      if(diff < bestOutOfSeasonDiff) { bestOutOfSeasonDiff = diff; bestOutOfSeason = m; }
+    }
+  });
+  if(bestInSeason) return { market: bestInSeason, diff: bestInSeasonDiff, inSeason: true };
+  if(bestOutOfSeason) return { market: bestOutOfSeason, diff: bestOutOfSeasonDiff, inSeason: false };
+  return null;
+}
+
+// Shared vendor sort: in-season vendors first, then by closest upcoming market day
+function sortVendors(vendors) {
   return [...vendors].sort((a, b) => {
-    const aInSeason = a.markets.some(mid => { const m = getMarket(mid); return m && isOpen(m); });
-    const bInSeason = b.markets.some(mid => { const m = getMarket(mid); return m && isOpen(m); });
-    if(aInSeason && !bInSeason) return -1;
-    if(!aInSeason && bInSeason) return 1;
-    return nextDay(a) - nextDay(b);
+    const aAnchor = vendorAnchorMarket(a);
+    const bAnchor = vendorAnchorMarket(b);
+    const aScore = aAnchor ? (aAnchor.inSeason ? aAnchor.diff : aAnchor.diff + 100) : 999;
+    const bScore = bAnchor ? (bAnchor.inSeason ? bAnchor.diff : bAnchor.diff + 100) : 999;
+    return aScore - bScore;
   });
 }
 
@@ -2921,7 +2953,7 @@ function renderBottom() {
 function renderHome() {
   const markets = applyAllFilters(DATA.markets);
   const allVendors = applyVendorFilters(DATA.vendors);
-  const featured = [...allVendors].sort((a,b)=>b.markets.length-a.markets.length).slice(0,6);
+  const featured = sortVendors(allVendors).slice(0,6);
   const activeFilter = ST.dateFilter || ST.filters.days.length > 0 || ST.filters.cats.length > 0 || ST.filters.pet;
 
   // Dynamic stat counts
@@ -2998,7 +3030,7 @@ function renderHome() {
           <div class="market-name">${m.name.replace(' Farmers Market','').replace(' Market','')}</div>
           <div class="market-meta-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${getMarketCardLabel(m)}</div>
           <div class="market-meta-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${m.city} <span style="color:var(--text3)">· ${vendorCount(m.id)} ${vendorCount(m.id)===1?'vendor':t('vendors_c')}</span></div>
-          <div class="market-meta-row" style="margin-top:4px"><span style="font-size:10px;padding:2px 7px;border-radius:var(--r-pill);${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'In Season':(m.season_start==='All Year'?'All Year':m.season_start.slice(0,3)+'–'+m.season_end.slice(0,3))}</span></div>
+          <div class="market-meta-row" style="margin-top:4px"><span style="font-size:10px;padding:2px 7px;border-radius:var(--r-pill);${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?(m.season_start==='All Year'?'Year Round':'In Season'):(m.season_start.slice(0,3)+'–'+m.season_end.slice(0,3))}</span></div>
         </div></div>`;
     });
     h += `</div>`;
@@ -3347,7 +3379,7 @@ function renderCategoryPage(catId) {
           <div class="vendor-at"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${m.city} · ${getMarketScheduleLabel(m)}</div>
           <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">
             <span class="market-pill">${formatTimeRange(m.start_time,m.end_time)}</span>
-            <span class="market-pill" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?'In Season':(m.season_start==='All Year'?'All Year':m.season_start.slice(0,3)+'–'+m.season_end.slice(0,3))}</span>
+            <span class="market-pill" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?(m.season_start==='All Year'?'Year Round':'In Season'):(m.season_start.slice(0,3)+'–'+m.season_end.slice(0,3))}</span>
           </div>
         </div>
         <button onclick="event.stopPropagation();seeMarketOnMap('${m.id}')" style="font-size:10px;padding:4px 8px;border:0.5px solid var(--green-mid);border-radius:var(--r-pill);color:var(--green-dk);background:var(--green-lt);cursor:pointer;white-space:nowrap;font-family:var(--font-sans);align-self:flex-start">📍 Map</button>
@@ -3840,7 +3872,7 @@ function showMarketPopup(market, index, marker) {
       <div class="wm-popup-name">${market.name}</div>
       <div class="wm-popup-sub">${market.city} · ${getMarketScheduleLabel(market)} ${formatTimeRange(market.start_time,market.end_time)}</div>
       <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">
-        <span style="font-size:10px;padding:2px 7px;border-radius:99px;${open?'background:#EEF2EB;color:#3D5435':'background:#FDF3DC;color:#7A4E08'}">${open?'✓ In Season':market.season_start+'–'+market.season_end}</span>
+        <span style="font-size:10px;padding:2px 7px;border-radius:99px;${open?'background:#EEF2EB;color:#3D5435':'background:#FDF3DC;color:#7A4E08'}">${open?(market.season_start==='All Year'?'✓ Year Round':'✓ In Season'):market.season_start+'–'+market.season_end}</span>
         <span style="font-size:10px;padding:2px 7px;border-radius:99px;background:#F5F1EB;color:#7A6E65">${vendorCount(market.id)} vendors</span>
         ${market.pet_friendly?'<span style="font-size:10px;padding:2px 7px;border-radius:99px;background:#EEF2EB;color:#3D5435">🐾 Pets OK</span>':''}
       </div>
@@ -4376,6 +4408,9 @@ function renderMarketsPage() {
 /* ── VENDOR PROFILE TEMPLATE ── */
 async function renderVendorProfile(id) {
   hideFilterUI();
+  // Clear old content immediately so scroll-to-top shows a blank surface, not the previous page
+  const sbVp = document.getElementById('scrollBody');
+  if(sbVp) { sbVp.scrollTop = 0; sbVp.innerHTML = ''; }
   let v = getVendor(id);
 
   // Always fetch fresh data from Supabase for the public profile — ensures pro/trial/photo are current
@@ -4651,8 +4686,66 @@ async function renderVendorProfile(id) {
 }
 
 /* ── MARKET DETAIL TEMPLATE ── */
+function renderOtherMarketsCarousel(currentId, region) {
+  const DAY_SHORT = {Sunday:'Sun',Monday:'Mon',Tuesday:'Tue',Wednesday:'Wed',Thursday:'Thu',Friday:'Fri',Saturday:'Sat'};
+  const dayOrder = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const todayIdx = new Date().getDay();
+  const others = DATA.markets.filter(om => om.id !== currentId && om.published !== false && om.region === region);
+  if(!others.length) return '';
+  others.sort((a, b) => {
+    const aOpen = isOpen(a), bOpen = isOpen(b);
+    if(aOpen && !bOpen) return -1;
+    if(!aOpen && bOpen) return 1;
+    const aDiff = (dayOrder.indexOf(getNextMarketDay(a)) - todayIdx + 7) % 7;
+    const bDiff = (dayOrder.indexOf(getNextMarketDay(b)) - todayIdx + 7) % 7;
+    return aDiff - bDiff;
+  });
+  const shown = others.slice(0, 6);
+  let cards = '';
+  shown.forEach(om => {
+    const omOpen = isOpen(om);
+    const omDay = getNextMarketDay(om);
+    const omDiff = (dayOrder.indexOf(omDay) - todayIdx + 7) % 7;
+    const dayLabel = omOpen ? (omDiff===0?'Today':omDiff===1?'Tomorrow':DAY_SHORT[omDay]||omDay.slice(0,3)) : (DAY_SHORT[omDay]||omDay.slice(0,3));
+    const timeLabel = om.start_time ? ' · ' + formatTime(om.start_time) : '';
+    const photo = DATA.market_photos[om.id];
+    const photoHtml = photo
+      ? '<img src="' + photo + '" style="width:100%;height:100%;object-fit:cover" loading="lazy">'
+      : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:32px">&#127807;</div>';
+    const badgeBg = omOpen ? 'var(--green-lt)' : 'var(--amber-lt)';
+    const badgeColor = omOpen ? 'var(--green-dk)' : '#7A4E08';
+    const badgeBorder = omOpen ? 'var(--green-mid)' : '#F0D090';
+    const shortName = om.name.replace(' Farmers Market','').replace(' Market','');
+    cards += '<div class="other-mkt-card" data-mid="' + om.id + '" style="flex:0 0 200px;width:200px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-lg);overflow:hidden;cursor:pointer;transition:transform .15s,box-shadow .15s">'
+      + '<div style="height:90px;background:var(--surface2);position:relative;overflow:hidden">'
+      + photoHtml
+      + '<div style="position:absolute;top:7px;right:7px;padding:2px 7px;border-radius:var(--r-pill);font-size:9px;font-weight:600;background:' + badgeBg + ';color:' + badgeColor + ';border:0.5px solid ' + badgeBorder + '">' + (omOpen?'In Season':'Off Season') + '</div>'
+      + '</div>'
+      + '<div style="padding:10px 12px">'
+      + '<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + shortName + '</div>'
+      + '<div style="font-size:11px;color:var(--text3)">' + om.city + '</div>'
+      + '<div style="font-size:11px;color:var(--terra);margin-top:3px;font-weight:500">' + dayLabel + timeLabel + '</div>'
+      + '</div></div>';
+  });
+  // Use event delegation — attach one click handler after render
+  setTimeout(() => {
+    document.querySelectorAll('.other-mkt-card').forEach(el => {
+      el.addEventListener('click', () => navigate('market', el.dataset.mid));
+      el.addEventListener('mouseover', () => { el.style.transform='translateY(-2px)'; el.style.boxShadow='0 4px 12px rgba(44,32,22,.1)'; });
+      el.addEventListener('mouseout', () => { el.style.transform=''; el.style.boxShadow=''; });
+    });
+  }, 0);
+  return '<div style="padding:16px 0 8px">'
+    + '<div style="font-size:13px;font-weight:600;color:var(--text);padding:0 16px;margin-bottom:12px">Other markets in the area</div>'
+    + '<div style="display:flex;gap:10px;overflow-x:auto;padding:0 16px 8px;scrollbar-width:none">' + cards + '</div>'
+    + '</div>';
+}
+
 function renderMarketDetail(id) {
   hideFilterUI();
+  // Clear old content immediately so scroll-to-top shows a blank surface, not the previous page
+  const sbMd = document.getElementById('scrollBody');
+  if(sbMd) { sbMd.scrollTop = 0; sbMd.innerHTML = ''; }
   const m = getMarket(id);
   if(!m){ document.getElementById('scrollBody').innerHTML='<div style="padding:24px;text-align:center;color:var(--text2)">Market not found.</div>'; return; }
   const slug = m.slug || m.id;
@@ -4691,7 +4784,7 @@ function renderMarketDetail(id) {
           </div>
         </div>
         <div class="market-badges">
-          <span class="badge-pill ${isOpen(m)?'green':'amber'}" style="cursor:pointer" onclick="scrollToSection('mkt-info','marketSectionNav',document.querySelector('#marketSectionNav .section-nav-btn:nth-child(2)'))">${isOpen(m)?t('open_season'):t('seasonal')}</span>
+          <span class="badge-pill ${isOpen(m)?'green':'amber'}" style="cursor:pointer" onclick="scrollToSection('mkt-info','marketSectionNav',document.querySelector('#marketSectionNav .section-nav-btn:nth-child(2)'))">${isOpen(m)?(m.season_start==='All Year'?'✓ Year Round':t('open_season')):t('seasonal')}</span>
           <span class="badge-pill gray" style="cursor:pointer" onclick="scrollToSection('mkt-info','marketSectionNav',document.querySelector('#marketSectionNav .section-nav-btn:nth-child(2))'))">📅 ${getMarketScheduleLabel(m)}</span>
           <span class="badge-pill gray" style="cursor:pointer" onclick="scrollToSection('mkt-info','marketSectionNav',document.querySelector('#marketSectionNav .section-nav-btn:nth-child(2)'))">🕗 ${formatTimeRange(m.start_time,m.end_time)}</span>
           ${m.pet_friendly?`<span class="badge-pill green">${t('pets_welcome')}</span>`:`<span class="badge-pill terra">${t('no_pets')}</span>`}
@@ -4814,6 +4907,9 @@ function renderMarketDetail(id) {
         </div>`;
       }).join('');
     })()}</div>
+
+    <!-- OTHER MARKETS IN YOUR AREA -->
+    ${renderOtherMarketsCarousel(m.id, m.region)}
 
     <!-- REVIEWS -->
     <div style="height:0;overflow:hidden;visibility:hidden" id="mkt-reviews"></div>
@@ -6654,41 +6750,247 @@ function renderFollowing() {
   document.getElementById('scrollBody').innerHTML = h;
 }
 
-function renderMe() {
-  hideFilterUI();
-  if(ST.role !== 'customer' && ST.role !== 'friends-family') { renderCurrentPage(); return; }
+/* ── SHOPPER PROFILE ── */
+async function loadShopperProfile() {
+  if(!supabaseClient || !ST.user) return null;
+  try {
+    const { data } = await supabaseClient
+      .from('shopper_profiles')
+      .select('*')
+      .eq('user_id', ST.user.id)
+      .single();
+    return data || null;
+  } catch(e) { return null; }
+}
 
-  // Signed in view
-  if(ST.user) {
-    const initials = ST.user.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+async function saveShopperProfile(fields) {
+  if(!supabaseClient || !ST.user) return false;
+  try {
+    const { error } = await supabaseClient
+      .from('shopper_profiles')
+      .upsert({ user_id: ST.user.id, ...fields }, { onConflict: 'user_id' });
+    return !error;
+  } catch(e) { return false; }
+}
+
+async function updateShopperEmail(newEmail) {
+  if(!supabaseClient || !newEmail) return;
+  const { error } = await supabaseClient.auth.updateUser({ email: newEmail });
+  const toast = document.createElement('div');
+  toast.textContent = error ? 'Could not update email. Try again.' : 'Confirmation sent to ' + newEmail + ' — check your inbox.';
+  toast.style.cssText = `position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:${error?'#c0392b':'var(--green)'};color:#fff;padding:10px 20px;border-radius:20px;font-size:12px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;max-width:90vw;text-align:center`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
+}
+
+async function renderShopperProfileCard(profile) {
+  const p = profile || {};
+  const displayName = p.display_name || ST.user.name || '';
+  const phone = p.phone || '';
+  const smsOptIn = p.sms_opt_in || false;
+  const birthdayMD = p.birthday_month_day || '';
+  const location = p.location || ST.location || '';
+  const bdParts = birthdayMD ? birthdayMD.split('-') : ['',''];
+  const bdMonth = bdParts[0] || '';
+  const bdDay = bdParts[1] || '';
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const days = Array.from({length:31},(_,i)=>String(i+1).padStart(2,'0'));
+
+  return `<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 14px;border-bottom:0.5px solid var(--border);background:var(--surface2)">
+      <span style="font-size:12px;font-weight:600;color:var(--text);text-transform:uppercase;letter-spacing:.5px">Your Profile</span>
+      <button id="shopperProfileEditBtn" onclick="toggleShopperProfileEdit()" style="padding:4px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface);color:var(--terra);font-family:var(--font-sans);font-weight:500">Edit</button>
+    </div>
+
+    <!-- VIEW MODE -->
+    <div id="shopperProfileView">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:0.5px solid var(--border)">
+        <span style="font-size:12px;color:var(--text2)">Name</span>
+        <span style="font-size:13px;color:var(--text)">${displayName || '<span style="color:var(--text3);font-style:italic">Not set</span>'}</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:0.5px solid var(--border)">
+        <span style="font-size:12px;color:var(--text2)">Email</span>
+        <span style="font-size:13px;color:var(--text)">${ST.user.email}</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:0.5px solid var(--border)">
+        <span style="font-size:12px;color:var(--text2)">Location</span>
+        <span style="font-size:13px;color:var(--text)">${location || '<span style="color:var(--text3);font-style:italic">Not set</span>'}</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:0.5px solid var(--border)">
+        <span style="font-size:12px;color:var(--text2)">Phone</span>
+        <span style="font-size:13px;color:var(--text)">${phone || '<span style="color:var(--text3);font-style:italic">Not set</span>'}</span>
+      </div>
+      ${phone ? `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:0.5px solid var(--border)">
+        <span style="font-size:12px;color:var(--text2)">Market day texts</span>
+        <span style="font-size:13px;color:var(--text)">${smsOptIn ? '✅ On' : 'Off'}</span>
+      </div>` : ''}
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px">
+        <span style="font-size:12px;color:var(--text2)">Birthday</span>
+        <span style="font-size:13px;color:var(--text)">${birthdayMD ? months[parseInt(bdMonth,10)-1]+' '+parseInt(bdDay,10) : '<span style="color:var(--text3);font-style:italic">Not set</span>'}</span>
+      </div>
+    </div>
+
+    <!-- EDIT MODE -->
+    <div id="shopperProfileEdit" style="display:none">
+      <div style="padding:12px 14px;border-bottom:0.5px solid var(--border)">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:5px">Name</div>
+        <input id="spName" value="${displayName}" placeholder="Your name" style="width:100%;padding:8px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--surface2);color:var(--text);box-sizing:border-box">
+      </div>
+      <div style="padding:12px 14px;border-bottom:0.5px solid var(--border)">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:5px">Email <span style="color:var(--terra)">*</span></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="spEmail" value="${ST.user.email}" style="flex:1;padding:8px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--surface2);color:var(--text)">
+          <button onclick="updateShopperEmail(document.getElementById('spEmail').value)" style="padding:7px 12px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-md);font-size:12px;cursor:pointer;font-family:var(--font-sans);white-space:nowrap">Update</button>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px">A confirmation link will be sent to your new email.</div>
+      </div>
+      <div style="padding:12px 14px;border-bottom:0.5px solid var(--border)">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:5px">Location</div>
+        <input id="spLocation" value="${location}" placeholder="e.g. Fort Myers, FL" style="width:100%;padding:8px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--surface2);color:var(--text);box-sizing:border-box">
+      </div>
+      <div style="padding:12px 14px;border-bottom:0.5px solid var(--border)">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:5px">📲 Phone — get market day text alerts</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input id="spPhone" value="${phone}" placeholder="(239) 555-0100" type="tel" style="flex:1;padding:8px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--surface2);color:var(--text)" oninput="(function(el){let v=el.value.replace(/\D/g,'').slice(0,10);if(v.length>=7)v='('+v.slice(0,3)+') '+v.slice(3,6)+'-'+v.slice(6);else if(v.length>=4)v='('+v.slice(0,3)+') '+v.slice(3);else if(v.length>0)v='('+v;el.value=v;})(this)">
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+            <span style="font-size:11px;color:var(--text2);white-space:nowrap">Text alerts</span>
+            <div id="spSmsToggle" class="toggle ${smsOptIn?'on':''}" onclick="this.classList.toggle('on')" style="flex-shrink:0"><div class="toggle-thumb"></div></div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px">Optional. We'll never share your number.</div>
+      </div>
+      <div style="padding:12px 14px;border-bottom:0.5px solid var(--border)">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:5px">🎂 Birthday — vendors love to celebrate their regulars</div>
+        <div style="display:flex;gap:8px">
+          <select id="spBdMonth" style="flex:1;padding:8px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--surface2);color:var(--text)">
+            <option value="">Month</option>
+            ${months.map((m,i)=>`<option value="${String(i+1).padStart(2,'0')}" ${bdMonth===String(i+1).padStart(2,'0')?'selected':''}>${m}</option>`).join('')}
+          </select>
+          <select id="spBdDay" style="flex:1;padding:8px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--surface2);color:var(--text)">
+            <option value="">Day</option>
+            ${days.map(d=>`<option value="${d}" ${bdDay===d?'selected':''}>${parseInt(d,10)}</option>`).join('')}
+          </select>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px">Optional. Just month and day — no year needed.</div>
+      </div>
+      <div style="padding:12px 14px;display:flex;gap:8px">
+        <button onclick="submitShopperProfile()" style="flex:1;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;font-weight:500;cursor:pointer;font-family:var(--font-sans)">Save profile</button>
+        <button onclick="toggleShopperProfileEdit()" style="flex:1;padding:10px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;color:var(--text2);font-family:var(--font-sans)">Cancel</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function toggleShopperProfileEdit() {
+  const view = document.getElementById('shopperProfileView');
+  const edit = document.getElementById('shopperProfileEdit');
+  const btn = document.getElementById('shopperProfileEditBtn');
+  if(!view || !edit) return;
+  const isEditing = edit.style.display !== 'none';
+  view.style.display = isEditing ? 'block' : 'none';
+  edit.style.display = isEditing ? 'none' : 'block';
+  if(btn) btn.textContent = isEditing ? 'Edit' : 'Cancel';
+}
+
+async function submitShopperProfile() {
+  const name = document.getElementById('spName')?.value.trim() || '';
+  const phone = document.getElementById('spPhone')?.value.trim() || '';
+  const smsOptIn = document.getElementById('spSmsToggle')?.classList.contains('on') || false;
+  const bdMonth = document.getElementById('spBdMonth')?.value || '';
+  const bdDay = document.getElementById('spBdDay')?.value || '';
+  const location = document.getElementById('spLocation')?.value.trim() || '';
+  const birthdayMD = (bdMonth && bdDay) ? `${bdMonth}-${bdDay}` : '';
+
+  const ok = await saveShopperProfile({
+    display_name: name,
+    phone,
+    sms_opt_in: smsOptIn,
+    birthday_month_day: birthdayMD,
+    location
+  });
+
+  const toast = document.createElement('div');
+  toast.textContent = ok ? 'Profile saved ✓' : 'Could not save — please try again.';
+  toast.style.cssText = `position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:${ok?'var(--green)':'#c0392b'};color:#fff;padding:10px 20px;border-radius:20px;font-size:12px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;max-width:90vw;text-align:center`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+
+  if(ok) {
+    // Update ST.location if changed
+    if(location) ST.location = location;
+    // Re-render Me tab to reflect saved values
+    renderMe();
+  }
+}
+
+async function renderMeSection(section) {
+  const sb = document.getElementById('scrollBody');
+  if(!sb) return;
+  const backBtn = `<div onclick="renderMe()" style="display:flex;align-items:center;gap:6px;padding:14px 16px;border-bottom:0.5px solid var(--border);cursor:pointer;background:var(--surface)">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--terra)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    <span style="font-size:13px;color:var(--terra);font-weight:500">My Account</span>
+  </div>`;
+
+  if(section === 'profile') {
+    sb.innerHTML = `<div>${backBtn}<div style="padding:16px" id="meSectionContent"><div style="display:flex;align-items:center;justify-content:center;height:120px;gap:10px"><div style="width:18px;height:18px;border:2px solid var(--green);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></div><span style="font-size:13px;color:var(--text2)">Loading…</span></div></div></div>`;
+    const profile = await loadShopperProfile();
+    const cardHtml = await renderShopperProfileCard(profile);
+    const slot = document.getElementById('meSectionContent');
+    if(slot) slot.outerHTML = `<div style="padding:16px">${cardHtml}</div>`;
+
+  } else if(section === 'security') {
+    sb.innerHTML = `<div>${backBtn}<div style="padding:16px">
+      <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:4px">Security</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Manage your password and account access.</div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-bottom:12px">
+        <div style="padding:14px 16px;border-bottom:0.5px solid var(--border)">
+          <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:2px">Password</div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:12px">A reset link will be sent to ${ST.user?.email||'your email'}.</div>
+          <button onclick="sendPasswordReset('${ST.user?.email||''}')" style="padding:9px 18px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Send password reset email</button>
+        </div>
+      </div>
+    </div></div>`;
+
+  } else if(section === 'notifications') {
+    sb.innerHTML = `<div>${backBtn}<div style="padding:16px" id="meSectionContent"><div style="display:flex;align-items:center;justify-content:center;height:120px;gap:10px"><div style="width:18px;height:18px;border:2px solid var(--green);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></div><span style="font-size:13px;color:var(--text2)">Loading…</span></div></div></div>`;
+    const profile = await loadShopperProfile();
+    const phone = profile?.phone || '';
+    const smsOn = profile?.sms_opt_in || false;
+    const slot = document.getElementById('meSectionContent');
+    if(slot) slot.outerHTML = `<div style="padding:16px">
+      <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:4px">Notifications & Alerts</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Stay in the loop on market days and vendor updates.</div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden">
+        <div style="padding:14px 16px">
+          <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:4px">📲 Market day text alerts</div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:12px">${phone ? 'Alerts go to '+phone+'.' : 'Add a phone number to enable text alerts.'}</div>
+          ${phone ? `<div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:13px;color:var(--text2)">Text alerts</span>
+            <div id="notifSmsToggle" class="toggle ${smsOn?'on':''}" onclick="(async()=>{this.classList.toggle('on');await saveShopperProfile({sms_opt_in:this.classList.contains('on')});const t=document.createElement('div');t.textContent=this.classList.contains('on')?'Text alerts on ✓':'Text alerts off';t.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:12px;z-index:9999;font-family:var(--font-sans);white-space:nowrap';document.body.appendChild(t);setTimeout(()=>t.remove(),2500);})()"><div class="toggle-thumb"></div></div>
+          </div>` : `<button onclick="renderMeSection('profile')" style="padding:9px 18px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Add phone number →</button>`}
+        </div>
+      </div>
+    </div>`;
+
+  } else if(section === 'settings') {
     const langName = ST.lang==='en'?'English':ST.lang==='es'?'Español':'Português';
-    document.getElementById('scrollBody').innerHTML = `<div style="padding:16px 16px 40px">
-      <div style="text-align:center;margin-bottom:24px;padding-top:16px">
-        <div style="width:68px;height:68px;background:var(--green);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:600;color:#fff;margin:0 auto 12px">${initials}</div>
-        <div style="font-size:18px;font-weight:600;color:var(--text)">${ST.user.name}</div>
-        <div style="font-size:12px;color:var(--text2);margin-top:2px">${ST.user.email}</div>
-        <div style="font-size:11px;color:var(--green-dk);margin-top:4px;text-transform:capitalize;font-weight:500">${ST.user.role}</div>
-      </div>
-      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-bottom:16px">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 14px;border-bottom:0.5px solid var(--border)">
-          <span style="font-size:13px;color:var(--text)">Location</span>
-          <span style="font-size:13px;color:var(--terra);cursor:pointer" onclick="openLocationModal()">${ST.location}</span>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 14px;border-bottom:0.5px solid var(--border)">
+    sb.innerHTML = `<div>${backBtn}<div style="padding:16px">
+      <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:4px">App Settings</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Customize your Windmill experience.</div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:0.5px solid var(--border)">
           <div><div style="font-size:13px;font-weight:500;color:var(--text)">${t('language')}</div><div style="font-size:11px;color:var(--text2)">${langName}</div></div>
-          <button onclick="cycleLang();renderMe()" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text);font-family:var(--font-sans)">${t('toggle')}</button>
+          <button onclick="cycleLang();renderMeSection('settings')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text);font-family:var(--font-sans)">${t('toggle')}</button>
         </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 14px">
-          <div><div style="font-size:13px;font-weight:500;color:var(--text)">${t('view_label')}</div></div>
-          <button onclick="toggleForcedView();renderMe()" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text);font-family:var(--font-sans)">${t('toggle')}</button>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px">
+          <div><div style="font-size:13px;font-weight:500;color:var(--text)">${t('view_label')}</div><div style="font-size:11px;color:var(--text2)">${ST.forcedView ? ST.forcedView : 'Auto-detect'}</div></div>
+          <button onclick="toggleForcedView();renderMeSection('settings')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);color:var(--text);font-family:var(--font-sans)">${t('toggle')}</button>
         </div>
       </div>
-      <button onclick="openMessageModal('admin','windmill-support','Windmill Support')" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans);margin-bottom:8px">💬 Contact Windmill Support</button>
-      <button onclick="sendPasswordReset('${ST.user?.email||''}')" style="width:100%;padding:12px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;color:var(--text2);font-family:var(--font-sans);margin-bottom:8px">🔑 Change password</button>
-      <button onclick="(function(){authSignOut();})()" style="width:100%;padding:12px;background:transparent;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;color:var(--text2);font-family:var(--font-sans);margin-bottom:20px">Sign out</button>
-      
-    <div style="margin-top:24px;border-top:0.5px solid var(--border);padding-top:20px">
-      <div style="font-size:12px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px">About Windmill</div>
+    </div></div>`;
+
+  } else if(section === 'about') {
+    sb.innerHTML = `<div>${backBtn}<div style="padding:16px">
       <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-bottom:12px">
         <div style="padding:16px;border-bottom:0.5px solid var(--border)">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
@@ -6714,7 +7016,7 @@ function renderMe() {
         <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">📍 Where we are</div>
         <p style="font-size:12px;color:var(--text2);line-height:1.5;margin:0">Currently live in Lee County, Sarasota/Bradenton and Tampa Bay, Florida. Expanding across the US — one market at a time.</p>
       </div>
-      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px">
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-bottom:12px">
         <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">✉️ Contact us</div>
         <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
       </div>
@@ -6730,6 +7032,87 @@ function renderMe() {
             Shopwindmill
           </a>
         </div>
+      </div>
+    </div></div>`;
+  }
+}
+
+function renderMe() {
+  hideFilterUI();
+  if(ST.role !== 'customer' && ST.role !== 'friends-family') { renderCurrentPage(); return; }
+
+  // Signed in view
+  if(ST.user) {
+    const initials = ST.user.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    const sb = document.getElementById('scrollBody');
+    const chevron = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+
+    sb.innerHTML = `<div style="padding:0 0 40px">
+      <!-- Avatar header -->
+      <div style="text-align:center;padding:28px 16px 20px;border-bottom:0.5px solid var(--border)">
+        <div style="width:68px;height:68px;background:var(--green);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:600;color:#fff;margin:0 auto 12px">${initials}</div>
+        <div style="font-size:18px;font-weight:600;color:var(--text)">${ST.user.name}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px">${ST.user.email}</div>
+      </div>
+
+      <!-- Menu -->
+      <div style="background:var(--surface);border-bottom:0.5px solid var(--border);margin-top:16px;margin-bottom:16px">
+        <div onclick="renderMeSection('profile')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid var(--border);cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:18px">👤</span>
+            <div>
+              <div style="font-size:14px;font-weight:500;color:var(--text)">Your Profile</div>
+              <div style="font-size:11px;color:var(--text3)">Name, location, phone, birthday</div>
+            </div>
+          </div>
+          ${chevron}
+        </div>
+        <div onclick="renderMeSection('security')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid var(--border);cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:18px">🔑</span>
+            <div>
+              <div style="font-size:14px;font-weight:500;color:var(--text)">Security</div>
+              <div style="font-size:11px;color:var(--text3)">Change your password</div>
+            </div>
+          </div>
+          ${chevron}
+        </div>
+        <div onclick="renderMeSection('notifications')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid var(--border);cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:18px">🔔</span>
+            <div>
+              <div style="font-size:14px;font-weight:500;color:var(--text)">Notifications & Alerts</div>
+              <div style="font-size:11px;color:var(--text3)">Text alerts, market day reminders</div>
+            </div>
+          </div>
+          ${chevron}
+        </div>
+        <div onclick="renderMeSection('settings')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid var(--border);cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:18px">⚙️</span>
+            <div>
+              <div style="font-size:14px;font-weight:500;color:var(--text)">App Settings</div>
+              <div style="font-size:11px;color:var(--text3)">Language, display preferences</div>
+            </div>
+          </div>
+          ${chevron}
+        </div>
+        <div onclick="renderMeSection('about')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:18px">🌿</span>
+            <div>
+              <div style="font-size:14px;font-weight:500;color:var(--text)">About Windmill</div>
+              <div style="font-size:11px;color:var(--text3)">Our mission, contact, social</div>
+            </div>
+          </div>
+          ${chevron}
+        </div>
+      </div>
+
+      <!-- Support & Sign out -->
+      <div style="padding:0 16px">
+        <button onclick="openMessageModal('admin','windmill-support','Windmill Support')" style="width:100%;padding:13px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans);margin-bottom:10px">💬 Contact Windmill Support</button>
+        <button onclick="(function(){authSignOut();})()" style="width:100%;padding:13px;background:transparent;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;color:var(--text3);font-family:var(--font-sans)">Sign out</button>
       </div>
     </div>`;
     return;
@@ -7201,7 +7584,10 @@ async function renderVendorDash() {
   ];
 
   document.getElementById('scrollBody').innerHTML = `<div class="vendor-dash">
-    <div class="dash-title">Vendor Dashboard</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+      <div class="dash-title">Vendor Dashboard</div>
+      <button onclick="ST.viewSiteMode=true;navigate('home')" style="padding:6px 14px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;color:var(--text2);font-family:var(--font-sans);display:flex;align-items:center;gap:5px">🌐 View site</button>
+    </div>
     <div class="dash-sub">${tierLabel}</div>
     ${trialBadge}
     ${!isPro ? `<div class="dash-ad"><div><div class="ad-label">${t('ad_label')}</div><div class="ad-text">${t('ad_text')}</div></div><div class="ad-placeholder">📢</div></div>
@@ -7268,7 +7654,10 @@ async function renderOperatorDash() {
   }
 
   document.getElementById('scrollBody').innerHTML = `<div class="operator-dash">
-    <div class="dash-title">Operator Dashboard</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+      <div class="dash-title">Operator Dashboard</div>
+      <button onclick="ST.viewSiteMode=true;navigate('home')" style="padding:6px 14px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;color:var(--text2);font-family:var(--font-sans);display:flex;align-items:center;gap:5px">🌐 View site</button>
+    </div>
     <div class="dash-sub">Managing your markets on Windmill · Free tier</div>
     <div class="dash-ad"><div><div class="ad-label">${t('ad_label')}</div><div class="ad-text">Upgrade to Operator Pro to remove ads and unlock sponsored placements</div></div><div class="ad-placeholder">📢</div></div>
     <div class="upgrade-banner"><span style="font-size:20px">⭐</span><div class="upgrade-text">Upgrade to <strong>Operator Pro</strong> — remove ads, control "Presented By" sponsor slots on your market pages, advanced analytics. <strong>$99/month</strong></div><button class="upgrade-btn">Upgrade</button></div>
@@ -7379,6 +7768,7 @@ function renderAdminPanel() {
 
     // Apply filters
     let vFiltered = DATA.vendors.filter(v => {
+      if(ST.adminVendorInactiveOnly && v.published !== false) return false;
       const trialStart = v.trial_start ? new Date(v.trial_start) : null;
       const trialExpiry = trialStart ? new Date(trialStart.getTime() + 180*24*60*60*1000) : null;
       const daysLeft = trialExpiry ? Math.max(0, Math.ceil((trialExpiry - new Date()) / (24*60*60*1000))) : null;
@@ -7405,7 +7795,7 @@ function renderAdminPanel() {
     h += `<div style="display:flex;gap:8px;margin-bottom:8px">
       <div style="flex:1;display:flex;align-items:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);padding:8px 12px">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input placeholder="Search vendors..." value="${ST.adminVendorSearch}" style="border:none;background:transparent;outline:none;font-size:13px;font-family:var(--font-sans);color:var(--text);width:100%" oninput="ST.adminVendorSearch=this.value;ST.adminVendorPage=0;renderAdminPanel()">
+        <input placeholder="Search vendors..." value="${ST.adminVendorSearch}" style="border:none;background:transparent;outline:none;font-size:13px;font-family:var(--font-sans);color:var(--text);width:100%" oninput="ST.adminVendorSearch=this.value;ST.adminVendorPage=0;renderAdminPanel();const vi=document.getElementById('adminVendorSearchFocus');if(vi){vi.focus();vi.value=ST.adminVendorSearch;vi.selectionStart=vi.selectionEnd=vi.value.length;}" id="adminVendorSearchFocus">
       </div>
       <button onclick="openAdminAddVendor()" style="padding:8px 14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500;white-space:nowrap">+ Add</button>
     </div>
@@ -7434,7 +7824,7 @@ function renderAdminPanel() {
       </select>
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <span style="font-size:12px;color:var(--text3)">${vTotal} vendor${vTotal===1?'':'s'}${hasVFilters?' (filtered)':''}</span>
+      <span style="font-size:12px;color:var(--text3)">${vTotal} vendor${vTotal===1?'':'s'}${hasVFilters?' (filtered)':''} · ${vFiltered.filter(v=>v.published!==false).length} active · <span style="color:${vFiltered.filter(v=>v.published===false).length>0?'var(--terra)':'var(--text3)'};cursor:${vFiltered.filter(v=>v.published===false).length>0?'pointer':'default'}" onclick="if(${vFiltered.filter(v=>v.published===false).length}>0){ST.adminVendorInactiveOnly=!ST.adminVendorInactiveOnly;renderAdminPanel();}">${vFiltered.filter(v=>v.published===false).length} inactive${ST.adminVendorInactiveOnly?' ✕':''}</span></span>
       ${hasVFilters ? `<button onclick="ST.adminVendorSearch='';ST.adminVendorRegion='';ST.adminVendorCity='';ST.adminVendorCat='';ST.adminVendorTier='';ST.adminVendorMarket='';ST.adminVendorPage=0;renderAdminPanel()" style="font-size:11px;color:var(--terra);background:none;border:none;cursor:pointer;padding:0">Clear filters</button>` : ''}
     </div>
     <div class="admin-table" id="adminVendorTable">`;
@@ -7453,6 +7843,7 @@ function renderAdminPanel() {
         <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;align-items:flex-end">
           <span class="status-pill ${v.claimed?'claimed':'unclaimed'}" style="cursor:pointer" onclick="adminToggleVendorClaimed('${v.id}',this)">${v.claimed?'Claimed':'Unclaimed'}</span>
           <span class="status-pill ${v.pro?'live':onTrial?'claimed':'draft'}" style="cursor:pointer" onclick="adminToggleVendorPro('${v.id}',this)">${v.pro?'Pro':onTrial?'Trial':'Free'}</span>
+          <span class="status-pill ${v.published!==false?'live':'draft'}" id="vndpill-${v.id}" style="cursor:pointer" onclick="adminVendorPublishConfirm('${v.id}',this)">${v.published!==false?'Active':'Inactive'}</span>
         </div>
         <div class="admin-row-actions">
           ${onTrial ? `<button class="action-btn edit" onclick="openExtendTrial('${v.id}','${v.name}')">Extend</button>` : ''}
@@ -7480,7 +7871,9 @@ function renderAdminPanel() {
     const mCities = [...new Set(DATA.markets.map(m=>m.city).filter(Boolean))].sort();
     const mVendors = [...DATA.vendors].sort((a,b)=>a.name.localeCompare(b.name));
 
+    if(ST.adminMarketInactiveOnly) ST.adminMarketSearch = ST.adminMarketSearch || '';
     let mFiltered = DATA.markets.filter(m => {
+      if(ST.adminMarketInactiveOnly && m.published !== false) return false;
       if(ST.adminMarketSearch && !m.name.toLowerCase().includes(ST.adminMarketSearch.toLowerCase())) return false;
       if(ST.adminMarketRegion && m.region !== ST.adminMarketRegion) return false;
       if(ST.adminMarketCity && m.city !== ST.adminMarketCity) return false;
@@ -7511,7 +7904,7 @@ function renderAdminPanel() {
     h += `<div style="display:flex;gap:8px;margin-bottom:8px">
       <div style="flex:1;display:flex;align-items:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);padding:8px 12px">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input placeholder="Search markets..." value="${ST.adminMarketSearch}" style="border:none;background:transparent;outline:none;font-size:13px;font-family:var(--font-sans);color:var(--text);width:100%" oninput="ST.adminMarketSearch=this.value;ST.adminMarketPage=0;renderAdminPanel()">
+        <input placeholder="Search markets..." value="${ST.adminMarketSearch}" style="border:none;background:transparent;outline:none;font-size:13px;font-family:var(--font-sans);color:var(--text);width:100%" oninput="ST.adminMarketSearch=this.value;ST.adminMarketPage=0;renderAdminPanel();const mi=document.getElementById('adminMarketSearchFocus');if(mi){mi.focus();mi.value=ST.adminMarketSearch;mi.selectionStart=mi.selectionEnd=mi.value.length;}" id="adminMarketSearchFocus">
       </div>
       <button onclick="openAdminAddMarket()" style="padding:8px 14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500;white-space:nowrap">+ Add</button>
     </div>
@@ -7536,7 +7929,7 @@ function renderAdminPanel() {
       </select>
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <span style="font-size:12px;color:var(--text3)">${mTotal} market${mTotal===1?'':'s'}${hasMFilters?' (filtered)':''}</span>
+      <span style="font-size:12px;color:var(--text3)">${mTotal} market${mTotal===1?'':'s'}${hasMFilters?' (filtered)':''} · ${mFiltered.filter(m=>m.published!==false).length} active · <span style="color:${mFiltered.filter(m=>m.published===false).length>0?'var(--terra)':'var(--text3)'};cursor:${mFiltered.filter(m=>m.published===false).length>0?'pointer':'default'}" onclick="if(${mFiltered.filter(m=>m.published===false).length}>0){ST.adminMarketInactiveOnly=!ST.adminMarketInactiveOnly;renderAdminPanel();}">${mFiltered.filter(m=>m.published===false).length} inactive${ST.adminMarketInactiveOnly?' ✕':''}</span></span>
       ${hasMFilters ? `<button onclick="ST.adminMarketSearch='';ST.adminMarketRegion='';ST.adminMarketCity='';ST.adminMarketTier='';ST.adminMarketVendor='';ST.adminMarketPage=0;renderAdminPanel()" style="font-size:11px;color:var(--terra);background:none;border:none;cursor:pointer;padding:0">Clear filters</button>` : ''}
     </div>
     <div class="admin-table" id="adminMarketTable">`;
@@ -7547,7 +7940,7 @@ function renderAdminPanel() {
           <div class="admin-row-name">${m.name}</div>
           <div class="admin-row-meta">${getMarketScheduleLabel(m)} · ${m.city} · ${vendorCount(m.id)} vendors · ${op?.name||'No operator'}</div>
         </div>
-        <span class="status-pill ${m.published?'live':'draft'}" style="cursor:pointer" onclick="adminToggleMarketPublished('${m.id}',this)">${m.published?'Live':'Draft'}</span>
+        <span class="status-pill ${m.published?'live':'draft'}" id="mktpill-${m.id}" style="cursor:pointer" onclick="adminMarketPublishConfirm('${m.id}',this)">${m.published?'Active':'Inactive'}</span>
         <div class="admin-row-actions">
           <button class="action-btn edit" onclick="openAdminEditMarket('${m.id}')">Edit</button>
           <button class="action-btn preview" onclick="navigate('market','${m.id}')">View</button>
@@ -7654,6 +8047,9 @@ function renderAdminPanel() {
             <div style="display:flex;gap:8px">
               <button onclick="adminSendReply('${msg.id}')" style="flex:1;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500">Send Reply</button>
               <button onclick="adminResolveMsg('${msg.id}')" style="padding:10px 14px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:12px;cursor:pointer;color:var(--text2)">✓ Resolve</button>
+            </div>
+            <div style="margin-top:8px;text-align:right">
+              <button onclick="adminToggleMsgRead('${msg.id}')" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--text3);font-family:var(--font-sans);text-decoration:underline;text-underline-offset:2px">${msg.read ? '○ Mark as unread' : '● Mark as read'}</button>
             </div>
           </div>`;
         }
@@ -8865,12 +9261,103 @@ async function submitExtendTrial(vendorId) {
   setTimeout(()=>toast.remove(), 2500);
   renderAdminPanel();
 }
-function adminToggleMarketPublished(id, el) {
+function adminMarketPublishConfirm(id, el) {
+  const m = DATA.markets.find(x=>x.id===id);
+  if(!m) return;
+  const action = m.published ? 'Inactive' : 'Active';
+  const actionLabel = m.published ? 'hide from public' : 'make public';
+  // Show inline confirm
+  el.innerHTML = '';
+  el.className = 'status-pill draft';
+  el.style.cssText += ';display:inline-flex;gap:4px;align-items:center;padding:3px 6px';
+  const confirmBtn = document.createElement('span');
+  confirmBtn.textContent = '✓ ' + action;
+  confirmBtn.style.cssText = 'cursor:pointer;font-size:10px;color:var(--green-dk);font-weight:600';
+  confirmBtn.onclick = (e) => { e.stopPropagation(); adminToggleMarketPublished(id, el); };
+  const cancelBtn = document.createElement('span');
+  cancelBtn.textContent = '✕';
+  cancelBtn.style.cssText = 'cursor:pointer;font-size:10px;color:var(--terra);font-weight:600;margin-left:2px';
+  cancelBtn.onclick = (e) => {
+    e.stopPropagation();
+    el.innerHTML = m.published ? 'Live' : 'Draft';
+    el.className = 'status-pill ' + (m.published ? 'live' : 'draft');
+    el.style.cssText = el.style.cssText.replace(/display:[^;]+;gap:[^;]+;align-items:[^;]+;padding:[^;]+;?/g,'');
+    el.onclick = () => adminMarketPublishConfirm(id, el);
+  };
+  el.appendChild(confirmBtn);
+  el.appendChild(cancelBtn);
+  el.onclick = null;
+}
+
+function adminVendorPublishConfirm(id, el) {
+  const v = DATA.vendors.find(x=>x.id===id);
+  if(!v) return;
+  const isActive = v.published !== false;
+  const action = isActive ? 'Inactive' : 'Active';
+  el.innerHTML = '';
+  el.className = 'status-pill draft';
+  el.style.cssText += ';display:inline-flex;gap:4px;align-items:center;padding:3px 6px';
+  const confirmBtn = document.createElement('span');
+  confirmBtn.textContent = '✓ ' + action;
+  confirmBtn.style.cssText = 'cursor:pointer;font-size:10px;color:var(--green-dk);font-weight:600';
+  confirmBtn.onclick = (e) => { e.stopPropagation(); adminToggleVendorPublished(id, el); };
+  const cancelBtn = document.createElement('span');
+  cancelBtn.textContent = '✕';
+  cancelBtn.style.cssText = 'cursor:pointer;font-size:10px;color:var(--terra);font-weight:600;margin-left:2px';
+  cancelBtn.onclick = (e) => {
+    e.stopPropagation();
+    const stillActive = v.published !== false;
+    el.innerHTML = stillActive ? 'Active' : 'Inactive';
+    el.className = 'status-pill ' + (stillActive ? 'live' : 'draft');
+    el.style.cssText = '';
+    el.onclick = () => adminVendorPublishConfirm(id, el);
+  };
+  el.appendChild(confirmBtn);
+  el.appendChild(cancelBtn);
+  el.onclick = null;
+}
+
+async function adminToggleVendorPublished(id, el) {
+  const v = DATA.vendors.find(x=>x.id===id);
+  if(!v) return;
+  v.published = v.published === false ? true : false;
+  el.innerHTML = v.published ? 'Active' : 'Inactive';
+  el.className = 'status-pill ' + (v.published ? 'live' : 'draft');
+  el.style.cssText = '';
+  el.onclick = () => adminVendorPublishConfirm(id, el);
+  if(supabaseClient) {
+    try {
+      await supabaseClient.from('vendors').update({ published: v.published }).eq('id', id);
+      const toast = document.createElement('div');
+      toast.textContent = v.published ? v.name + ' is now Active ✓' : v.name + ' set to Inactive ✓';
+      toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:12px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;max-width:90vw;text-align:center';
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    } catch(e) { console.warn('Could not update vendor published status:', e); }
+  }
+}
+
+async function adminToggleMarketPublished(id, el) {
   const m = DATA.markets.find(x=>x.id===id);
   if(!m) return;
   m.published = !m.published;
   el.textContent = m.published ? 'Live' : 'Draft';
   el.className = 'status-pill ' + (m.published ? 'live' : 'draft');
+  el.style.cssText = '';
+  el.onclick = () => adminMarketPublishConfirm(id, el);
+  // Save to Supabase
+  if(supabaseClient) {
+    try {
+      await supabaseClient.from('markets').update({ published: m.published }).eq('id', id);
+      const toast = document.createElement('div');
+      toast.textContent = m.published ? m.name + ' is now Active ✓' : m.name + ' set to Inactive ✓';
+      toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:12px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;max-width:90vw;text-align:center';
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    } catch(e) {
+      console.warn('Could not update market published status:', e);
+    }
+  }
 }
 
 /* Claims */
@@ -8956,8 +9443,24 @@ function adminDenyClaim(claimId) {
 /* Messages */
 function adminOpenMsg(msgId) {
   const msg = ST.adminMessages.find(m=>m.id===msgId);
-  if(msg) msg.read = true;
+  if(msg && !msg.read) {
+    msg.read = true;
+    // Persist to Supabase
+    if(supabaseClient && msg.fromDB) {
+      supabaseClient.from('messages').update({ read: true }).eq('id', msgId).then(() => {});
+    }
+  }
   ST.adminMsgThread = msgId;
+  renderAdminPanel();
+}
+
+async function adminToggleMsgRead(msgId) {
+  const msg = ST.adminMessages.find(m=>m.id===msgId);
+  if(!msg) return;
+  msg.read = !msg.read;
+  if(supabaseClient && msg.fromDB) {
+    await supabaseClient.from('messages').update({ read: msg.read }).eq('id', msgId);
+  }
   renderAdminPanel();
 }
 function adminSendReply(msgId) {
@@ -9136,7 +9639,27 @@ function openAdminEditMarket(id) {
       <div class="form-field"><label class="form-label">Start time</label><input class="form-input" id="em_start" value="${m.start_time||''}"></div>
       <div class="form-field"><label class="form-label">End time</label><input class="form-input" id="em_end" value="${m.end_time||''}"></div>
     </div>
-    <div class="form-field"><label class="form-label">Season dates</label><input class="form-input" id="em_season" value="${m.season_dates||m.season_start+' – '+m.season_end||''}"></div>
+    <div class="form-field">
+      <label class="form-label">Season</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;margin-bottom:10px">
+        <input type="checkbox" id="em_all_year" ${m.season_start==='All Year'?'checked':''} style="width:16px;height:16px" onchange="(function(){const ay=document.getElementById('em_all_year').checked;document.getElementById('em_season_start').disabled=ay;document.getElementById('em_season_end').disabled=ay;if(ay){document.getElementById('em_season_start').value='All Year';document.getElementById('em_season_end').value='All Year';}})()">
+        All Year (Year Round)
+      </label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px">Season start</div>
+          <select class="form-input" id="em_season_start" ${m.season_start==='All Year'?'disabled':''}>
+            ${['All Year','January','February','March','April','May','June','July','August','September','October','November','December'].map(mo=>`<option value="${mo}" ${m.season_start===mo?'selected':''}>${mo}</option>`).join('')}
+          </select>
+        </div>
+        <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px">Season end</div>
+          <select class="form-input" id="em_season_end" ${m.season_end==='All Year'?'disabled':''}>
+            ${['All Year','January','February','March','April','May','June','July','August','September','October','November','December'].map(mo=>`<option value="${mo}" ${m.season_end===mo?'selected':''}>${mo}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Public description (shown on market page)</div>
+      <input class="form-input" id="em_season" value="${m.season_dates||''}" placeholder="e.g. Year-round (October–May peak season)">
+    </div>
     <div class="form-field"><label class="form-label">Description</label><textarea class="form-textarea" id="em_desc">${m.description||''}</textarea></div>
     <div class="form-field"><label class="form-label">Parking notes</label><input class="form-input" id="em_parking" value="${m.parking_notes||''}"></div>
     <div class="form-field"><label class="form-label">Special notes</label><input class="form-input" id="em_notes" value="${m.special_notes||''}"></div>
@@ -9163,6 +9686,9 @@ function adminSaveMarket(id) {
   m.day_of_week = document.getElementById('em_day').value;
   m.start_time = document.getElementById('em_start').value.trim();
   m.end_time = document.getElementById('em_end').value.trim();
+  const allYear = document.getElementById('em_all_year').checked;
+  m.season_start = allYear ? 'All Year' : document.getElementById('em_season_start').value;
+  m.season_end = allYear ? 'All Year' : document.getElementById('em_season_end').value;
   m.season_dates = document.getElementById('em_season').value.trim();
   m.description = document.getElementById('em_desc').value.trim();
   m.parking_notes = document.getElementById('em_parking').value.trim();
@@ -10662,12 +11188,122 @@ function renderOperatorVendors() {
 
 function renderOperatorAnnouncements() {
   hideFilterUI();
-  document.getElementById('scrollBody').innerHTML=`<div class="operator-dash">
-    ${freePageHeader()}
-    <div class="dash-title">Announcements</div><div class="dash-sub">Post updates to your market followers</div>
-    ${proLockedSection('Post Announcements','Send notifications to all followers of your markets. Great for closures, events, and seasonal news.')}
-    <div class="dash-section"><div class="dash-section-title">Contact Support</div><textarea class="form-textarea" placeholder="How can we help?"></textarea><button onclick="submitContactSupport('vendor','Vendor')" style="width:100%;margin-top:10px;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500">Send message</button></div>
+  const opId = ST.user?.id;
+  const myMarkets = DATA.markets.filter(m => m.operator_id && (ST.operatorId ? m.operator_id === ST.operatorId : m.operator_id === 'local-roots'));
+  const months = ['All Year','January','February','March','April','May','June','July','August','September','October','November','December'];
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+  // Default to first market if none selected
+  if(!ST.opScheduleMarket && myMarkets.length) ST.opScheduleMarket = myMarkets[0].id;
+  const selM = myMarkets.find(m => m.id === ST.opScheduleMarket) || myMarkets[0];
+
+  const marketTabs = myMarkets.map(m =>
+    `<div onclick="ST.opScheduleMarket='${m.id}';renderOperatorAnnouncements()" style="padding:7px 14px;border-radius:var(--r-pill);font-size:12px;cursor:pointer;white-space:nowrap;background:${ST.opScheduleMarket===m.id?'var(--green)':'var(--surface2)'};color:${ST.opScheduleMarket===m.id?'#fff':'var(--text2)'};border:0.5px solid ${ST.opScheduleMarket===m.id?'var(--green)':'var(--border-med)'}">${m.name.replace(' Farmers Market','').replace(' Market','')}</div>`
+  ).join('');
+
+  const sb = document.getElementById('scrollBody');
+  sb.innerHTML = `<div class="operator-dash">
+    <div class="dash-title">Schedule & Updates</div>
+    <div class="dash-sub">Manage your market schedule and post announcements</div>
+
+    ${myMarkets.length > 1 ? `<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:16px;scrollbar-width:none">${marketTabs}</div>` : ''}
+
+    ${selM ? `
+    <!-- SCHEDULE -->
+    <div class="dash-section">
+      <div class="dash-section-title">Schedule — ${selM.name}</div>
+
+      <!-- All Year checkbox -->
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:12px;padding:10px;background:var(--surface2);border-radius:var(--r-md);border:0.5px solid var(--border)">
+        <input type="checkbox" id="op_all_year" ${selM.season_start==='All Year'?'checked':''} style="width:16px;height:16px" onchange="(function(){const ay=document.getElementById('op_all_year').checked;document.getElementById('op_season_start').disabled=ay;document.getElementById('op_season_end').disabled=ay;if(ay){document.getElementById('op_season_start').value='All Year';document.getElementById('op_season_end').value='All Year';}})()">
+        <span><strong>Year Round</strong> — market runs all year</span>
+      </label>
+
+      <!-- Season dropdowns -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+        <div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Season start</div>
+          <select class="form-input" id="op_season_start" ${selM.season_start==='All Year'?'disabled':''}>
+            ${months.map(mo=>`<option value="${mo}" ${selM.season_start===mo?'selected':''}>${mo}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Season end</div>
+          <select class="form-input" id="op_season_end" ${selM.season_end==='All Year'?'disabled':''}>
+            ${months.map(mo=>`<option value="${mo}" ${selM.season_end===mo?'selected':''}>${mo}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+
+      <!-- Day + Time -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+        <div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Day</div>
+          <select class="form-input" id="op_day">
+            ${days.map(d=>`<option value="${d}" ${selM.day_of_week===d?'selected':''}>${d}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Start time</div>
+          <input class="form-input" id="op_start" value="${selM.start_time||''}" placeholder="09:00">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px">End time</div>
+          <input class="form-input" id="op_end" value="${selM.end_time||''}" placeholder="13:00">
+        </div>
+      </div>
+
+      <!-- Season dates public description -->
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Public season description</div>
+        <input class="form-input" id="op_season_dates" value="${selM.season_dates||''}" placeholder="e.g. Year-round (October–May peak season)" oninput="document.getElementById('op_season_warning').style.display='block'">
+        <div id="op_season_warning" style="display:none;margin-top:6px;padding:8px 10px;background:#FEF9EC;border:0.5px solid #F0D090;border-radius:var(--r-md);font-size:11px;color:#7A4E08">💡 Changing the season? Make sure the Season Start/End dropdowns above match.</div>
+      </div>
+
+      <button onclick="opSaveSchedule('${selM.id}')" style="width:100%;padding:11px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Save schedule</button>
+    </div>
+
+    <!-- ANNOUNCEMENTS -->
+    <div class="dash-section">
+      <div class="dash-section-title" style="display:flex;align-items:center;justify-content:space-between">
+        Announcements
+        <span style="font-size:10px;color:var(--text3)">🔒 Pro</span>
+      </div>
+      ${proLockedSection('Post Announcements','Send updates to your market followers. Great for closures, events, and seasonal news.')}
+    </div>` : `<div style="padding:24px;text-align:center;color:var(--text2);font-size:13px">No markets found for your account.</div>`}
   </div>`;
+}
+
+async function opSaveSchedule(marketId) {
+  const m = DATA.markets.find(x => x.id === marketId);
+  if(!m) return;
+  const allYear = document.getElementById('op_all_year').checked;
+  m.season_start = allYear ? 'All Year' : (document.getElementById('op_season_start').value || m.season_start);
+  m.season_end = allYear ? 'All Year' : (document.getElementById('op_season_end').value || m.season_end);
+  m.season_dates = document.getElementById('op_season_dates').value.trim();
+  m.day_of_week = document.getElementById('op_day').value;
+  m.start_time = document.getElementById('op_start').value.trim();
+  m.end_time = document.getElementById('op_end').value.trim();
+  if(supabaseClient) {
+    try {
+      await supabaseClient.from('markets').update({
+        season_start: m.season_start,
+        season_end: m.season_end,
+        season_dates: m.season_dates,
+        day_of_week: m.day_of_week,
+        start_time: m.start_time,
+        end_time: m.end_time
+      }).eq('id', marketId);
+      const toast = document.createElement('div');
+      toast.textContent = 'Schedule saved ✓';
+      toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:12px;z-index:9999;font-family:var(--font-sans);white-space:nowrap';
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    } catch(e) {
+      console.warn('Could not save schedule:', e);
+    }
+  }
+  renderOperatorAnnouncements();
 }
 
 function renderOperatorSettings() {
