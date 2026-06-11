@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.65.11 -->
+<!-- v1.65.12 -->
 <!-- Google Analytics -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-S8FMXZ1YJL"></script>
 <script>
@@ -683,6 +683,13 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
     <button class="role-btn" id="tierBtnTrial" onclick="setTestVendorTier('trial',this)" style="font-size:9px;flex:none;padding:0 8px">Pro Trial</button>
     <button class="role-btn" id="tierBtnPro" onclick="setTestVendorTier('pro',this)" style="font-size:9px;flex:none;padding:0 8px">Pro</button>
     <button onclick="ST.profileSetupComplete=false;showVendorOnboarding(1)" style="font-size:9px;flex:none;padding:0 8px;background:#5C4A3A;color:#B0A89F;border:none;border-left:0.5px solid #3d3330;height:32px;cursor:pointer;font-family:var(--font-sans)">Onboarding</button>
+  </div>
+  <div id="operatorTierBar" style="display:none;align-items:center;border-left:0.5px solid #3d3330;padding-left:6px;gap:3px">
+    <span style="font-size:9px;color:#B0A89F;padding:0 4px;white-space:nowrap">Tier:</span>
+    <button class="role-btn active" id="opTierBtnFree" onclick="setTestOperatorTier('free',this)" style="font-size:9px;flex:none;padding:0 8px">Free</button>
+    <button class="role-btn" id="opTierBtnTrial" onclick="setTestOperatorTier('trial',this)" style="font-size:9px;flex:none;padding:0 8px">Pro Trial</button>
+    <button class="role-btn" id="opTierBtnPro" onclick="setTestOperatorTier('pro',this)" style="font-size:9px;flex:none;padding:0 8px">Pro</button>
+    <button onclick="ST.opProfileSetupComplete=false;ST.opPendingCoverPhotoFile=null;ST.opPendingPhoto=null;setTestOperatorTier('trial',document.getElementById('opTierBtnTrial'));showOperatorOnboarding(1)" style="font-size:9px;flex:none;padding:0 8px;background:#5C4A3A;color:#B0A89F;border:none;border-left:0.5px solid #3d3330;height:32px;cursor:pointer;font-family:var(--font-sans)">Onboarding</button>
   </div>
   <div id="adminVendorSearchBar" style="display:none;align-items:center;border-left:0.5px solid #3d3330;padding-left:8px;gap:6px;flex:1;position:relative">
     <input id="adminVendorSearchInput" type="text" placeholder="View as vendor..." autocomplete="off"
@@ -1447,6 +1454,8 @@ let ST = {
   follows:[],
   vendorId:null, operatorId:null,
   isProTrial:false, trialStart:null, attendanceData:[], localProducts:[], notifFollower:true, notifWeekly:true,
+  opNotifVendorClaim:true, opNotifFollower:true, opNotifWeekly:true,
+  opIsPro:false, opIsProTrial:false, opTrialStart:null, opProfileSetupComplete:false, opPendingCoverPhotoFile:null, opPendingPhoto:null, opPendingDescription:null,
   profileSetupComplete:false,
   pendingCoverPhoto:null,
   sandboxMode:false, sandboxOverwrite:false, sandboxVendorId:null, sandboxOriginalVendor:null,
@@ -2012,6 +2021,9 @@ function switchRole(role, btn) {
   // Show vendor tier selector in dev mode
   const tierBar = document.getElementById('vendorTierBar');
   if(tierBar) tierBar.style.display = role === 'vendor' ? 'flex' : 'none';
+  // Show operator tier selector
+  const opTierBar = document.getElementById('operatorTierBar');
+  if(opTierBar) opTierBar.style.display = role === 'operator' ? 'flex' : 'none';
   // Show admin vendor search bar when in admin mode
   const adminBar = document.getElementById('adminVendorSearchBar');
   if(adminBar) adminBar.style.display = role === 'admin' ? 'flex' : 'none';
@@ -2020,8 +2032,34 @@ function switchRole(role, btn) {
     setTestVendorTier('free', document.getElementById('tierBtnFree'));
     return;
   }
+  // Set test operator identity when switching to operator
+  if(role === 'operator') {
+    setTestOperatorTier('free', document.getElementById('opTierBtnFree'));
+    return;
+  }
   // Exit any sandbox mode when switching away from vendor
   if(ST.sandboxMode) exitVendorSandbox();
+  renderSidebar(); renderFilterStrip(); renderBottom(); renderCurrentPage();
+}
+
+function setTestOperatorTier(tier, btn) {
+  document.querySelectorAll('#operatorTierBar .role-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  // Test operator data for each tier — use local-roots which has real markets
+  ST.operatorId = 'local-roots';
+  if(tier === 'trial') {
+    ST.opIsPro = false;
+    ST.opIsProTrial = true;
+    ST.opTrialStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
+  } else if(tier === 'pro') {
+    ST.opIsPro = true;
+    ST.opIsProTrial = false;
+    ST.opTrialStart = null;
+  } else {
+    ST.opIsPro = false;
+    ST.opIsProTrial = false;
+    ST.opTrialStart = null;
+  }
   renderSidebar(); renderFilterStrip(); renderBottom(); renderCurrentPage();
 }
 
@@ -2236,9 +2274,11 @@ function buildGlobalSearchResults(val) {
     )
   );
   results.markets = (regionMarkets.length > 0 ? regionMarkets : DATA.markets.filter(m =>
-    m.name.toLowerCase().includes(q) ||
-    m.city.toLowerCase().includes(q) ||
-    (m.venue && m.venue.toLowerCase().includes(q))
+    m.published !== false && (
+      m.name.toLowerCase().includes(q) ||
+      m.city.toLowerCase().includes(q) ||
+      (m.venue && m.venue.toLowerCase().includes(q))
+    )
   )).slice(0, 4);
 
   // Vendors — search within current region first
@@ -2957,7 +2997,7 @@ function renderHome() {
   const activeFilter = ST.dateFilter || ST.filters.days.length > 0 || ST.filters.cats.length > 0 || ST.filters.pet;
 
   // Dynamic stat counts
-  const regionMarkets = ST.region ? DATA.markets.filter(m=>m.region===ST.region) : DATA.markets;
+  const regionMarkets = (ST.region ? DATA.markets.filter(m=>m.region===ST.region) : DATA.markets).filter(m=>m.published!==false);
   const regionVendors = ST.region ? DATA.vendors.filter(v=>v.published&&v.region===ST.region) : DATA.vendors.filter(v=>v.published);
   const marketCount = regionMarkets.length;
   const vendorCount2 = regionVendors.length;
@@ -3240,7 +3280,7 @@ function renderCategoryHub() {
   if(sb) sb.classList.remove('explore-mode');
 
   const regionVendors = DATA.vendors.filter(v => v.published && (!ST.region || v.region === ST.region));
-  const regionMarkets = DATA.markets.filter(m => !ST.region || m.region === ST.region);
+  const regionMarkets = DATA.markets.filter(m => m.published !== false && (!ST.region || m.region === ST.region));
 
   let h = `<div>
     <div style="background:var(--surface);padding:12px 16px;border-bottom:0.5px solid var(--border);position:sticky;top:0;z-index:10">
@@ -4051,7 +4091,7 @@ function showMapSuggestions(val) {
   const q = val.toLowerCase().trim();
 
   // First: match covered markets by name/city
-  const marketMatches = DATA.markets.filter(m =>
+  const marketMatches = DATA.markets.filter(m => m.published !== false &&
     m.name.toLowerCase().includes(q) || m.city.toLowerCase().includes(q)
   ).slice(0,3).map(m => ({
     label: m.name,
@@ -4259,7 +4299,7 @@ function noResultsSuggestions(type = 'markets') {
   const hasDateFilter = !!ST.dateFilter;
   const hasCatFilter = ST.filters.cats.length > 0;
   const hasOtherFilter = ST.filters.open || ST.filters.pet;
-  const regionMarkets = DATA.markets.filter(m => !ST.region || m.region === ST.region);
+  const regionMarkets = DATA.markets.filter(m => m.published !== false && (!ST.region || m.region === ST.region));
   const regionVendors = DATA.vendors.filter(v => v.published && (!ST.region || v.region === ST.region));
 
   // Build suggestion content first
@@ -5308,6 +5348,7 @@ function renderVendorsJoin() {
           autocomplete="off">
         <div id="joinVendorSuggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:0.5px solid var(--border-med);border-radius:0 0 var(--r-md) var(--r-md);z-index:100;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.1)"></div>
       </div>
+      <div id="vendorClaimStatusBanner"></div>
 
       <div style="margin-bottom:14px">
         <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px">${c.claim_your_name}</div>
@@ -5329,7 +5370,7 @@ function renderVendorsJoin() {
         <textarea id="joinMessage" placeholder="e.g. I sell honey at Lakes Park every Wednesday"
           style="width:100%;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none;resize:vertical;min-height:80px"></textarea>
       </div>
-      <button onclick="submitVendorJoinRequest()" style="width:100%;padding:14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:10px">${c.claim_submit}</button>
+      <button id="vendorJoinSubmitBtn" onclick="submitVendorJoinRequest()" style="width:100%;padding:14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:10px">${c.claim_submit}</button>
       <div style="text-align:center;font-size:11px;color:var(--text3)">${c.claim_note}</div>
     </div>
 
@@ -5468,7 +5509,7 @@ async function sendPasswordReset(email) {
   if(!supabaseClient) { alert('Connection error. Please try again.'); return; }
   try {
     await supabaseClient.auth.resetPasswordForEmail(email, {
-      redirectTo: 'https://shopwindmill.com/vendors/login'
+      redirectTo: 'https://shopwindmill.com/'
     });
     const toast = document.createElement('div');
     toast.textContent = 'Password reset link sent to ' + email;
@@ -5477,6 +5518,144 @@ async function sendPasswordReset(email) {
     setTimeout(() => toast.remove(), 4000);
   } catch(e) {
     alert('Could not send reset email: ' + (e.message || 'Please try again.'));
+  }
+}
+
+function showChangePasswordModal() {
+  // Remove any existing modal
+  const existing = document.getElementById('changePasswordModal');
+  if(existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'changePasswordModal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = `
+    <div style="background:var(--bg);border-radius:var(--r-lg);padding:24px;width:100%;max-width:360px;font-family:var(--font-sans)">
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:4px">Change your password</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Enter your current password, then choose a new one.</div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div>
+          <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:5px">Current password</label>
+          <input id="cpCurrentPassword" type="password" placeholder="Current password" class="form-input" style="width:100%">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:5px">New password</label>
+          <input id="cpNewPassword" type="password" placeholder="At least 8 characters" class="form-input" style="width:100%">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:5px">Confirm new password</label>
+          <input id="cpConfirmPassword" type="password" placeholder="Repeat new password" class="form-input" style="width:100%">
+        </div>
+        <div id="cpError" style="font-size:12px;color:var(--terra);display:none"></div>
+        <button id="cpSubmitBtn" onclick="submitChangePassword()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Update password</button>
+        <div style="text-align:center"><span style="font-size:12px;color:var(--text3);cursor:pointer" onclick="document.getElementById('changePasswordModal').remove()">Cancel</span></div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(() => document.getElementById('cpCurrentPassword')?.focus(), 100);
+}
+
+async function submitChangePassword() {
+  const current = document.getElementById('cpCurrentPassword')?.value;
+  const newPw = document.getElementById('cpNewPassword')?.value;
+  const confirm = document.getElementById('cpConfirmPassword')?.value;
+  const errEl = document.getElementById('cpError');
+  const btn = document.getElementById('cpSubmitBtn');
+
+  const showErr = (msg) => { if(errEl) { errEl.textContent = msg; errEl.style.display = 'block'; } };
+  errEl.style.display = 'none';
+
+  if(!current || !newPw || !confirm) { showErr('Please fill in all fields.'); return; }
+  if(newPw.length < 8) { showErr('New password must be at least 8 characters.'); return; }
+  if(newPw !== confirm) { showErr('New passwords don\'t match.'); return; }
+
+  btn.textContent = 'Updating…';
+  btn.disabled = true;
+
+  try {
+    // Re-authenticate with current password to verify identity
+    const email = ST.user?.email;
+    if(!email) throw new Error('No account email found.');
+    const { error: authErr } = await supabaseClient.auth.signInWithPassword({ email, password: current });
+    if(authErr) { showErr('Current password is incorrect.'); btn.textContent = 'Update password'; btn.disabled = false; return; }
+
+    // Now update to new password
+    const { error: updateErr } = await supabaseClient.auth.updateUser({ password: newPw });
+    if(updateErr) throw updateErr;
+
+    // Success
+    document.getElementById('changePasswordModal').remove();
+    const toast = document.createElement('div');
+    toast.textContent = 'Password updated successfully.';
+    toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#2C2016;color:#fff;padding:10px 20px;border-radius:20px;font-size:12px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;max-width:90vw;text-align:center';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+  } catch(e) {
+    showErr(e.message || 'Something went wrong. Please try again.');
+    btn.textContent = 'Update password';
+    btn.disabled = false;
+  }
+}
+
+function showSetNewPasswordModal() {
+  // Called when user lands via PASSWORD_RECOVERY link
+  const existing = document.getElementById('setNewPasswordModal');
+  if(existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'setNewPasswordModal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = `
+    <div style="background:var(--bg);border-radius:var(--r-lg);padding:24px;width:100%;max-width:360px;font-family:var(--font-sans)">
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:4px">Set a new password</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Choose a new password for your Windmill account.</div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div>
+          <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:5px">New password</label>
+          <input id="snpNewPassword" type="password" placeholder="At least 8 characters" class="form-input" style="width:100%">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:5px">Confirm new password</label>
+          <input id="snpConfirmPassword" type="password" placeholder="Repeat new password" class="form-input" style="width:100%">
+        </div>
+        <div id="snpError" style="font-size:12px;color:var(--terra);display:none"></div>
+        <button id="snpSubmitBtn" onclick="submitSetNewPassword()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Set new password</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(() => document.getElementById('snpNewPassword')?.focus(), 100);
+}
+
+async function submitSetNewPassword() {
+  const newPw = document.getElementById('snpNewPassword')?.value;
+  const confirm = document.getElementById('snpConfirmPassword')?.value;
+  const errEl = document.getElementById('snpError');
+  const btn = document.getElementById('snpSubmitBtn');
+
+  const showErr = (msg) => { if(errEl) { errEl.textContent = msg; errEl.style.display = 'block'; } };
+  errEl.style.display = 'none';
+
+  if(!newPw || !confirm) { showErr('Please fill in both fields.'); return; }
+  if(newPw.length < 8) { showErr('Password must be at least 8 characters.'); return; }
+  if(newPw !== confirm) { showErr('Passwords don\'t match.'); return; }
+
+  btn.textContent = 'Saving…';
+  btn.disabled = true;
+
+  try {
+    const { error } = await supabaseClient.auth.updateUser({ password: newPw });
+    if(error) throw error;
+
+    document.getElementById('setNewPasswordModal').remove();
+    const toast = document.createElement('div');
+    toast.textContent = 'Password updated! You\'re signed in.';
+    toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#2C2016;color:#fff;padding:10px 20px;border-radius:20px;font-size:12px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;max-width:90vw;text-align:center';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 5000);
+  } catch(e) {
+    showErr(e.message || 'Something went wrong. Please try again.');
+    btn.textContent = 'Set new password';
+    btn.disabled = false;
   }
 }
 
@@ -5532,7 +5711,7 @@ async function submitVendorPasswordReset() {
   if(!supabaseClient) return;
   try {
     await supabaseClient.auth.resetPasswordForEmail(email, {
-      redirectTo: 'https://shopwindmill.com/vendors/login'
+      redirectTo: 'https://shopwindmill.com/'
     });
     document.getElementById('vendorLoginForm').innerHTML = `<div style="text-align:center;padding:20px 0">
       <div style="font-size:48px;margin-bottom:12px">📬</div>
@@ -5625,15 +5804,98 @@ function renderVendorJoinSuggestions(q) {
   if(!matches.length) { box.style.display = 'none'; return; }
   box.style.display = 'block';
   box.innerHTML = matches.map(v => `
-    <div onclick="document.getElementById('joinVendorSearch').value='${v.name.replace(/'/g,"\\'")}';document.getElementById('joinVendorSuggestions').style.display='none'"
+    <div onclick="selectVendorJoinClaim('${v.id}','${v.name.replace(/'/g,"\'").replace(/"/g,'\"')}')"
       style="padding:10px 12px;font-size:13px;color:var(--text);cursor:pointer;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:8px"
       onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
-      <span style="font-size:16px">🏪</span>
+      <span style="font-size:16px">🌾</span>
       <div>
         <div style="font-weight:500">${v.name}</div>
         <div style="font-size:11px;color:var(--text3)">${v.category} · ${v.claimed ? 'Claimed' : 'Unclaimed'}</div>
       </div>
     </div>`).join('');
+}
+
+async function selectVendorJoinClaim(vendorId, vendorName) {
+  document.getElementById('joinVendorSearch').value = vendorName;
+  document.getElementById('joinVendorSuggestions').style.display = 'none';
+  ST.claimVendorId = vendorId;
+  // Live status check
+  const statusEl = document.getElementById('vendorClaimStatusBanner');
+  if(!statusEl) return;
+  statusEl.innerHTML = '<div style="font-size:11px;color:var(--text3);padding:6px 0">Checking availability…</div>';
+  const email = document.getElementById('joinEmail')?.value?.trim() || '';
+  const result = await checkClaimStatus(vendorId, email, 'vendor');
+  statusEl.innerHTML = renderClaimStatusBanner(result.status, 'vendor');
+  // Disable/enable submit based on status
+  const btn = document.getElementById('vendorJoinSubmitBtn');
+  if(btn) btn.disabled = ['your_pending','your_approved','claimed'].includes(result.status);
+}
+
+/* ── CLAIM STATUS CHECK ── */
+async function checkClaimStatus(id, email, type) {
+  // Returns: {status: 'available'|'your_pending'|'your_approved'|'claimed'|'other_pending', reason: ''}
+  if(!supabaseClient || !id) return {status:'available'};
+  try {
+    // Check if already claimed in vendors/markets table
+    const table = type === 'market' ? 'markets' : 'vendors';
+    const { data: listing } = await supabaseClient.from(table).select('id,claimed').eq('id', id).maybeSingle();
+    if(listing?.claimed) return {status:'claimed'};
+
+    // Check claims table
+    const { data: claims } = await supabaseClient.from('claims')
+      .select('id,email,status,claim_type')
+      .eq('vendor_id', id)
+      .in('status', ['pending','approved']);
+
+    if(!claims || claims.length === 0) return {status:'available'};
+
+    const myApproved = claims.find(c => c.email === email && c.status === 'approved');
+    if(myApproved) return {status:'your_approved'};
+
+    const myPending = claims.find(c => c.email === email && c.status === 'pending');
+    if(myPending) return {status:'your_pending'};
+
+    const otherApproved = claims.find(c => c.status === 'approved');
+    if(otherApproved) return {status:'claimed'};
+
+    const otherPending = claims.find(c => c.status === 'pending');
+    if(otherPending) return {status:'other_pending'};
+
+    return {status:'available'};
+  } catch(e) { console.warn('Claim status check failed:', e); return {status:'available'}; }
+}
+
+function renderClaimStatusBanner(status, type) {
+  const noun = type === 'market' ? 'market' : 'vendor';
+  const loginPath = type === 'market' ? '/markets/login' : '/vendors/login';
+  const banners = {
+    your_pending: {
+      bg:'var(--amber-lt)', border:'#F0D090', color:'#7A4E08',
+      icon:'⏳',
+      text:`We already received your request for this ${noun}. We'll be in touch within 24 hours.`
+    },
+    your_approved: {
+      bg:'var(--green-lt)', border:'var(--green-mid)', color:'var(--green-dk)',
+      icon:'✓',
+      text:`You already have an account for this ${noun}. <span style="text-decoration:underline;cursor:pointer;font-weight:600" onclick="navigate('${type === 'market' ? 'markets-login' : 'vendors-login'}')">Sign in here →</span>`
+    },
+    claimed: {
+      bg:'var(--surface2)', border:'var(--border-med)', color:'var(--text2)',
+      icon:'🔒',
+      text:`This ${noun} listing has already been claimed. Think this is an error? <a href="mailto:hello@shopwindmill.com" style="color:var(--terra)">Email us</a>.`
+    },
+    other_pending: {
+      bg:'var(--amber-lt)', border:'#F0D090', color:'#7A4E08',
+      icon:'⏳',
+      text:`There is already a pending request for this ${noun}, but you can still apply. We will review both.`
+    }
+  };
+  const b = banners[status];
+  if(!b) return '';
+  return `<div style="background:${b.bg};border:0.5px solid ${b.border};border-radius:var(--r-md);padding:10px 14px;margin-top:8px;display:flex;align-items:flex-start;gap:8px">
+    <span style="font-size:16px;flex-shrink:0">${b.icon}</span>
+    <div style="font-size:12px;color:${b.color};line-height:1.5">${b.text}</div>
+  </div>`;
 }
 
 /* ── EMAIL NOTIFICATIONS via Supabase Edge Function ── */
@@ -5670,6 +5932,16 @@ async function submitVendorJoinRequest() {
   if(!businessName || !yourName || !email) {
     alert('Please fill in your business name, your name, and email address.');
     return;
+  }
+
+  // Safety check at submit time
+  if(ST.claimVendorId) {
+    const check = await checkClaimStatus(ST.claimVendorId, email, 'vendor');
+    if(['your_pending','your_approved','claimed'].includes(check.status)) {
+      const statusEl = document.getElementById('vendorClaimStatusBanner');
+      if(statusEl) statusEl.innerHTML = renderClaimStatusBanner(check.status, 'vendor');
+      return;
+    }
   }
 
   const newClaim = {
@@ -6125,6 +6397,7 @@ function renderMarketsJoin() {
           oninput="renderMarketJoinSuggestions(this.value)" autocomplete="off">
         <div id="joinMarketSuggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:0.5px solid var(--border-med);border-radius:0 0 var(--r-md) var(--r-md);z-index:100;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.1)"></div>
       </div>
+      <div id="marketClaimStatusBanner"></div>
       <div style="margin-bottom:14px">
         <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px">${c.claim_your_name}</div>
         <input id="joinMarketYourName" type="text" placeholder="Alex Rivera"
@@ -6160,7 +6433,7 @@ function renderMarketsJoin() {
         <textarea id="joinMarketMessage" placeholder="e.g. I manage Lakes Park Farmers Market and the Cape Coral Downtown Market"
           style="width:100%;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none;resize:vertical;min-height:80px"></textarea>
       </div>
-      <button onclick="submitMarketJoinRequest()" style="width:100%;padding:14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:10px">${c.claim_submit}</button>
+      <button id="marketJoinSubmitBtn" onclick="submitMarketJoinRequest()" style="width:100%;padding:14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:10px">${c.claim_submit}</button>
       <div style="text-align:center;font-size:11px;color:var(--text3)">${c.claim_note}</div>
     </div>
 
@@ -6206,13 +6479,27 @@ function renderMarketJoinSuggestions(q) {
   if(!matches.length) { box.style.display='none'; return; }
   box.style.display = 'block';
   box.innerHTML = matches.map(m => `
-    <div onclick="document.getElementById('joinMarketSearch').value='${m.name.replace(/'/g,"\\'")}';ST.claimMarketId='${m.id}';document.getElementById('joinMarketSuggestions').style.display='none'"
+    <div onclick="selectMarketJoinClaim('${m.id}','${m.name.replace(/'/g,"\'").replace(/"/g,'\"')}')"
       style="padding:10px 14px;cursor:pointer;border-bottom:0.5px solid var(--border);font-size:13px;color:var(--text)"
       onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
       <span style="font-weight:500">${m.name}</span>
       <span style="font-size:11px;color:var(--text3);margin-left:6px">${m.city||''}</span>
       ${m.claimed ? '<span style="font-size:10px;color:var(--green);margin-left:6px">✓ Claimed</span>' : ''}
     </div>`).join('');
+}
+
+async function selectMarketJoinClaim(marketId, marketName) {
+  document.getElementById('joinMarketSearch').value = marketName;
+  document.getElementById('joinMarketSuggestions').style.display = 'none';
+  ST.claimMarketId = marketId;
+  const statusEl = document.getElementById('marketClaimStatusBanner');
+  if(!statusEl) return;
+  statusEl.innerHTML = '<div style="font-size:11px;color:var(--text3);padding:6px 0">Checking availability…</div>';
+  const email = document.getElementById('joinMarketEmail')?.value?.trim() || '';
+  const result = await checkClaimStatus(marketId, email, 'market');
+  statusEl.innerHTML = renderClaimStatusBanner(result.status, 'market');
+  const btn = document.getElementById('marketJoinSubmitBtn');
+  if(btn) btn.disabled = ['your_pending','your_approved','claimed'].includes(result.status);
 }
 
 function renderMarketPending() {
@@ -6242,6 +6529,16 @@ async function submitMarketJoinRequest() {
   if(!marketName || !yourName || !email) {
     alert('Please fill in the market name, your name, and email address.');
     return;
+  }
+
+  // Safety check at submit time
+  if(ST.claimMarketId) {
+    const check = await checkClaimStatus(ST.claimMarketId, email, 'market');
+    if(['your_pending','your_approved','claimed'].includes(check.status)) {
+      const statusEl = document.getElementById('marketClaimStatusBanner');
+      if(statusEl) statusEl.innerHTML = renderClaimStatusBanner(check.status, 'market');
+      return;
+    }
   }
 
   const marketId = ST.claimMarketId || marketName.toLowerCase().replace(/\s+/g,'-');
@@ -6382,15 +6679,7 @@ async function submitMarketLogin() {
     // Check operators table for this email
     const { data: ops } = await supabaseClient.from('operators').select('*').eq('email', email);
     if(ops && ops.length > 0) {
-      ST.role = 'operator';
-      ST.operatorId = ops[0].id;
-      renderSidebar(); renderBottom();
-      // Operator dashboard placeholder
-      document.getElementById('scrollBody').innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:40px 24px">
-        <div style="font-size:52px;margin-bottom:20px">🏪</div>
-        <div style="font-family:var(--font-serif);font-size:22px;font-weight:600;color:var(--text);margin-bottom:10px">Welcome, ${ops[0].name||email}!</div>
-        <p style="font-size:14px;color:var(--text2);line-height:1.7;max-width:340px">Your operator dashboard is coming soon. We'll notify you when it's ready.</p>
-      </div>`;
+      await onOperatorLoginSuccess(data.user, email, ops[0]);
     } else {
       // Not in operators table — might be a pending claim
       renderMarketPending();
@@ -6438,11 +6727,62 @@ async function submitMarketSignup() {
   try {
     const { data, error } = await supabaseClient.auth.signUp({ email, password });
     if(error) throw error;
-    ST.user = data.user;
-    renderMarketPending();
+    if(!data.user) throw new Error('Account creation failed — please try again.');
+    await onOperatorLoginSuccess(data.user, email);
   } catch(e) {
     if(btn) { btn.disabled=false; btn.textContent='Create account'; }
     alert('Account creation failed: ' + (e.message||'Please try again.'));
+  }
+}
+
+async function onOperatorLoginSuccess(user, email, opRecord) {
+  if(!user) return;
+  // Look up operators table if not passed in
+  if(!opRecord && supabaseClient) {
+    try {
+      const { data: ops } = await supabaseClient.from('operators').select('*').eq('email', email || user.email).limit(1);
+      opRecord = ops?.[0] || null;
+    } catch(e) { console.warn('Operator lookup failed:', e); }
+  }
+
+  if(!opRecord) { renderMarketPending(); return; }
+
+  // Set state
+  ST.user = { id: user.id, email: user.email || email, name: opRecord.name || (user.email||email).split('@')[0], role: 'operator' };
+  ST.role = 'operator';
+  ST.operatorId = opRecord.id;
+  ST.opIsPro = opRecord.pro === true;
+  ST.opTrialStart = opRecord.trial_start ? new Date(opRecord.trial_start) : null;
+  if(ST.opTrialStart && !ST.opIsPro) {
+    const sixMonthsLater = new Date(ST.opTrialStart);
+    sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+    ST.opIsProTrial = new Date() < sixMonthsLater;
+  } else {
+    ST.opIsProTrial = false;
+  }
+  ST.opProfileSetupComplete = opRecord.profile_setup_complete || false;
+
+  // Upsert users table with operator role
+  if(supabaseClient) {
+    try {
+      await supabaseClient.from('users').upsert({
+        id: user.id,
+        email: user.email || email,
+        name: ST.user.name,
+        role: 'operator',
+        operator_id: opRecord.id
+      }, { onConflict: 'id' });
+    } catch(e) { console.warn('User upsert failed:', e); }
+  }
+
+  renderSidebar(); renderFilterStrip(); renderBottom();
+
+  // Trigger onboarding if not yet complete, otherwise go to dashboard
+  if(!ST.opProfileSetupComplete) {
+    renderOperatorDash();
+    setTimeout(() => showOperatorOnboarding(1), 600);
+  } else {
+    renderOperatorDash();
   }
 }
 
@@ -6472,7 +6812,7 @@ async function submitMarketForgotPassword() {
   const btn = document.querySelector('#marketLoginForm button[onclick="submitMarketForgotPassword()"]');
   if(btn) { btn.disabled=true; btn.textContent='Sending...'; }
   try {
-    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: 'https://shopwindmill.com/markets/login' });
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: 'https://shopwindmill.com/' });
     if(error) throw error;
     document.getElementById('marketLoginForm').innerHTML = `
       <div style="text-align:center;padding:20px 0">
@@ -6945,8 +7285,8 @@ async function renderMeSection(section) {
       <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-bottom:12px">
         <div style="padding:14px 16px;border-bottom:0.5px solid var(--border)">
           <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:2px">Password</div>
-          <div style="font-size:11px;color:var(--text3);margin-bottom:12px">A reset link will be sent to ${ST.user?.email||'your email'}.</div>
-          <button onclick="sendPasswordReset('${ST.user?.email||''}')" style="padding:9px 18px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Send password reset email</button>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:12px">Update your Windmill account password.</div>
+          <button onclick="showChangePasswordModal()" style="padding:9px 18px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Change password</button>
         </div>
       </div>
     </div></div>`;
@@ -7301,6 +7641,7 @@ function showVendorOnboarding(step) {
   overlay.innerHTML = `
     <div style="background:var(--surface);border-radius:var(--r-lg);width:100%;max-width:440px;padding:28px 24px;position:relative;max-height:90vh;overflow-y:auto">
       <button onclick="skipVendorOnboarding()" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3);line-height:1">×</button>
+      ${step > 1 ? `<button onclick="showVendorOnboarding(${step-1})" style="position:absolute;top:14px;left:14px;background:none;border:none;font-size:13px;cursor:pointer;color:var(--text3);display:flex;align-items:center;gap:4px;padding:4px">← Back</button>` : ''}
       <div style="text-align:center;margin-bottom:20px">
         <div style="font-size:36px;margin-bottom:10px">${s.icon}</div>
         <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:6px">${s.title}</div>
@@ -7520,6 +7861,257 @@ async function completeVendorOnboarding(v) {
   renderVendorDash();
 }
 
+function showOperatorOnboarding(step) {
+  step = step || 1;
+  const name = ST.user?.name?.split(' ')[0] || 'there';
+  const opId = ST.operatorId;
+  const isPro = ST.opIsPro || ST.opIsProTrial;
+  const allMarkets = DATA.markets.filter(m => m.operator_id === opId);
+  const op = opId ? DATA.operators?.find(x => x.id === opId) : null;
+
+  // Build market tag checkboxes for step 2
+  const marketCheckboxes = DATA.markets
+    .filter(m => m.published !== false)
+    .map(m => {
+      const checked = allMarkets.some(am => am.id === m.id);
+      return `<label style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border);cursor:pointer">
+        <input type="checkbox" value="${m.id}" ${checked ? 'checked' : ''} style="width:16px;height:16px;accent-color:var(--green);cursor:pointer;flex-shrink:0">
+        <div>
+          <div style="font-size:13px;color:var(--text);font-weight:500">${m.name}</div>
+          <div style="font-size:11px;color:var(--text3)">${m.city} · ${m.day_of_week||''}${m.start_time?' · '+m.start_time:''}</div>
+        </div>
+      </label>`;
+    }).join('');
+
+  const currentPhoto = op?.photo || ST.opPendingPhoto || null;
+
+  const steps = [
+    {
+      icon: '🏪',
+      title: `Welcome to Windmill, ${name}!`,
+      sub: "Let's get your market listings set up.",
+      content: `<div style="background:var(--green-lt);border-radius:var(--r-md);padding:14px;margin-bottom:16px">
+        <div style="font-size:12px;font-weight:600;color:var(--green-dk);margin-bottom:6px">🌟 Founding Operator — Pro Trial</div>
+        <div style="font-size:12px;color:var(--green-dk);line-height:1.9">✓ Full Pro features for 6 months — free<br>✓ No credit card needed<br>✓ Tag all your markets in one account</div>
+      </div>
+      <div style="font-size:12px;color:var(--text2)">Here's what we'll set up:<br><br>① Tag your markets<br>② Cover photo<br>③ Your story<br>④ Your links</div>`,
+      nextLabel: "Let's go →",
+      skipLabel: null
+    },
+    {
+      icon: '📍',
+      title: 'Tag your markets',
+      sub: 'Select all the markets you operate. You can update this anytime.',
+      content: `<div id="opMarketTagList" style="max-height:260px;overflow-y:auto">${marketCheckboxes}</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px">Don&#39;t see your market? Email us at hello@shopwindmill.com</div>`,
+      nextLabel: 'Next →',
+      skipLabel: null
+    },
+    {
+      icon: '📷',
+      title: 'Add a cover photo',
+      sub: 'A great photo makes your market pages stand out.',
+      content: `<div style="width:100%;height:130px;background:${currentPhoto?'url('+currentPhoto+') center/cover no-repeat':'var(--surface2)'};border-radius:var(--r-md);border:0.5px dashed var(--border-med);display:flex;align-items:center;justify-content:center;cursor:pointer;margin-bottom:12px;position:relative;overflow:hidden" onclick="document.getElementById('opOnboardPhotoInput').click()">
+        ${!currentPhoto ? `<div style="text-align:center"><div style="font-size:28px;margin-bottom:4px">📷</div><div style="font-size:12px;color:var(--text3)">Tap to add photo</div></div>` : `<div style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.5);color:#fff;font-size:11px;padding:4px 8px;border-radius:var(--r-pill)">Change photo</div>`}
+      </div>
+      <input type="file" id="opOnboardPhotoInput" accept="image/*" style="display:none" onchange="previewOpOnboardPhoto(this)">
+      <div style="font-size:11px;color:var(--text3);text-align:center">Max 5MB · You can change this anytime</div>`,
+      nextLabel: 'Next →',
+      skipLabel: 'Skip for now'
+    },
+    {
+      icon: '✍️',
+      title: 'Tell your story',
+      sub: 'What makes your markets special? Shoppers love the personal touch.',
+      content: `<textarea id="opOnboardDescription" placeholder="e.g. We've been running farmers markets across Lee County since 2008, connecting local growers with the community every week..." style="width:100%;min-height:120px;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none;resize:vertical;line-height:1.6">${op?.description||''}</textarea>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px">Keep it short and personal — 2-3 sentences is perfect</div>`,
+      nextLabel: 'Next →',
+      skipLabel: 'Skip for now'
+    },
+    {
+      icon: '🔗',
+      title: isPro ? 'Add your links' : 'Add your link',
+      sub: isPro ? 'Connect your website, Instagram, and Facebook.' : 'Pick one link to share with shoppers.',
+      content: isPro ? `
+        <div class="form-field"><label class="form-label">Website</label><input class="form-input" id="opOnboardWebsite" value="${op?.website||''}" placeholder="https://yoursite.com" type="url"></div>
+        <div class="form-field"><label class="form-label">Instagram</label><input class="form-input" id="opOnboardInstagram" value="${op?.instagram||''}" placeholder="https://instagram.com/yourhandle"></div>
+        <div class="form-field"><label class="form-label">Facebook</label><input class="form-input" id="opOnboardFacebook" value="${op?.facebook||''}" placeholder="https://facebook.com/yourpage"></div>` : `
+        <div class="form-field">
+          <label class="form-label">Link type</label>
+          <select class="form-input" id="opOnboardSocialType" style="cursor:pointer">
+            <option value="website">Website</option>
+            <option value="instagram">Instagram</option>
+            <option value="facebook">Facebook</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">URL</label>
+          <input class="form-input" id="opOnboardSocialValue" value="${op?.website||op?.instagram||op?.facebook||''}" placeholder="https://...">
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">Upgrade to Pro to add all three links</div>`,
+      nextLabel: 'Finish setup ✓',
+      skipLabel: 'Skip for now'
+    }
+  ];
+
+  const s = steps[step - 1];
+  const total = steps.length;
+  const dots = Array.from({length: total}, (_,i) =>
+    `<div style="width:8px;height:8px;border-radius:50%;background:${i+1===step?'var(--green)':'var(--border-med)'}"></div>`
+  ).join('');
+
+  const overlay = document.getElementById('operatorOnboardingOverlay') || (() => {
+    const el = document.createElement('div');
+    el.id = 'operatorOnboardingOverlay';
+    el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+    document.body.appendChild(el);
+    return el;
+  })();
+
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border-radius:var(--r-lg);width:100%;max-width:440px;padding:28px 24px;position:relative;max-height:90vh;overflow-y:auto">
+      <button onclick="skipOperatorOnboarding()" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3);line-height:1">×</button>
+      ${step > 1 ? `<button onclick="showOperatorOnboarding(${step-1})" style="position:absolute;top:14px;left:14px;background:none;border:none;font-size:13px;cursor:pointer;color:var(--text3);display:flex;align-items:center;gap:4px;padding:4px">← Back</button>` : ''}
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:36px;margin-bottom:10px">${s.icon}</div>
+        <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:6px">${s.title}</div>
+        <div style="font-size:13px;color:var(--text2)">${s.sub}</div>
+      </div>
+      ${s.content}
+      <div style="margin-top:20px">
+        <button onclick="operatorOnboardingNext(${step})" style="width:100%;padding:13px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:8px">${s.nextLabel}</button>
+        ${s.skipLabel ? `<button onclick="operatorOnboardingSkipStep(${step})" style="width:100%;padding:10px;background:transparent;color:var(--text3);border:none;font-size:13px;cursor:pointer;font-family:var(--font-sans)">${s.skipLabel}</button>` : ''}
+      </div>
+      <div style="display:flex;justify-content:center;gap:6px;margin-top:16px">${dots}</div>
+      <div style="text-align:center;margin-top:8px;font-size:11px;color:var(--text3)">Step ${step} of ${total}</div>
+    </div>`;
+  overlay.style.display = 'flex';
+}
+
+function previewOpOnboardPhoto(input) {
+  const file = input.files[0];
+  if(!file) return;
+  if(file.size > 5 * 1024 * 1024) { alert('Photo must be under 5MB'); return; }
+  ST.opPendingCoverPhotoFile = file;
+  const previewUrl = URL.createObjectURL(file);
+  const container = input.previousElementSibling;
+  if(container) {
+    container.style.background = `url(${previewUrl}) center/cover no-repeat`;
+    container.innerHTML = `<div style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.5);color:#fff;font-size:11px;padding:4px 8px;border-radius:var(--r-pill)">Change photo</div>`;
+  }
+}
+
+async function operatorOnboardingNext(step) {
+  const opId = ST.operatorId;
+  const isPro = ST.opIsPro || ST.opIsProTrial;
+
+  // Step 2: save tagged markets
+  if(step === 2) {
+    const checked = Array.from(document.querySelectorAll('#opMarketTagList input[type=checkbox]:checked')).map(el => el.value);
+    if(supabaseClient && opId && checked.length > 0) {
+      try {
+        await supabaseClient.from('markets').update({ operator_id: opId }).in('id', checked);
+        checked.forEach(id => {
+          const m = DATA.markets.find(x => x.id === id);
+          if(m) m.operator_id = opId;
+        });
+      } catch(e) { console.warn('Market tag update failed:', e); }
+    }
+    showOperatorOnboarding(step + 1);
+    return;
+  }
+
+  // Step 3: save cover photo
+  if(step === 3) {
+    if(ST.opPendingCoverPhotoFile && opId && supabaseClient) {
+      try {
+        const compressed = await compressImage(ST.opPendingCoverPhotoFile, 1200, 0.80);
+        const path = `operators/${opId}/photo.jpg`;
+        const url = await uploadToStorage(compressed, path);
+        ST.opPendingPhoto = url;
+        ST.opPendingCoverPhotoFile = null;
+        if(supabaseClient) await supabaseClient.from('operators').update({ photo: url }).eq('id', opId);
+        // Update local DATA
+        const op = DATA.operators?.find(x => x.id === opId);
+        if(op) op.photo = url;
+      } catch(e) { console.warn('Operator photo upload failed:', e); }
+    }
+    showOperatorOnboarding(step + 1);
+    return;
+  }
+
+  // Step 4: save description
+  if(step === 4) {
+    const desc = document.getElementById('opOnboardDescription')?.value?.trim() || '';
+    ST.opPendingDescription = desc;
+    if(desc && supabaseClient && opId) {
+      try {
+        await supabaseClient.from('operators').update({ description: desc }).eq('id', opId);
+        const op = DATA.operators?.find(x => x.id === opId);
+        if(op) op.description = desc;
+      } catch(e) { console.warn('Operator description save failed:', e); }
+    }
+    showOperatorOnboarding(step + 1);
+    return;
+  }
+
+  // Step 5: save links — final step
+  if(step === 5) {
+    let links = {};
+    if(isPro) {
+      links.website = document.getElementById('opOnboardWebsite')?.value?.trim() || '';
+      links.instagram = document.getElementById('opOnboardInstagram')?.value?.trim() || '';
+      links.facebook = document.getElementById('opOnboardFacebook')?.value?.trim() || '';
+    } else {
+      const type = document.getElementById('opOnboardSocialType')?.value;
+      const val = document.getElementById('opOnboardSocialValue')?.value?.trim() || '';
+      links = { website: type==='website'?val:'', instagram: type==='instagram'?val:'', facebook: type==='facebook'?val:'' };
+    }
+    if(supabaseClient && opId) {
+      try {
+        await supabaseClient.from('operators').update(links).eq('id', opId);
+        const op = DATA.operators?.find(x => x.id === opId);
+        if(op) Object.assign(op, links);
+      } catch(e) { console.warn('Operator links save failed:', e); }
+    }
+    await completeOperatorOnboarding();
+    return;
+  }
+
+  showOperatorOnboarding(step + 1);
+}
+
+function operatorOnboardingSkipStep(step) {
+  if(step >= 5) { completeOperatorOnboarding(); return; }
+  showOperatorOnboarding(step + 1);
+}
+
+async function completeOperatorOnboarding() {
+  if(supabaseClient && ST.user) {
+    try {
+      await supabaseClient.from('users').update({ profile_setup_complete: true }).eq('id', ST.user.id);
+      await supabaseClient.from('operators').update({ profile_setup_complete: true }).eq('id', ST.operatorId);
+    } catch(e) { console.warn('Setup complete flag failed:', e); }
+  }
+  ST.opProfileSetupComplete = true;
+  ST.opPendingCoverPhotoFile = null;
+  ST.opPendingPhoto = null;
+  ST.opPendingDescription = null;
+  skipOperatorOnboarding();
+  const toast = document.createElement('div');
+  toast.textContent = "You're all set! Welcome to Windmill 🌿";
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
+  renderOperatorDash();
+}
+
+function skipOperatorOnboarding() {
+  const overlay = document.getElementById('operatorOnboardingOverlay');
+  if(overlay) overlay.style.display = 'none';
+}
+
+
 function skipVendorOnboarding() {
   const overlay = document.getElementById('vendorOnboardingOverlay');
   if(overlay) overlay.style.display = 'none';
@@ -7640,8 +8232,13 @@ async function renderVendorDash() {
 /* ── OPERATOR DASHBOARD ── */
 async function renderOperatorDash() {
   hideFilterUI();
-  const myMarkets = DATA.markets.filter(m=>m.operator_id==='local-roots');
-  
+  const opId = ST.operatorId || 'local-roots';
+  const myMarkets = DATA.markets.filter(m => m.operator_id === opId);
+
+  const isPro = ST.opIsPro;
+  const isFreeTrial = ST.opIsProTrial && !isPro;
+  const isFree = !isPro && !isFreeTrial;
+
   // Load follower counts per market from Supabase
   let marketFollowers = {};
   let totalFollowers = 0;
@@ -7653,23 +8250,52 @@ async function renderOperatorDash() {
     });
   }
 
+  // Trial badge
+  let trialBadge = '';
+  if(isFreeTrial && ST.opTrialStart) {
+    const sixMonthsLater = new Date(ST.opTrialStart);
+    sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+    const daysLeft = Math.ceil((sixMonthsLater - new Date()) / (1000 * 60 * 60 * 24));
+    trialBadge = `<div style="background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-md);padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:18px">🌟</span>
+      <div>
+        <div style="font-size:12px;font-weight:600;color:var(--green-dk)">Pro features unlocked — founding operator trial</div>
+        <div style="font-size:11px;color:var(--green-dk);opacity:.8">${daysLeft} days remaining · No card needed</div>
+      </div>
+    </div>`;
+  }
+
+  const tierLabel = isPro
+    ? `<span style="color:var(--green-dk);font-weight:500">Operator Pro</span>`
+    : isFreeTrial
+      ? `<span style="color:var(--green-dk);font-weight:500">Pro Trial</span> <span style="color:var(--text3)">· Founding operator</span>`
+      : `Free tier · <span style="color:var(--terra);cursor:pointer;font-weight:500" onclick="ST.sub='me';renderCurrentPage()">Upgrade to Pro — $29/mo</span>`;
+
+  const adSection = isFree ? `<div class="dash-ad"><div><div class="ad-label">${t('ad_label')}</div><div class="ad-text">Upgrade to Operator Pro to remove ads and unlock sponsored placements</div></div><div class="ad-placeholder">📢</div></div>` : '';
+
+  const upgradeBanner = isFree ? `<div class="upgrade-banner"><span style="font-size:20px">⭐</span><div class="upgrade-text">Upgrade to <strong>Operator Pro</strong> — remove ads, control "Presented By" sponsor slots on your market pages, advanced analytics. <strong>$29/month</strong></div><button class="upgrade-btn" onclick="ST.sub='me';renderCurrentPage()">Upgrade</button></div>` : '';
+
   document.getElementById('scrollBody').innerHTML = `<div class="operator-dash">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
       <div class="dash-title">Operator Dashboard</div>
       <button onclick="ST.viewSiteMode=true;navigate('home')" style="padding:6px 14px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;color:var(--text2);font-family:var(--font-sans);display:flex;align-items:center;gap:5px">🌐 View site</button>
     </div>
-    <div class="dash-sub">Managing your markets on Windmill · Free tier</div>
-    <div class="dash-ad"><div><div class="ad-label">${t('ad_label')}</div><div class="ad-text">Upgrade to Operator Pro to remove ads and unlock sponsored placements</div></div><div class="ad-placeholder">📢</div></div>
-    <div class="upgrade-banner"><span style="font-size:20px">⭐</span><div class="upgrade-text">Upgrade to <strong>Operator Pro</strong> — remove ads, control "Presented By" sponsor slots on your market pages, advanced analytics. <strong>$99/month</strong></div><button class="upgrade-btn">Upgrade</button></div>
+    <div class="dash-sub">Managing your markets on Windmill · ${tierLabel}</div>
+
+    ${trialBadge}
+    ${adSection}
+    ${upgradeBanner}
+
     <div class="dash-grid">
       <div class="dash-card"><div class="dash-card-num">${myMarkets.length}</div><div class="dash-card-label">Your markets</div></div>
       <div class="dash-card"><div class="dash-card-num">${totalFollowers}</div><div class="dash-card-label">Total followers</div></div>
       <div class="dash-card"><div class="dash-card-num">0</div><div class="dash-card-label">Page views</div></div>
-      <div class="dash-card"><div class="dash-card-num">${DATA.vendors.filter(v=>v.claimed&&myMarkets.some(m=>v.markets.includes(m.id))).length}</div><div class="dash-card-label">Claimed vendors</div></div>
+      <div class="dash-card"><div class="dash-card-num">${DATA.vendors.filter(v=>v.claimed&&myMarkets.some(m=>v.markets&&v.markets.includes(m.id))).length}</div><div class="dash-card-label">Claimed vendors</div></div>
     </div>
+
     <div class="dash-section">
       <div class="dash-section-title">Your markets</div>
-      ${myMarkets.map((m,i)=>`
+      ${myMarkets.length === 0 ? `<div style="font-size:13px;color:var(--text3);padding:8px 0">No markets linked yet.</div>` : myMarkets.map((m,i)=>`
         <div class="schedule-row" onclick="navigate('market','${m.id}')">
           <div class="schedule-day" style="background:${mbg(i)};color:${micn(i)}">${shortDay(getNextMarketDay(m))}</div>
           <div style="flex:1">
@@ -7679,6 +8305,26 @@ async function renderOperatorDash() {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
         </div>`).join('')}
     </div>
+
+    ${isPro || isFreeTrial ? `
+    <div class="dash-section">
+      <div class="dash-section-title">Pro features</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md)">
+          <div><div style="font-size:13px;font-weight:500;color:var(--text)">📣 Post announcement</div><div style="font-size:11px;color:var(--text3)">Notify all market followers</div></div>
+          <span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="alert('Announcements coming soon')">Post →</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md)">
+          <div><div style="font-size:13px;font-weight:500;color:var(--text)">🎯 Sponsor slot</div><div style="font-size:11px;color:var(--text3)">"Presented By" placement on your market pages</div></div>
+          <span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="alert('Sponsor slots coming soon')">Manage →</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md)">
+          <div><div style="font-size:13px;font-weight:500;color:var(--text)">📊 Analytics</div><div style="font-size:11px;color:var(--text3)">Page views, follower trends, vendor activity</div></div>
+          <span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="alert('Analytics coming soon')">View →</span>
+        </div>
+      </div>
+    </div>` : ''}
+
   </div>`;
 }
 
@@ -7965,7 +8611,12 @@ function renderAdminPanel() {
     const vendorClaims = ST.adminClaims.filter(c => c.claim_type !== 'market');
     const marketClaims = ST.adminClaims.filter(c => c.claim_type === 'market');
     const activeList = ST.adminClaimsType === 'market' ? marketClaims : vendorClaims;
-    const pending = activeList.filter(c=>c.status==='pending');
+    // Flag duplicates: pending claims where another claim for same vendorId exists
+    const pendingAll = activeList.filter(c=>c.status==='pending');
+    const vendorIdCounts = {};
+    pendingAll.forEach(c => { vendorIdCounts[c.vendorId] = (vendorIdCounts[c.vendorId]||0)+1; });
+    pendingAll.forEach(c => { c.isDuplicate = vendorIdCounts[c.vendorId] > 1; });
+    const pending = pendingAll;
     const history = activeList.filter(c=>c.status!=='pending');
 
     // Type toggle: Vendors / Markets
@@ -7991,6 +8642,7 @@ function renderAdminPanel() {
               <div class="request-city">${c.vendorName}</div>
               ${isMarketClaim ? `<span style="font-size:10px;padding:1px 6px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill);border:0.5px solid var(--green-mid)">Market</span>` : ''}
               ${c.message&&c.message.includes('Manages additional markets') ? `<span style="font-size:10px;padding:1px 6px;background:var(--amber-lt);color:#7A4E08;border-radius:var(--r-pill);border:0.5px solid #F0D090">Multi-market</span>` : ''}
+              ${c.isDuplicate ? `<span style="font-size:10px;padding:1px 6px;background:#FEE2E2;color:#B91C1C;border-radius:var(--r-pill);border:0.5px solid #FECACA">⚠ Duplicate</span>` : ''}
             </div>
             <div class="request-markets">Claimed by: ${c.claimant} · ${c.email}</div>
             <div class="request-contact">${c.phone||''}${c.phone&&c.role?' · ':''}${c.role||''} · ${c.date}</div>
@@ -8821,6 +9473,28 @@ async function onAuthSuccess(user) {
     ST.isProTrial = false;
   }
 
+  // Load operator tier if role is operator
+  if(role === 'operator' && ST.operatorId && supabaseClient) {
+    try {
+      const { data: opRecord } = await supabaseClient
+        .from('operators')
+        .select('id, pro, trial_start')
+        .eq('id', ST.operatorId)
+        .single();
+      if(opRecord) {
+        ST.opIsPro = opRecord.pro === true;
+        ST.opTrialStart = opRecord.trial_start ? new Date(opRecord.trial_start) : null;
+        if(ST.opTrialStart && !ST.opIsPro) {
+          const sixMonthsLater = new Date(ST.opTrialStart);
+          sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+          ST.opIsProTrial = new Date() < sixMonthsLater;
+        } else {
+          ST.opIsProTrial = false;
+        }
+      }
+    } catch(e) { console.warn('Operator tier lookup failed:', e); }
+  }
+
   // Auto-create users table row if it doesn't exist
   if(!profile) {
     try {
@@ -8950,6 +9624,7 @@ async function checkExistingSession() {
 
   // Listen for auth state changes (magic link, OAuth callback)
   supabaseClient.auth.onAuthStateChange(async (event, session) => {
+    if(event === 'PASSWORD_RECOVERY') { showSetNewPasswordModal(); return; }
     if(event === 'SIGNED_IN' && session?.user) await onAuthSuccess(session.user);
     if(event === 'SIGNED_OUT') { ST.user = null; ST.follows = []; renderBottom(); }
   });
@@ -9365,62 +10040,107 @@ async function adminApproveClaim(claimId) {
   const c = ST.adminClaims.find(x=>x.id===claimId);
   if(!c) return;
   c.status = 'approved';
+  const isMarketClaim = c.claim_type === 'market';
+  const trialStart = new Date().toISOString();
 
-  // Mark vendor as claimed in local data
-  const v = DATA.vendors.find(x=>x.id===c.vendorId);
-  if(v) { v.claimed = true; v.trial_start = new Date().toISOString(); }
-
-  // Update vendor in Supabase
-  if(supabaseClient) {
-    try {
-      await supabaseClient.from('vendors').update({
-        claimed: true,
-        trial_start: new Date().toISOString()
-      }).eq('id', c.vendorId);
-
-      // Update claim status
-      await supabaseClient.from('claims').update({status:'approved'}).eq('id', claimId);
-
-      // Try to find and update user record if they already have an account
-      const { data: userRecord } = await supabaseClient
-        .from('users').select('id').eq('email', c.email).single();
-      if(userRecord) {
-        await supabaseClient.from('users').update({
-          role: 'vendor',
-          vendor_id: c.vendorId,
-          trial_start: new Date().toISOString()
-        }).eq('id', userRecord.id);
-      }
-    } catch(e) { console.warn('Approval Supabase update failed:', e); }
+  if(isMarketClaim) {
+    // --- MARKET OPERATOR APPROVAL ---
+    // Update operators table with trial_start
+    if(supabaseClient) {
+      try {
+        // Find operator record by market id or create one
+        const { data: opRecord } = await supabaseClient
+          .from('operators').select('id').eq('id', c.vendorId).maybeSingle();
+        if(opRecord) {
+          await supabaseClient.from('operators').update({
+            trial_start: trialStart,
+            claimed: true
+          }).eq('id', c.vendorId);
+        }
+        await supabaseClient.from('claims').update({status:'approved'}).eq('id', claimId);
+        // Update user record if exists
+        const { data: userRecord } = await supabaseClient
+          .from('users').select('id').eq('email', c.email).maybeSingle();
+        if(userRecord) {
+          await supabaseClient.from('users').update({
+            role: 'operator',
+            operator_id: c.vendorId
+          }).eq('id', userRecord.id);
+        }
+      } catch(e) { console.warn('Market approval Supabase update failed:', e); }
+    }
+    // Send operator approval email
+    sendWindmillEmail(
+      '🎉 Your market listing is approved — welcome to Windmill!',
+      '<h2>Welcome to Windmill, ' + c.claimant + '!</h2>' +
+      '<p>Your listing for <strong>' + c.vendorName + '</strong> has been approved.</p>' +
+      '<p>As a founding operator, you have <strong>6 months of Operator Pro free</strong> — no credit card needed.</p>' +
+      '<div style="background:#f0f7ee;border-radius:8px;padding:16px;margin:16px 0;font-size:14px;line-height:2">' +
+      '✓ Full Pro features unlocked<br>' +
+      '✓ Tag all the markets you operate<br>' +
+      '✓ Your market pages go live on Windmill<br>' +
+      '✓ Followers, vendor roster & analytics</div>' +
+      '<p style="text-align:center;margin:24px 0">' +
+      '<a href="https://shopwindmill.com/markets/login" style="background:#5C7A4E;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:15px;font-weight:600;display:inline-block">Set up your operator dashboard →</a></p>' +
+      '<p style="color:#666;font-size:12px">Go to shopwindmill.com/markets/login · Sign in or create your account with <strong>' + c.email + '</strong></p>' +
+      '<p style="color:#666;font-size:12px">— The Windmill Team</p>',
+      c.email
+    );
+    ST.adminMessages.unshift({
+      id:'auto_'+Date.now(),
+      from:c.claimant, role:'Market Operator',
+      subject:'Market claim approved: '+c.vendorName,
+      body:'Approved. Approval email sent to ' + c.email + '. 6-month Pro trial started.',
+      date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
+      read:true, resolved:true, replies:[], isSystem:true
+    });
+  } else {
+    // --- VENDOR APPROVAL ---
+    const v = DATA.vendors.find(x=>x.id===c.vendorId);
+    if(v) { v.claimed = true; v.trial_start = trialStart; }
+    if(supabaseClient) {
+      try {
+        await supabaseClient.from('vendors').update({
+          claimed: true,
+          trial_start: trialStart
+        }).eq('id', c.vendorId);
+        await supabaseClient.from('claims').update({status:'approved'}).eq('id', claimId);
+        const { data: userRecord } = await supabaseClient
+          .from('users').select('id').eq('email', c.email).maybeSingle();
+        if(userRecord) {
+          await supabaseClient.from('users').update({
+            role: 'vendor',
+            vendor_id: c.vendorId,
+            trial_start: trialStart
+          }).eq('id', userRecord.id);
+        }
+      } catch(e) { console.warn('Vendor approval Supabase update failed:', e); }
+    }
+    sendWindmillEmail(
+      '🎉 You\'re approved on Windmill! Set up your profile',
+      '<h2>Welcome to Windmill, ' + c.claimant + '!</h2>' +
+      '<p>Your listing for <strong>' + c.vendorName + '</strong> has been approved.</p>' +
+      '<p>You now have <strong>6 months of Pro free</strong> — no credit card needed.</p>' +
+      '<div style="background:#f0f7ee;border-radius:8px;padding:16px;margin:16px 0;font-size:14px;line-height:2">' +
+      '✓ Add your photos and story<br>' +
+      '✓ List your products and prices<br>' +
+      '✓ Confirm your market schedule<br>' +
+      '✓ Post weekly updates to your followers</div>' +
+      '<p style="text-align:center;margin:24px 0">' +
+      '<a href="https://shopwindmill.com/vendors/login" style="background:#5C7A4E;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:15px;font-weight:600;display:inline-block">Set up your profile →</a></p>' +
+      '<p style="color:#666;font-size:12px">Go to shopwindmill.com/vendors/login and sign in with <strong>' + c.email + '</strong></p>' +
+      '<p style="color:#666;font-size:12px">— The Windmill Team</p>',
+      c.email
+    );
+    ST.adminMessages.unshift({
+      id:'auto_'+Date.now(),
+      from:c.claimant, role:'Vendor',
+      subject:'Claim approved: '+c.vendorName,
+      body:'Approved. Approval email sent to ' + c.email + '. Trial started.',
+      date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
+      read:true, resolved:true, replies:[], isSystem:true
+    });
   }
-
-  // Send approval email to vendor
-  sendWindmillEmail(
-    '🎉 You\'re approved on Windmill! Set up your profile',
-    '<h2>Welcome to Windmill, ' + c.claimant + '!</h2>' +
-    '<p>Your listing for <strong>' + c.vendorName + '</strong> has been approved.</p>' +
-    '<p>You now have <strong>6 months of Pro free</strong> — no credit card needed.</p>' +
-    '<div style="background:#f0f7ee;border-radius:8px;padding:16px;margin:16px 0;font-size:14px;line-height:2">' +
-    '✓ Add your photos and story<br>' +
-    '✓ List your products and prices<br>' +
-    '✓ Confirm your market schedule<br>' +
-    '✓ Post weekly updates to your followers</div>' +
-    '<p style="text-align:center;margin:24px 0">' +
-    '<a href="https://shopwindmill.com/vendors/login" style="background:#5C7A4E;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:15px;font-weight:600;display:inline-block">Set up your profile →</a></p>' +
-    '<p style="color:#666;font-size:12px">Go to shopwindmill.com/vendors/login and sign in with <strong>' + c.email + '</strong></p>' +
-    '<p style="color:#666;font-size:12px">— The Windmill Team</p>',
-    c.email
-  );
-
-  // Add to admin messages
-  ST.adminMessages.unshift({
-    id:'auto_'+Date.now(),
-    from:c.claimant, role:'Vendor',
-    subject:'Claim approved: '+c.vendorName,
-    body:'Approved. Approval email sent to ' + c.email + '. Trial started.',
-    date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
-    read:true, resolved:true, replies:[], isSystem:true
-  });
 
   // Show toast
   const toast = document.createElement('div');
@@ -9431,12 +10151,43 @@ async function adminApproveClaim(claimId) {
 
   renderAdminPanel();
 }
-function adminDenyClaim(claimId) {
+async function adminDenyClaim(claimId) {
   const reason = prompt('Reason for denial (optional):') ?? '';
   const c = ST.adminClaims.find(x=>x.id===claimId);
   if(!c) return;
   c.status = 'denied';
   c.denyReason = reason || 'No reason provided';
+
+  // Persist to Supabase
+  if(supabaseClient) {
+    try {
+      await supabaseClient.from('claims').update({
+        status: 'denied',
+        deny_reason: c.denyReason
+      }).eq('id', claimId);
+    } catch(e) { console.warn('Deny persist failed:', e); }
+  }
+
+  // Send denial email to claimant
+  const isMarketClaim = c.claim_type === 'market';
+  const noun = isMarketClaim ? 'market' : 'vendor';
+  sendWindmillEmail(
+    'Your Windmill ' + noun + ' listing request',
+    '<h2>Hi ' + c.claimant + ',</h2>' +
+    '<p>Thank you for your interest in listing <strong>' + c.vendorName + '</strong> on Windmill.</p>' +
+    '<p>After reviewing your request, we weren\'t able to approve it at this time.' +
+    (c.denyReason && c.denyReason !== 'No reason provided' ? ' ' + c.denyReason : '') + '</p>' +
+    '<p>If you think this was an error or have more information to share, reply to this email and we\'ll take another look.</p>' +
+    '<p style="color:#666;font-size:13px">— The Windmill Team</p>',
+    c.email
+  );
+
+  const toast = document.createElement('div');
+  toast.textContent = 'Denied. Email sent to ' + c.email;
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#2C2016;color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;z-index:9999;font-family:var(--font-sans);white-space:nowrap';
+  document.body.appendChild(toast);
+  setTimeout(()=>toast.remove(), 3000);
+
   renderAdminPanel();
 }
 
@@ -11011,7 +11762,7 @@ function renderVendorSettings() {
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--border)">
         <div style="font-size:13px;color:var(--text2)">Password</div>
-        <span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="sendPasswordReset('${ST.user?.email || v?.email || ''}')">Change password →</span>
+        <span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="showChangePasswordModal()">Change password →</span>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--border)">
         <div style="font-size:13px;color:var(--text2)">Vendor page</div>
@@ -11308,17 +12059,132 @@ async function opSaveSchedule(marketId) {
 
 function renderOperatorSettings() {
   hideFilterUI();
-  document.getElementById('scrollBody').innerHTML=`<div class="operator-dash">
-    <div class="dash-title">Settings</div><div class="dash-sub">Operator account preferences</div>
+  const opId = ST.operatorId || 'local-roots';
+  const myMarkets = DATA.markets.filter(m => m.operator_id === opId);
+  const isPro = ST.opIsPro;
+  const isFreeTrial = ST.opIsProTrial && !isPro;
+  const isFree = !isPro && !isFreeTrial;
+
+  const tierLabel = isPro ? 'Operator Pro' : isFreeTrial ? 'Pro Trial' : 'Free tier';
+  const tierSub = isPro ? 'All Pro features active' : isFreeTrial ? 'Founding operator trial — full Pro access' : 'Ads shown on your market pages';
+
+  const planSection = isFree ? `
     <div class="dash-section">
       <div class="dash-section-title">Your plan</div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0">
         <div><div style="font-size:13px;font-weight:500">Free tier</div><div style="font-size:11px;color:var(--text2)">Ads shown on your market pages</div></div>
-        <button onclick="alert('Operator Pro — $29/mo launch price, first month free')" style="padding:6px 14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500">Upgrade — $29/mo</button>
+        <button onclick="alert('Operator Pro coming soon — $29/mo')" style="padding:6px 14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500">Upgrade — $29/mo</button>
       </div>
       <div style="background:var(--green-lt);border-radius:var(--r-md);padding:12px;margin-top:4px;font-size:11px;color:var(--green-dk);line-height:1.8">✓ Remove ads from all your market pages<br>✓ "Presented By" sponsor slot — sell it, keep the revenue<br>✓ Post announcements &amp; push notifications to followers<br>✓ Vendor attendance management<br>✓ Advanced analytics &amp; priority support<br><span style="color:var(--text3);font-size:10px">First month free · $29/mo after · Founding rate locked forever</span></div>
+    </div>` : `
+    <div class="dash-section">
+      <div class="dash-section-title">Your plan</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0">
+        <div>
+          <div style="display:flex;align-items:center;gap:6px"><div style="font-size:13px;font-weight:500">${tierLabel}</div>${isFreeTrial ? `<span style="font-size:10px;padding:2px 7px;background:var(--green);color:#fff;border-radius:var(--r-pill);font-weight:500">Founding</span>` : `<span style="font-size:10px;padding:2px 7px;background:var(--green);color:#fff;border-radius:var(--r-pill);font-weight:500">✓ Pro</span>`}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px">${tierSub}</div>
+        </div>
+      </div>
+    </div>`;
+
+  const marketsPickerHtml = myMarkets.length === 0
+    ? `<div style="font-size:12px;color:var(--text3)">No markets linked to your account yet.</div>`
+    : `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0">
+        <div style="font-size:13px;color:var(--text2)">Your market pages</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <select id="opMarketPicker" style="font-size:12px;padding:5px 8px;border:0.5px solid var(--border-med);border-radius:var(--r-md);background:var(--surface);color:var(--text);font-family:var(--font-sans);cursor:pointer" onchange="openOperatorMarketPage(this.value)">
+            <option value="">Select a market…</option>
+            ${myMarkets.map(m=>`<option value="${m.slug||m.id}">${m.name}</option>`).join('')}
+          </select>
+          <span style="font-size:11px;color:var(--text3)">${myMarkets.length} market${myMarkets.length!==1?'s':''}</span>
+        </div>
+      </div>`;
+
+  document.getElementById('scrollBody').innerHTML=`<div class="operator-dash">
+    <div class="dash-title">Settings</div><div class="dash-sub">Operator account preferences</div>
+
+    ${planSection}
+
+    <!-- ACCOUNT -->
+    <div class="dash-section">
+      <div class="dash-section-title">Account</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--border)">
+        <div style="font-size:13px;color:var(--text2)">Email</div>
+        <div style="font-size:13px;color:var(--text)">${ST.user?.email || 'Not set'}</div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--border)">
+        <div style="font-size:13px;color:var(--text2)">Password</div>
+        <span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="showChangePasswordModal()">Change password →</span>
+      </div>
+      ${marketsPickerHtml}
+      <button onclick="authSignOut()" style="width:100%;margin-top:12px;padding:10px;background:var(--surface2);color:var(--terra);border:0.5px solid var(--terra-lt);border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans)">Sign out</button>
     </div>
+
+    <!-- NOTIFICATIONS -->
+    <div class="dash-section">
+      <div class="dash-section-title">Notifications</div>
+      <div class="checklist-item"><div class="check-text"><div style="font-size:13px;color:var(--text)">Email when a vendor claims one of my markets</div><div style="font-size:11px;color:var(--text3)">Get notified when new vendors join</div></div><div class="toggle ${ST.opNotifVendorClaim!==false?'on':''}" onclick="toggleOperatorNotif('vendor_claim',this)"><div class="toggle-thumb"></div></div></div>
+      <div class="checklist-item"><div class="check-text"><div style="font-size:13px;color:var(--text)">Email when a shopper follows one of my markets</div></div><div class="toggle ${ST.opNotifFollower!==false?'on':''}" onclick="toggleOperatorNotif('follower',this)"><div class="toggle-thumb"></div></div></div>
+      <div class="checklist-item"><div class="check-text"><div style="font-size:13px;color:var(--text)">Weekly summary of market activity</div><div style="font-size:11px;color:var(--text3)">Followers, page views, vendor count</div></div><div class="toggle ${ST.opNotifWeekly!==false?'on':''}" onclick="toggleOperatorNotif('weekly',this)"><div class="toggle-thumb"></div></div></div>
+    </div>
+
+    <!-- CONTACT SUPPORT -->
+    <div class="dash-section">
+      <div class="dash-section-title">Contact Support</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Have a question? We respond within 24 hours.</div>
+      <textarea id="operatorSupportMsg" placeholder="How can we help?" style="width:100%;min-height:90px;padding:10px 12px;border:0.5px solid var(--border);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);color:var(--text);background:var(--surface);resize:vertical;box-sizing:border-box"></textarea>
+      <button onclick="submitOperatorSupportMessage()" style="width:100%;margin-top:10px;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Send message</button>
+    </div>
+
   </div>`;
+}
+
+function openOperatorMarketPage(slug) {
+  if(!slug) return;
+  window.open('https://shopwindmill.com/markets/' + slug, '_blank', 'noopener');
+  // Reset picker after opening
+  setTimeout(() => { const p = document.getElementById('opMarketPicker'); if(p) p.value = ''; }, 300);
+}
+
+function toggleOperatorNotif(type, el) {
+  el.classList.toggle('on');
+  const isOn = el.classList.contains('on');
+  if(type === 'vendor_claim') ST.opNotifVendorClaim = isOn;
+  if(type === 'follower') ST.opNotifFollower = isOn;
+  if(type === 'weekly') ST.opNotifWeekly = isOn;
+  if(supabaseClient && ST.user) {
+    const prefs = { op_notif_vendor_claim: ST.opNotifVendorClaim, op_notif_follower: ST.opNotifFollower, op_notif_weekly: ST.opNotifWeekly };
+    supabaseClient.from('users').update(prefs).eq('id', ST.user.id).then(() => {});
+  }
+}
+
+async function submitOperatorSupportMessage() {
+  const msg = document.getElementById('operatorSupportMsg')?.value?.trim();
+  if(!msg) { alert('Please enter a message.'); return; }
+  const btn = document.querySelector('#operatorSupportMsg + button') || document.querySelector('[onclick="submitOperatorSupportMessage()"]');
+  if(btn) { btn.textContent = 'Sending…'; btn.disabled = true; }
+  try {
+    if(supabaseClient && ST.user) {
+      await supabaseClient.from('messages').insert({
+        from_user_id: ST.user.id,
+        from_email: ST.user.email,
+        to_type: 'admin',
+        to_id: 'windmill-support',
+        body: msg,
+        created_at: new Date().toISOString()
+      });
+    }
+    document.getElementById('operatorSupportMsg').value = '';
+    if(btn) { btn.textContent = 'Send message'; btn.disabled = false; }
+    const toast = document.createElement('div');
+    toast.textContent = 'Message sent — we\'ll be in touch soon.';
+    toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#2C2016;color:#fff;padding:10px 20px;border-radius:20px;font-size:12px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;max-width:90vw;text-align:center';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+  } catch(e) {
+    if(btn) { btn.textContent = 'Send message'; btn.disabled = false; }
+    alert('Could not send message: ' + (e.message || 'Please try again.'));
+  }
 }
 
 /* ── MOBILE / DESKTOP VIEW TOGGLE ── */
