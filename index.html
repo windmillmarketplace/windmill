@@ -137,6 +137,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .gs-item-sub{font-size:11px;color:var(--text2);margin-top:1px}
 .gs-item-badge{font-size:9px;padding:2px 6px;border-radius:var(--r-pill);flex-shrink:0}
 .gs-no-results{padding:24px 14px;text-align:center;font-size:13px;color:var(--text2)}
+.gs-see-all{border-top:0.5px solid var(--border);background:var(--surface2)!important}
 
 /* FILTER STRIP — desktop only, hidden on mobile */
 .filter-strip{display:none}
@@ -1465,7 +1466,7 @@ let ST = {
   mapView:'map', mapSearchQuery:'', mapBoundsMode:true, mapReady:false,
   mapMode:'markets', mapVendorSearch:'',
   mapFilterDay:null, mapFilterOpen:false, mapFilterPet:false,
-  globalSearchQuery:'', vendorListSearch:'', vendorListCat:'',
+  globalSearchQuery:'', globalSearchOverride:'', vendorListSearch:'', vendorListCat:'',
   pendingVendorMap: null, pendingMarketMap: null,
   areaRequests:[
     {city:'Tampa, FL',zip:'33602',markets:'Tampa Armature Works Market, Sunday Morning Market',contact:'Sarah Johnson · sarah@email.com',date:'May 24, 2026'},
@@ -2263,7 +2264,7 @@ function globalSearch(val) {
 
 function buildGlobalSearchResults(val) {
   const q = val.toLowerCase().trim();
-  const results = {markets:[], vendors:[], cities:[]};
+  const results = {markets:[], vendors:[], cities:[], moreMarkets:0, moreVendors:0};
 
   // Markets — search within current region first, fall back to all if none found
   const regionMarkets = DATA.markets.filter(m => m.published !== false &&
@@ -2273,13 +2274,15 @@ function buildGlobalSearchResults(val) {
       (m.venue && m.venue.toLowerCase().includes(q))
     )
   );
-  results.markets = (regionMarkets.length > 0 ? regionMarkets : DATA.markets.filter(m =>
+  const allMatchingMarkets = (regionMarkets.length > 0 ? regionMarkets : DATA.markets.filter(m =>
     m.published !== false && (
       m.name.toLowerCase().includes(q) ||
       m.city.toLowerCase().includes(q) ||
       (m.venue && m.venue.toLowerCase().includes(q))
     )
-  )).slice(0, 4);
+  ));
+  results.markets = allMatchingMarkets.slice(0, 3);
+  results.moreMarkets = Math.max(0, allMatchingMarkets.length - 3);
 
   // Vendors — search within current region first
   const regionVendors = DATA.vendors.filter(v =>
@@ -2289,13 +2292,15 @@ function buildGlobalSearchResults(val) {
       v.slug.toLowerCase().includes(q)
     )
   );
-  results.vendors = (regionVendors.length > 0 ? regionVendors : DATA.vendors.filter(v =>
+  const allMatchingVendors = (regionVendors.length > 0 ? regionVendors : DATA.vendors.filter(v =>
     v.published && (
       v.name.toLowerCase().includes(q) ||
       v.category.toLowerCase().includes(q) ||
       v.slug.toLowerCase().includes(q)
     )
-  )).slice(0, 5);
+  ));
+  results.vendors = allMatchingVendors.slice(0, 3);
+  results.moreVendors = Math.max(0, allMatchingVendors.length - 3);
 
   // Cities
   results.cities = getCitySuggestions().filter(c =>
@@ -2309,7 +2314,7 @@ function buildGlobalSearchResults(val) {
 
 function showGlobalSearchDropdown(results, val) {
   const dropdownIds = ['mobileSearchDropdown','desktopSearchDropdown'];
-  const total = results.markets.length + results.vendors.length + results.cities.length;
+  const total = results.markets.length + results.vendors.length + results.cities.length + results.moreMarkets + results.moreVendors;
 
   let html = '';
 
@@ -2333,6 +2338,16 @@ function showGlobalSearchDropdown(results, val) {
           <span class="gs-item-badge" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?(m.season_start==='All Year'?'Year Round':'In Season'):(m.season_start.slice(0,3)+'–'+m.season_end.slice(0,3))}</span>
         </div>`;
       });
+      if(results.moreMarkets > 0) {
+        const q = val;
+        html += `<div class="gs-item gs-see-all" onclick="globalSearchSeeAll('markets','${val.replace(/'/g,"\'")}')">
+          <div class="gs-item-icon" style="background:var(--surface2);font-size:16px">→</div>
+          <div class="gs-item-info">
+            <div class="gs-item-name" style="color:var(--green-dk)">See all markets for "${val}"</div>
+            <div class="gs-item-sub">${results.moreMarkets} more result${results.moreMarkets>1?'s':''}</div>
+          </div>
+        </div>`;
+      }
     }
 
     // Vendors section
@@ -2340,7 +2355,6 @@ function showGlobalSearchDropdown(results, val) {
       html += `<div class="gs-section-label">🛒 Vendors</div>`;
       results.vendors.forEach((v,i) => {
         const c = vc(i);
-        const marketNames = v.markets.slice(0,2).map(id=>{const m=getMarket(id);return m?m.city:'?'});
         html += `<div class="gs-item" onclick="globalSearchPick('vendor','${v.id}')">
           <div class="gs-item-icon" style="background:${c.bg};color:${c.c};font-family:var(--font-serif);font-size:13px;font-weight:600">
             ${initials(v.name)}
@@ -2352,6 +2366,15 @@ function showGlobalSearchDropdown(results, val) {
           ${v.claimed ? '<span class="gs-item-badge" style="background:var(--green-lt);color:var(--green-dk)">✓</span>' : ''}
         </div>`;
       });
+      if(results.moreVendors > 0) {
+        html += `<div class="gs-item gs-see-all" onclick="globalSearchSeeAll('vendors','${val.replace(/'/g,"\'")}')">
+          <div class="gs-item-icon" style="background:var(--surface2);font-size:16px">→</div>
+          <div class="gs-item-info">
+            <div class="gs-item-name" style="color:var(--green-dk)">See all vendors for "${val}"</div>
+            <div class="gs-item-sub">${results.moreVendors} more result${results.moreVendors>1?'s':''}</div>
+          </div>
+        </div>`;
+      }
     }
 
     // Cities section
@@ -2380,7 +2403,7 @@ function showGlobalSearchDropdown(results, val) {
     positionSearchDropdown(inputEl, el);
   });
 
-  // Close on outside click — use one listener
+    // Close on outside click — use one listener
   setTimeout(() => {
     document.addEventListener('click', closeGlobalSearchListener);
   }, 50);
@@ -2415,6 +2438,20 @@ function closeGlobalSearch() {
     const el = document.getElementById(id);
     if(el) el.style.display = 'none';
   });
+}
+
+function globalSearchSeeAll(listType, query) {
+  closeGlobalSearch();
+  ['mobileSearch','desktopSearch'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  ST.globalSearchQuery = '';
+  ST.globalSearchOverride = query;
+  if(listType === 'markets') {
+    navigate('markets');
+  } else if(listType === 'vendors') {
+    navigate('vendors');
+  }
 }
 
 function globalSearchPick(type, payload) {
@@ -2538,6 +2575,11 @@ function resetScroll() {
 function navigate(page, id) {
   ST.previousPage = ST.currentPage;
   ST.previousId = ST.currentId;
+  // Clear globalSearchOverride when navigating away from markets/vendors
+  if(ST.globalSearchOverride && page !== 'markets' && page !== 'vendors') {
+    ST.globalSearchOverride = '';
+    ST.vendorListSearch = '';
+  }
   ST.currentPage = page; ST.currentId = id || null;
   const tabs = ['home','explore','markets','following','me','admin-ads','admin-settings'];
   if(tabs.includes(page)) {
@@ -2874,6 +2916,10 @@ function applyAllFilters(markets) {
   let ms = [...markets];
   ms = ms.filter(m => m.published !== false); // hide draft markets from public
   if(ST.region) ms = ms.filter(m => m.region === ST.region);
+  if(ST.globalSearchOverride) {
+    const q = ST.globalSearchOverride.toLowerCase();
+    ms = ms.filter(m => m.name.toLowerCase().includes(q) || m.city.toLowerCase().includes(q) || (m.venue && m.venue.toLowerCase().includes(q)));
+  }
   ms = applyDateFilter(ms);
   if(ST.filters.open) ms = ms.filter(m => isOpen(m));
   if(ST.filters.pet) ms = ms.filter(m => m.pet_friendly);
@@ -3151,6 +3197,10 @@ function renderVendorsList() {
   const sb = document.getElementById('scrollBody');
   if(sb) sb.classList.remove('explore-mode');
 
+  // Apply temporary search override from global search "see all" — clears on input change
+  if(ST.globalSearchOverride && !ST.vendorListSearch) {
+    ST.vendorListSearch = ST.globalSearchOverride;
+  }
   let vendorSearch = ST.vendorListSearch || '';
   let catFilter = ST.vendorListCat || '';
 
@@ -4413,8 +4463,12 @@ function marketListCard(m, i, open, photo) {
 /* ── MARKETS PAGE ── */
 function renderMarketsPage() {
   const markets = applyAllFilters(DATA.markets);
+  const overrideBanner = ST.globalSearchOverride ? `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-md);padding:10px 14px;margin:0 16px 8px;font-size:13px;color:var(--green-dk)">
+    <span>Showing results for "<strong>${ST.globalSearchOverride}</strong>"</span>
+    <button onclick="ST.globalSearchOverride='';renderMarketsPage()" style="background:none;border:none;cursor:pointer;color:var(--green-dk);font-size:16px;line-height:1;padding:0 0 0 8px">×</button>
+  </div>` : '';
   let h = `<div class="section"><div class="section-header"><span class="section-title">${t('nav_markets')}</span><span style="font-size:12px;color:var(--text2)">${markets.length} of ${DATA.markets.length} markets</span></div></div>
-  ${adUnit()}`;
+  ${overrideBanner}${adUnit()}`;
   if(markets.length === 0) {
     h += noResultsSuggestions('markets');
   } else {
@@ -4726,12 +4780,151 @@ async function renderVendorProfile(id) {
 }
 
 /* ── MARKET DETAIL TEMPLATE ── */
+function initMarketVendorGrid() {
+  const PAGE = 10;
+  const mvs = ST._mktVendors || [];
+
+  function sortVendors(vs) {
+    return [...vs].sort((a,b) => {
+      const aScore = a.pro ? 2 : a.claimed ? 1 : 0;
+      const bScore = b.pro ? 2 : b.claimed ? 1 : 0;
+      return bScore - aScore;
+    });
+  }
+
+  function makeCard(v, idx) {
+    const colors = ['#F0EBE3','#EBF0E8','#E8EBF5','#F5EBE8','#EBF5F0','#F5F0E8'];
+    const textColors = ['#7A5C3C','#4A6B3C','#3C4A6B','#6B3C3C','#3C6B5C','#6B5C3C'];
+    const bg = colors[idx % colors.length];
+    const tc = textColors[idx % textColors.length];
+    const avatarBg = v.photo ? 'url('+v.photo+') center/cover no-repeat' : bg;
+    const avatarContent = v.photo ? '' : v.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    const el = document.createElement('div');
+    el.className = 'vendor-grid-card';
+    el.onclick = () => navigate('vendor', v.id);
+    el.innerHTML = '<div class="vendor-grid-avatar" style="background:'+avatarBg+';color:'+tc+';overflow:hidden">'+avatarContent+'</div>'
+      + '<div class="vendor-grid-name">'+v.name+'</div>'
+      + '<div class="vendor-grid-cat">'+v.category+'</div>'
+      + (v.pro ? '<div style="font-size:9px;color:var(--green-dk);margin-top:3px;font-weight:500">✓ Pro</div>'
+          : (!v.claimed ? '<div class="vendor-grid-unclaimed">Not yet claimed</div>' : ''));
+    return el;
+  }
+
+  function renderGrid() {
+    let filtered = [...mvs];
+    if(ST.marketVendorSearch) {
+      const q = ST.marketVendorSearch.toLowerCase();
+      filtered = filtered.filter(v => v.name.toLowerCase().includes(q) || v.category.toLowerCase().includes(q));
+    }
+    if(ST.marketVendorCat) filtered = filtered.filter(v => v.category === ST.marketVendorCat);
+    const sorted = sortVendors(filtered);
+    const isFiltered = !!(ST.marketVendorSearch || ST.marketVendorCat);
+
+    const grid = document.getElementById('mktVendorGrid');
+    const showMoreEl = document.getElementById('mktVendorShowMore');
+    const showingEl = document.getElementById('mktVendorShowing');
+    const btn = document.getElementById('mktVendorShowMoreBtn');
+    const countEl = document.getElementById('mktVendorCount');
+    if(!grid) return;
+
+    grid.innerHTML = '';
+    ST._mktVendorsSorted = sorted;
+
+    if(sorted.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'padding:24px 16px;text-align:center;color:var(--text2);font-size:13px;grid-column:1/-1';
+      empty.innerHTML = 'No vendors match your filters. <span onclick="ST.marketVendorSearch=\'\';ST.marketVendorCat=\'\';renderMarketDetail(ST.currentId)" style="color:var(--terra);cursor:pointer;text-decoration:underline">Clear filters</span>';
+      grid.appendChild(empty);
+      if(showMoreEl) showMoreEl.style.display = 'none';
+      if(countEl) countEl.textContent = '0 vendors';
+      return;
+    }
+
+    const initialCount = isFiltered ? sorted.length : Math.min(PAGE, sorted.length);
+    sorted.slice(0, initialCount).forEach((v, i) => grid.appendChild(makeCard(v, i)));
+    ST._mktVendorsShown = initialCount;
+
+    if(countEl) countEl.textContent = sorted.length + ' vendors';
+
+    if(!isFiltered && sorted.length > PAGE) {
+      if(showMoreEl) showMoreEl.style.display = 'block';
+      if(showingEl) showingEl.textContent = 'Showing ' + initialCount + ' of ' + sorted.length + ' vendors';
+      if(btn) { const rem = sorted.length - initialCount; btn.textContent = 'Show ' + Math.min(PAGE, rem) + ' more'; }
+    } else {
+      if(showMoreEl) showMoreEl.style.display = 'none';
+    }
+  }
+
+  renderGrid();
+  ST._mktVendorRenderGrid = renderGrid;
+}
+
+function showMoreMarketVendors() {
+  const PAGE = 10;
+  const sorted = ST._mktVendorsSorted || [];
+  let shown = ST._mktVendorsShown || 0;
+  const grid = document.getElementById('mktVendorGrid');
+  const showMoreEl = document.getElementById('mktVendorShowMore');
+  const showingEl = document.getElementById('mktVendorShowing');
+  const btn = document.getElementById('mktVendorShowMoreBtn');
+  if(!grid) return;
+
+  const colors = ['#F0EBE3','#EBF0E8','#E8EBF5','#F5EBE8','#EBF5F0','#F5F0E8'];
+  const textColors = ['#7A5C3C','#4A6B3C','#3C4A6B','#6B3C3C','#3C6B5C','#6B5C3C'];
+
+  sorted.slice(shown, shown + PAGE).forEach((v, i) => {
+    const idx = shown + i;
+    const bg = colors[idx % colors.length];
+    const tc = textColors[idx % textColors.length];
+    const avatarBg = v.photo ? 'url('+v.photo+') center/cover no-repeat' : bg;
+    const avatarContent = v.photo ? '' : v.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    const el = document.createElement('div');
+    el.className = 'vendor-grid-card';
+    el.onclick = () => navigate('vendor', v.id);
+    el.innerHTML = '<div class="vendor-grid-avatar" style="background:'+avatarBg+';color:'+tc+';overflow:hidden">'+avatarContent+'</div>'
+      + '<div class="vendor-grid-name">'+v.name+'</div>'
+      + '<div class="vendor-grid-cat">'+v.category+'</div>'
+      + (v.pro ? '<div style="font-size:9px;color:var(--green-dk);margin-top:3px;font-weight:500">✓ Pro</div>'
+          : (!v.claimed ? '<div class="vendor-grid-unclaimed">Not yet claimed</div>' : ''));
+    grid.appendChild(el);
+  });
+
+  shown = Math.min(shown + PAGE, sorted.length);
+  ST._mktVendorsShown = shown;
+  if(showingEl) showingEl.textContent = 'Showing ' + shown + ' of ' + sorted.length + ' vendors';
+  if(shown >= sorted.length) {
+    if(showMoreEl) showMoreEl.style.display = 'none';
+  } else if(btn) {
+    const rem = sorted.length - shown;
+    btn.textContent = 'Show ' + Math.min(PAGE, rem) + ' more';
+  }
+}
+
 function renderOtherMarketsCarousel(currentId, region) {
   const DAY_SHORT = {Sunday:'Sun',Monday:'Mon',Tuesday:'Tue',Wednesday:'Wed',Thursday:'Thu',Friday:'Fri',Saturday:'Sat'};
   const dayOrder = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   const todayIdx = new Date().getDay();
-  const others = DATA.markets.filter(om => om.id !== currentId && om.published !== false && om.region === region);
-  if(!others.length) return '';
+  const currentMarket = DATA.markets.find(m=>m.id===currentId);
+  const opId = currentMarket?.operator_id;
+  const operator = opId ? DATA.operators?.find(o=>o.id===opId) : null;
+
+  // For Pro/Trial operators: show only their other markets; hide section if only 1 market
+  // Determine if this market's operator has Pro or Trial status
+  // We check ST.opIsPro/ST.opIsProTrial if logged in as that operator, otherwise check operator tier field
+  const isProOp = operator?.tier === 'pro' || operator?.tier === 'pro_trial' ||
+    (ST.operatorId === opId && (ST.opIsPro || ST.opIsProTrial));
+
+  let others, sectionTitle;
+  if(isProOp && opId) {
+    others = DATA.markets.filter(om => om.id !== currentId && om.published !== false && om.operator_id === opId);
+    if(!others.length) return ''; // single market operator — hide section
+    sectionTitle = 'Other markets from ' + (operator?.name || 'this operator');
+  } else {
+    others = DATA.markets.filter(om => om.id !== currentId && om.published !== false && om.region === region);
+    if(!others.length) return '';
+    sectionTitle = 'Other markets in the area';
+  }
+
   others.sort((a, b) => {
     const aOpen = isOpen(a), bOpen = isOpen(b);
     if(aOpen && !bOpen) return -1;
@@ -4776,7 +4969,7 @@ function renderOtherMarketsCarousel(currentId, region) {
     });
   }, 0);
   return '<div style="padding:16px 0 8px">'
-    + '<div style="font-size:13px;font-weight:600;color:var(--text);padding:0 16px;margin-bottom:12px">Other markets in the area</div>'
+    + '<div style="font-size:13px;font-weight:600;color:var(--text);padding:0 16px;margin-bottom:12px">' + sectionTitle + '</div>'
     + '<div style="display:flex;gap:10px;overflow-x:auto;padding:0 16px 8px;scrollbar-width:none">' + cards + '</div>'
     + '</div>';
 }
@@ -4928,25 +5121,11 @@ function renderMarketDetail(id) {
     <!-- VENDORS AT THIS MARKET -->
     <div style="height:0;overflow:hidden;visibility:hidden" id="mkt-vendors"></div>
     <div class="section"><div class="section-header"><span class="section-title">${t('vendors_at')}</span><div style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:var(--text2)" id="mktVendorCount">${mvs.length} ${t('vendors_c')}</span><button onclick="openMarketVendorFilter('${m.id}')" style="display:flex;align-items:center;gap:5px;padding:5px 11px;border:0.5px solid ${ST.marketVendorSearch||ST.marketVendorCat?'var(--green)':'var(--border-med)'};border-radius:var(--r-pill);font-size:12px;background:${ST.marketVendorSearch||ST.marketVendorCat?'var(--green-lt)':'var(--surface)'};color:${ST.marketVendorSearch||ST.marketVendorCat?'var(--green-dk)':'var(--text2)'};cursor:pointer;font-family:var(--font-sans)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="9" y1="18" x2="15" y2="18"/></svg> Filters${ST.marketVendorSearch||ST.marketVendorCat?' ✓':''}</button></div></div></div>
-    <div class="vendor-grid" id="mktVendorGrid">${(()=>{
-      let filtered = mvs;
-      if(ST.marketVendorSearch) {
-        const q = ST.marketVendorSearch.toLowerCase();
-        filtered = filtered.filter(v => v.name.toLowerCase().includes(q) || v.category.toLowerCase().includes(q));
-      }
-      if(ST.marketVendorCat) filtered = filtered.filter(v => v.category === ST.marketVendorCat);
-      setTimeout(()=>{ const el=document.getElementById('mktVendorCount'); if(el) el.textContent=filtered.length+' '+t('vendors_c'); },0);
-      if(filtered.length===0) return `<div style="padding:24px 16px;text-align:center;color:var(--text2);font-size:13px;grid-column:1/-1">No vendors match your filters. <span onclick="ST.marketVendorSearch='';ST.marketVendorCat='';renderMarketDetail(ST.currentId)" style="color:var(--terra);cursor:pointer;text-decoration:underline">Clear filters</span></div>`;
-      return filtered.map((v,i)=>{
-        const c=vc(i);
-        return `<div class="vendor-grid-card" onclick="navigate('vendor','${v.id}')">
-          <div class="vendor-grid-avatar" style="background:${v.photo?'url('+v.photo+') center/cover no-repeat':c.bg};color:${c.c};overflow:hidden">${v.photo?'':initials(v.name)}</div>
-          <div class="vendor-grid-name">${v.name}</div>
-          <div class="vendor-grid-cat">${v.category}</div>
-          ${!v.claimed?`<div class="vendor-grid-unclaimed">${t('not_yet_claimed')}</div>`:''}
-        </div>`;
-      }).join('');
-    })()}</div>
+    <div class="vendor-grid" id="mktVendorGrid"></div>
+    <div id="mktVendorShowMore" style="padding:4px 16px 16px;display:none">
+      <div style="font-size:12px;color:var(--text3);text-align:center;margin-bottom:10px" id="mktVendorShowing"></div>
+      <button onclick="showMoreMarketVendors()" style="width:100%;padding:10px;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:13px;cursor:pointer;color:var(--text);font-family:var(--font-sans);font-weight:500" id="mktVendorShowMoreBtn">Show 10 more</button>
+    </div>
 
     <!-- OTHER MARKETS IN YOUR AREA -->
     ${renderOtherMarketsCarousel(m.id, m.region)}
@@ -4978,7 +5157,11 @@ function renderMarketDetail(id) {
     </div>
   </div>`;
   document.getElementById('scrollBody').innerHTML = h;
-  setTimeout(() => initSectionNavObserver('marketSectionNav', ['mkt-about','mkt-social','mkt-info','mkt-gallery','mkt-vendors','mkt-reviews']), 100);
+  ST._mktVendors = mvs;
+  setTimeout(() => {
+    initSectionNavObserver('marketSectionNav', ['mkt-about','mkt-social','mkt-info','mkt-gallery','mkt-vendors','mkt-reviews']);
+    initMarketVendorGrid();
+  }, 100);
 }
 
 /* ── AREA REQUEST PAGE ── */
@@ -5594,6 +5777,61 @@ async function submitChangePassword() {
     showErr(e.message || 'Something went wrong. Please try again.');
     btn.textContent = 'Update password';
     btn.disabled = false;
+  }
+}
+function showChangeEmailModal() {
+  const existing = document.getElementById('changeEmailModal');
+  if(existing) existing.remove();
+  const currentEmail = ST.user?.email || '';
+  const overlay = document.createElement('div');
+  overlay.id = 'changeEmailModal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = `
+    <div style="background:var(--bg);border-radius:var(--r-lg);padding:24px;width:100%;max-width:360px;font-family:var(--font-sans)">
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:4px">Change login email</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Current: ${currentEmail}</div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div>
+          <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:5px">New email address</label>
+          <input id="ceNewEmail" type="email" placeholder="new@email.com" class="form-input" style="width:100%">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:5px">Current password (to confirm)</label>
+          <input id="cePassword" type="password" placeholder="Your current password" class="form-input" style="width:100%">
+        </div>
+        <div id="ceError" style="font-size:12px;color:var(--terra);display:none"></div>
+        <button id="ceSubmitBtn" onclick="submitChangeEmail()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Update email</button>
+        <div style="text-align:center"><span style="font-size:12px;color:var(--text3);cursor:pointer" onclick="document.getElementById('changeEmailModal').remove()">Cancel</span></div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(() => document.getElementById('ceNewEmail')?.focus(), 100);
+}
+
+async function submitChangeEmail() {
+  const newEmail = document.getElementById('ceNewEmail')?.value?.trim();
+  const password = document.getElementById('cePassword')?.value;
+  const errEl = document.getElementById('ceError');
+  const btn = document.getElementById('ceSubmitBtn');
+  const showErr = (msg) => { if(errEl) { errEl.textContent = msg; errEl.style.display = 'block'; } };
+  errEl.style.display = 'none';
+  if(!newEmail || !password) { showErr('Please fill in all fields.'); return; }
+  if(!/^[^@]+@[^@]+\.[^@]+$/.test(newEmail)) { showErr('Please enter a valid email address.'); return; }
+  btn.textContent = 'Updating…'; btn.disabled = true;
+  try {
+    const { error: authErr } = await supabaseClient.auth.signInWithPassword({ email: ST.user?.email, password });
+    if(authErr) { showErr('Password is incorrect.'); btn.textContent = 'Update email'; btn.disabled = false; return; }
+    const { error: updateErr } = await supabaseClient.auth.updateUser({ email: newEmail });
+    if(updateErr) throw updateErr;
+    document.getElementById('changeEmailModal').remove();
+    const toast = document.createElement('div');
+    toast.textContent = 'Confirmation sent to ' + newEmail + '. Check your inbox.';
+    toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#2C2016;color:#fff;padding:10px 20px;border-radius:20px;font-size:12px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;max-width:90vw;text-align:center';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 5000);
+  } catch(e) {
+    showErr(e.message || 'Something went wrong. Please try again.');
+    btn.textContent = 'Update email'; btn.disabled = false;
   }
 }
 
@@ -8294,36 +8532,26 @@ async function renderOperatorDash() {
     </div>
 
     <div class="dash-section">
-      <div class="dash-section-title">Your markets</div>
-      ${myMarkets.length === 0 ? `<div style="font-size:13px;color:var(--text3);padding:8px 0">No markets linked yet.</div>` : myMarkets.map((m,i)=>`
-        <div class="schedule-row" onclick="navigate('market','${m.id}')">
-          <div class="schedule-day" style="background:${mbg(i)};color:${micn(i)}">${shortDay(getNextMarketDay(m))}</div>
-          <div style="flex:1">
-            <div class="schedule-market">${m.name}</div>
-            <div class="schedule-time">${getMarketScheduleLabel(m)} · ${m.city} · ${vendorCount(m.id)} vendors · <span style="color:var(--green-dk);font-weight:500">${marketFollowers[m.id]||0} followers</span></div>
-          </div>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-        </div>`).join('')}
-    </div>
-
-    ${isPro || isFreeTrial ? `
-    <div class="dash-section">
-      <div class="dash-section-title">Pro features</div>
-      <div style="display:flex;flex-direction:column;gap:10px">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md)">
-          <div><div style="font-size:13px;font-weight:500;color:var(--text)">📣 Post announcement</div><div style="font-size:11px;color:var(--text3)">Notify all market followers</div></div>
-          <span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="alert('Announcements coming soon')">Post →</span>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md)">
-          <div><div style="font-size:13px;font-weight:500;color:var(--text)">🎯 Sponsor slot</div><div style="font-size:11px;color:var(--text3)">"Presented By" placement on your market pages</div></div>
-          <span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="alert('Sponsor slots coming soon')">Manage →</span>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md)">
-          <div><div style="font-size:13px;font-weight:500;color:var(--text)">📊 Analytics</div><div style="font-size:11px;color:var(--text3)">Page views, follower trends, vendor activity</div></div>
-          <span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="alert('Analytics coming soon')">View →</span>
-        </div>
+      <div class="dash-section-title" style="display:flex;align-items:center;justify-content:space-between">
+        Pro features
+        ${isFree ? `<span style="font-size:10px;padding:2px 8px;background:var(--amber-lt);color:#7A4E08;border-radius:var(--r-pill);font-weight:500">Upgrade to unlock</span>` : ''}
       </div>
-    </div>` : ''}
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);${isFree?'opacity:0.6':''}">
+          <div><div style="font-size:13px;font-weight:500;color:var(--text)">📣 Post announcement</div><div style="font-size:11px;color:var(--text3)">Notify all market followers</div></div>
+          ${isFree ? `<span style="font-size:14px">🔒</span>` : `<span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="ST.sub='following';ST.currentPage=null;renderCurrentPage()">Post →</span>`}
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);${isFree?'opacity:0.6':''}">
+          <div><div style="font-size:13px;font-weight:500;color:var(--text)">🎯 Sponsor slot</div><div style="font-size:11px;color:var(--text3)">"Presented By" placement on your market pages</div></div>
+          ${isFree ? `<span style="font-size:14px">🔒</span>` : `<span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="alert('Sponsor slots coming soon')">Manage →</span>`}
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);${isFree?'opacity:0.6':''}">
+          <div><div style="font-size:13px;font-weight:500;color:var(--text)">📊 Analytics</div><div style="font-size:11px;color:var(--text3)">Page views, follower trends, vendor activity</div></div>
+          ${isFree ? `<span style="font-size:14px">🔒</span>` : `<span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="alert('Analytics coming soon')">View →</span>`}
+        </div>
+        ${isFree ? `<button onclick="alert('Operator Pro coming soon — $29/mo')" style="width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans);margin-top:4px">Upgrade to Pro — $29/mo</button>` : ''}
+      </div>
+    </div>
 
   </div>`;
 }
@@ -10267,8 +10495,11 @@ function openAdminEditVendor(id) {
   openAdminModal('Edit Vendor', v.name, `
     <div class="form-field"><label class="form-label">Name</label><input class="form-input" id="ef_name" value="${v.name}"></div>
     <div class="form-field"><label class="form-label">Category</label><input class="form-input" id="ef_cat" value="${v.category}"></div>
-    <div class="form-field"><label class="form-label">Email</label><input class="form-input" id="ef_email" value="${v.email||''}"></div>
-    <div class="form-field"><label class="form-label">Website</label><input class="form-input" id="ef_website" value="${v.website||''}"></div>
+    <div class="form-field"><label class="form-label">Email</label><input class="form-input" id="ef_email" value="${v.email||''}" placeholder="vendor@email.com" type="email"></div>
+    <div class="form-field"><label class="form-label">Phone</label><input class="form-input" id="ef_phone" value="${v.phone||''}" placeholder="+1 (239) 000-0000" type="tel"></div>
+    <div class="form-field"><label class="form-label">Website</label><input class="form-input" id="ef_website" value="${v.website||''}" placeholder="https://"></div>
+    <div class="form-field"><label class="form-label">Facebook</label><input class="form-input" id="ef_facebook" value="${v.facebook||''}" placeholder="https://facebook.com/..."></div>
+    <div class="form-field"><label class="form-label">Instagram</label><input class="form-input" id="ef_instagram" value="${v.instagram||''}" placeholder="https://instagram.com/..."></div>
     <div class="form-field"><label class="form-label">Description</label><textarea class="form-textarea" id="ef_desc">${v.description||''}</textarea></div>
     <div class="form-field"><label class="form-label">Markets (hold Ctrl/Cmd to select multiple)</label>
       <select multiple class="form-input" id="ef_markets" style="height:100px">${marketOptions}</select>
@@ -10291,7 +10522,10 @@ function adminSaveVendor(id) {
   v.name = document.getElementById('ef_name').value.trim() || v.name;
   v.category = document.getElementById('ef_cat').value.trim() || v.category;
   v.email = document.getElementById('ef_email').value.trim();
+  v.phone = document.getElementById('ef_phone').value.trim();
   v.website = document.getElementById('ef_website').value.trim();
+  v.facebook = document.getElementById('ef_facebook').value.trim();
+  v.instagram = document.getElementById('ef_instagram').value.trim();
   v.description = document.getElementById('ef_desc').value.trim();
   v.claimed = document.getElementById('ef_claimed').checked;
   v.pro = document.getElementById('ef_pro').checked;
@@ -10414,7 +10648,10 @@ function openAdminEditMarket(id) {
     <div class="form-field"><label class="form-label">Description</label><textarea class="form-textarea" id="em_desc">${m.description||''}</textarea></div>
     <div class="form-field"><label class="form-label">Parking notes</label><input class="form-input" id="em_parking" value="${m.parking_notes||''}"></div>
     <div class="form-field"><label class="form-label">Special notes</label><input class="form-input" id="em_notes" value="${m.special_notes||''}"></div>
+    <div class="form-field"><label class="form-label">Website</label><input class="form-input" id="em_website" value="${m.website||''}" placeholder="https://"></div>
     <div class="form-field"><label class="form-label">Facebook URL</label><input class="form-input" id="em_fb" value="${m.facebook||''}"></div>
+    <div class="form-field"><label class="form-label">Instagram URL</label><input class="form-input" id="em_ig" value="${m.instagram||''}" placeholder="https://instagram.com/..."></div>
+    <div class="form-field"><label class="form-label">Phone</label><input class="form-input" id="em_phone" value="${m.phone||''}" placeholder="+1 (239) 000-0000" type="tel"></div>
     <div style="display:flex;gap:10px;margin-bottom:16px">
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
         <input type="checkbox" id="em_pet" ${m.pet_friendly?'checked':''} style="width:16px;height:16px"> Pet friendly
@@ -10444,7 +10681,10 @@ function adminSaveMarket(id) {
   m.description = document.getElementById('em_desc').value.trim();
   m.parking_notes = document.getElementById('em_parking').value.trim();
   m.special_notes = document.getElementById('em_notes').value.trim();
+  m.website = document.getElementById('em_website').value.trim();
   m.facebook = document.getElementById('em_fb').value.trim();
+  m.instagram = document.getElementById('em_ig').value.trim();
+  m.phone = document.getElementById('em_phone').value.trim();
   m.pet_friendly = document.getElementById('em_pet').checked;
   m.published = document.getElementById('em_pub').checked;
   dbSaveMarket(m); // sync to Supabase
@@ -11179,6 +11419,8 @@ function renderVendorProfileEdit() {
     <div style="padding:0 0 12px">
       <div class="form-field"><label class="form-label">Business name</label><input class="form-input" id="ve_name" value="${v?.name||''}" placeholder="Your business name"></div>
       <div class="form-field"><label class="form-label">Category</label><select class="form-input" id="ve_category" style="cursor:pointer">${categories.map(cat=>`<option value="${cat}" ${v?.category===cat?'selected':''}>${cat}</option>`).join('')}</select></div>
+      <div class="form-field"><label class="form-label">Public email</label><input class="form-input" id="ve_public_email" value="${v?.email||''}" placeholder="shown on your public profile" type="email"></div>
+      <div class="form-field"><label class="form-label">Phone</label><input class="form-input" id="ve_phone" value="${v?.phone||''}" placeholder="+1 (239) 000-0000" type="tel"></div>
       <div class="form-field"><label class="form-label">Your story</label><textarea class="form-textarea" id="ve_description" placeholder="Tell customers about your business, your story, what makes you special...">${v?.description||''}</textarea></div>
     </div>`;
 
@@ -11271,6 +11513,8 @@ async function saveVendorProfile() {
   // Read form values
   v.name = document.getElementById('ve_name')?.value?.trim() || v.name;
   v.category = document.getElementById('ve_category')?.value || v.category;
+  v.email = document.getElementById('ve_public_email')?.value?.trim() || v.email;
+  v.phone = document.getElementById('ve_phone')?.value?.trim() || '';
   v.description = document.getElementById('ve_description')?.value?.trim() || '';
 
   // Social links
@@ -11727,69 +11971,192 @@ function renderVendorSettings() {
   const trialStart = ST.trialStart;
   const trialExpiry = trialStart ? new Date(new Date(trialStart).getTime() + 180*24*60*60*1000) : null;
   const daysLeft = trialExpiry ? Math.max(0, Math.ceil((trialExpiry - new Date()) / (24*60*60*1000))) : null;
+  const chevron = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+  const initials2 = (v?.name || ST.user?.email || 'V').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
 
-  document.getElementById('scrollBody').innerHTML=`<div class="vendor-dash">
-    <div class="dash-title">Settings</div><div class="dash-sub">Account and preferences</div>
+  const planHtml = isPro && !isTrial ? `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0">
+      <div style="width:36px;height:36px;background:var(--green);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px">⭐</div>
+      <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--text)">Windmill Pro</div><div style="font-size:11px;color:var(--green-dk)">All features unlocked · Founding rate</div></div>
+    </div>` : isTrial ? `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0">
+      <div style="width:36px;height:36px;background:var(--amber);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px">🌱</div>
+      <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--text)">Founding Trial</div><div style="font-size:11px;color:var(--amber)">${daysLeft} days remaining</div></div>
+    </div>
+    <div style="background:var(--amber-lt);border-radius:var(--r-md);padding:10px 12px;font-size:11px;color:#7A4E08;margin-bottom:10px">Founding trial active. Upgrade to full Pro to unlock 10 photos and 25 products — $9/mo locked forever.</div>
+    <button onclick="openUpgradeFlow()" style="width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Upgrade to full Pro — $9/mo</button>` : `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0">
+      <div style="width:36px;height:36px;background:var(--surface2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px">👤</div>
+      <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--text)">Free</div><div style="font-size:11px;color:var(--text2)">Ads shown · Limited features</div></div>
+    </div>
+    <div style="background:var(--green-lt);border-radius:var(--r-md);padding:12px;margin-bottom:10px;font-size:11px;color:var(--green-dk);line-height:1.8">✓ Remove ads · ✓ Photos & gallery · ✓ Product catalog<br>✓ Weekly updates · ✓ All 3 social links · ✓ Analytics<br><span style="color:var(--text3);font-size:10px">First month free · $9/mo after · Founding rate locked forever</span></div>
+    <button onclick="openUpgradeFlow()" style="width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Upgrade to Pro — first month free</button>`;
 
-    <!-- YOUR PLAN -->
-    <div class="dash-section">
-      <div class="dash-section-title">Your plan</div>
-      ${isPro && !isTrial ? `
-      <div style="display:flex;align-items:center;gap:10px;padding:10px 0">
-        <div style="width:36px;height:36px;background:var(--green);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px">⭐</div>
-        <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--text)">Windmill Pro</div><div style="font-size:11px;color:var(--green-dk)">All features unlocked · Founding rate</div></div>
-      </div>` : isTrial ? `
-      <div style="display:flex;align-items:center;gap:10px;padding:10px 0">
-        <div style="width:36px;height:36px;background:var(--amber);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px">🌱</div>
-        <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--text)">Founding Trial</div><div style="font-size:11px;color:var(--amber)">${daysLeft} days remaining in your trial</div></div>
-      </div>
-      <div style="background:var(--amber-lt);border-radius:var(--r-md);padding:10px 12px;font-size:11px;color:#7A4E08;margin-bottom:10px">Your founding trial gives you almost all Pro features. Upgrade to full Pro to unlock up to 10 photos and 25 products — locked at $9/mo forever.</div>
-      <button onclick="openUpgradeFlow()" style="width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Upgrade to full Pro — $9/mo</button>` : `
-      <div style="display:flex;align-items:center;gap:10px;padding:10px 0">
-        <div style="width:36px;height:36px;background:var(--surface2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px">👤</div>
-        <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--text)">Free</div><div style="font-size:11px;color:var(--text2)">Ads shown · Limited features</div></div>
-      </div>
-      <div style="background:var(--green-lt);border-radius:var(--r-md);padding:12px;margin-bottom:10px;font-size:11px;color:var(--green-dk);line-height:1.8">✓ Remove ads · ✓ Photos & gallery · ✓ Product catalog<br>✓ Weekly updates · ✓ All 3 social links · ✓ Analytics<br><span style="color:var(--text3);font-size:10px">First month free · $9/mo after · Founding rate locked forever</span></div>
-      <button onclick="openUpgradeFlow()" style="width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Upgrade to Pro — first month free</button>`}
+  document.getElementById('scrollBody').innerHTML = `<div style="padding:0 0 40px">
+    <!-- Settings header -->
+    <div style="padding:20px 16px 4px">
+      <div style="font-family:var(--font-serif);font-size:20px;font-weight:600;color:var(--text)">Settings</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:2px">Account and preferences</div>
+    </div>
+    <!-- Your Plan -->
+    <div style="background:var(--surface);border-top:0.5px solid var(--border);border-bottom:0.5px solid var(--border);padding:16px;margin-top:12px;margin-bottom:16px">
+      <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Your Plan</div>
+      ${planHtml}
     </div>
 
-    <!-- ACCOUNT -->
-    <div class="dash-section">
-      <div class="dash-section-title">Account</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--border)">
-        <div style="font-size:13px;color:var(--text2)">Email</div>
-        <div style="font-size:13px;color:var(--text)">${ST.user?.email || v?.email || 'Not set'}</div>
+    <!-- Menu -->
+    <div style="background:var(--surface);border-bottom:0.5px solid var(--border);margin-bottom:16px">
+      <div onclick="renderVendorSettingsSection('profile')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid var(--border);cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:18px">👤</span>
+          <div><div style="font-size:14px;font-weight:500;color:var(--text)">Your Profile</div><div style="font-size:11px;color:var(--text3)">Name, email, phone, address</div></div>
+        </div>${chevron}
       </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--border)">
-        <div style="font-size:13px;color:var(--text2)">Password</div>
-        <span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="showChangePasswordModal()">Change password →</span>
+      <div onclick="renderVendorSettingsSection('security')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid var(--border);cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:18px">🔑</span>
+          <div><div style="font-size:14px;font-weight:500;color:var(--text)">Security</div><div style="font-size:11px;color:var(--text3)">Change password or login email</div></div>
+        </div>${chevron}
       </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--border)">
-        <div style="font-size:13px;color:var(--text2)">Vendor page</div>
-        <div style="font-size:13px;color:var(--green)">${v ? 'shopwindmill.com/vendors/'+(v.slug||v.id) : '—'}</div>
+      <div onclick="renderVendorSettingsSection('notifications')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid var(--border);cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:18px">🔔</span>
+          <div><div style="font-size:14px;font-weight:500;color:var(--text)">Notifications & Alerts</div><div style="font-size:11px;color:var(--text3)">Messages, followers, reminders</div></div>
+        </div>${chevron}
       </div>
-      <button onclick="authSignOut()" style="width:100%;margin-top:12px;padding:10px;background:var(--surface2);color:var(--terra);border:0.5px solid var(--terra-lt);border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans)">Sign out</button>
+      <div onclick="renderVendorSettingsSection('about')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:18px">🌿</span>
+          <div><div style="font-size:14px;font-weight:500;color:var(--text)">About Windmill</div><div style="font-size:11px;color:var(--text3)">Our mission, contact, social</div></div>
+        </div>${chevron}
+      </div>
     </div>
 
-    <!-- NOTIFICATIONS -->
-    <div class="dash-section">
-      <div class="dash-section-title">Notifications & Messaging</div>
-      <div class="checklist-item"><div class="check-text"><div style="font-size:13px;color:var(--text)">Allow shoppers to message me</div><div style="font-size:11px;color:var(--text3)">Message button appears on your profile</div></div><div class="toggle ${ST.messagingEnabled!==false?'on':''}" onclick="toggleVendorNotif('messaging',this)"><div class="toggle-thumb"></div></div></div>
-      <div class="checklist-item"><div class="check-text"><div style="font-size:13px;color:var(--text)">Email me when I get a message</div><div style="font-size:11px;color:var(--text3)">Replies must be sent through the app</div></div><div class="toggle ${ST.notifMessages!==false?'on':''}" onclick="toggleVendorNotif('messages',this)"><div class="toggle-thumb"></div></div></div>
-      <div class="checklist-item"><div class="check-text">Email when someone follows me</div><div class="toggle ${ST.notifFollower!==false?'on':''}" onclick="toggleVendorNotif('follower',this)"><div class="toggle-thumb"></div></div></div>
-      <div class="checklist-item"><div class="check-text">Weekly reminder to post an update</div><div class="toggle ${ST.notifWeekly!==false?'on':''}" onclick="toggleVendorNotif('weekly',this)"><div class="toggle-thumb"></div></div></div>
-    </div>
-
-    <!-- SUPPORT -->
-    <div class="dash-section">
-      <div class="dash-section-title">Contact Support</div>
-      <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Have a question? We respond within 24 hours.</p>
-      <textarea class="form-textarea" placeholder="How can we help?" id="supportMsg"></textarea>
-      <button onclick="submitContactSupport('vendor','Vendor')" style="width:100%;margin-top:10px;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500">Send message</button>
+    <!-- Support & Sign out -->
+    <div style="padding:0 16px">
+      <button onclick="renderVendorSettingsSection('support')" style="width:100%;padding:13px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans);margin-bottom:10px">💬 Contact Windmill Support</button>
+      <button onclick="authSignOut()" style="width:100%;padding:13px;background:transparent;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;color:var(--text3);font-family:var(--font-sans)">Sign out</button>
     </div>
   </div>`;
 }
 
+function renderVendorSettingsSection(section) {
+  const v = ST.vendorId ? DATA.vendors.find(x=>x.id===ST.vendorId) : null;
+  const sb = document.getElementById('scrollBody');
+  const backBtn = `<div onclick="renderVendorSettings()" style="display:flex;align-items:center;gap:6px;padding:14px 16px;border-bottom:0.5px solid var(--border);cursor:pointer;background:var(--surface)">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    <span style="font-size:14px;color:var(--text2)">Settings</span>
+  </div>`;
+
+  if(section === 'profile') {
+    sb.innerHTML = backBtn + `<div style="padding:16px">
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:4px">Your Profile</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Contact info shown on your public profile</div>
+      <div class="form-field"><label class="form-label">Business name</label><input class="form-input" id="vsp_name" value="${v?.name||''}" placeholder="Your business name"></div>
+      <div class="form-field"><label class="form-label">Contact email</label><input class="form-input" id="vsp_email" value="${v?.email||''}" placeholder="shown on your public profile" type="email"></div>
+      <div class="form-field"><label class="form-label">Phone</label><input class="form-input" id="vsp_phone" value="${v?.phone||''}" placeholder="+1 (239) 000-0000" type="tel"></div>
+      <div class="form-field"><label class="form-label">Address</label><input class="form-input" id="vsp_address" value="${v?.address||''}" placeholder="Business address (optional)"></div>
+      <button onclick="saveVendorSettingsProfile()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-top:8px">Save changes</button>
+    </div>`;
+  } else if(section === 'security') {
+    sb.innerHTML = backBtn + `<div style="padding:16px">
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:4px">Security</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Manage your login credentials</div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid var(--border)">
+          <div><div style="font-size:14px;font-weight:500;color:var(--text)">Login email</div><div style="font-size:11px;color:var(--text3)">${ST.user?.email || 'Not set'}</div></div>
+          <button onclick="showChangeEmailModal()" style="padding:7px 14px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;color:var(--text);font-family:var(--font-sans)">Change</button>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px">
+          <div><div style="font-size:14px;font-weight:500;color:var(--text)">Password</div><div style="font-size:11px;color:var(--text3)">Last changed: unknown</div></div>
+          <button onclick="showChangePasswordModal()" style="padding:7px 14px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;color:var(--text);font-family:var(--font-sans)">Change</button>
+        </div>
+      </div>
+    </div>`;
+  } else if(section === 'notifications') {
+    sb.innerHTML = backBtn + `<div style="padding:16px">
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:4px">Notifications & Alerts</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Control what Windmill sends you</div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden">
+        <div class="checklist-item" style="padding:12px 16px;border-bottom:0.5px solid var(--border)"><div class="check-text"><div style="font-size:13px;color:var(--text)">Allow shoppers to message me</div><div style="font-size:11px;color:var(--text3)">Message button appears on your profile</div></div><div class="toggle ${ST.messagingEnabled!==false?'on':''}" onclick="toggleVendorNotif('messaging',this)"><div class="toggle-thumb"></div></div></div>
+        <div class="checklist-item" style="padding:12px 16px;border-bottom:0.5px solid var(--border)"><div class="check-text"><div style="font-size:13px;color:var(--text)">Email when I get a message</div><div style="font-size:11px;color:var(--text3)">Replies must be sent through the app</div></div><div class="toggle ${ST.notifMessages!==false?'on':''}" onclick="toggleVendorNotif('messages',this)"><div class="toggle-thumb"></div></div></div>
+        <div class="checklist-item" style="padding:12px 16px;border-bottom:0.5px solid var(--border)"><div class="check-text"><div style="font-size:13px;color:var(--text)">Email when someone follows me</div></div><div class="toggle ${ST.notifFollower!==false?'on':''}" onclick="toggleVendorNotif('follower',this)"><div class="toggle-thumb"></div></div></div>
+        <div class="checklist-item" style="padding:12px 16px"><div class="check-text"><div style="font-size:13px;color:var(--text)">Weekly reminder to post an update</div></div><div class="toggle ${ST.notifWeekly!==false?'on':''}" onclick="toggleVendorNotif('weekly',this)"><div class="toggle-thumb"></div></div></div>
+      </div>
+    </div>`;
+  } else if(section === 'about') {
+    sb.innerHTML = backBtn + `<div style="padding:16px">
+            <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:16px">About Windmill</div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-bottom:12px">
+        <div style="padding:16px;border-bottom:0.5px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <svg width="20" height="20" viewBox="0 0 26 26" fill="none"><circle cx="13" cy="13" r="2.8" fill="#5C7A4E"/><line x1="13" y1="9.8" x2="13" y2="2" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="13" y1="16.2" x2="13" y2="24" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="9.8" y1="13" x2="2" y2="13" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="16.2" y1="13" x2="24" y2="13" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="11.4" y1="11.4" x2="5.5" y2="5.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><line x1="14.6" y1="14.6" x2="20.5" y2="20.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><line x1="14.6" y1="11.4" x2="20.5" y2="5.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><line x1="11.4" y1="14.6" x2="5.5" y2="20.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/></svg>
+            <span style="font-size:14px;font-weight:600;color:var(--text);font-family:var(--font-serif)">Our Mission</span>
+          </div>
+          <p style="font-size:12px;color:var(--text);line-height:1.6;margin:0">Windmill exists to connect communities with the local farmers markets, artisan vendors and small businesses that make them unique. We believe shopping local builds stronger neighborhoods — and we're building the platform that makes it effortless.</p>
+        </div>
+        <div style="padding:14px 16px;border-bottom:0.5px solid var(--border)">
+          <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:8px">🛍 For Shoppers</div>
+          <p style="font-size:12px;color:var(--text2);line-height:1.5;margin:0">Discover markets near you, explore vendors by category, follow your favorites and never miss a market day. Free forever.</p>
+        </div>
+        <div style="padding:14px 16px;border-bottom:0.5px solid var(--border)">
+          <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:8px">🏪 For Vendors</div>
+          <p style="font-size:12px;color:var(--text2);line-height:1.5;margin:0">Claim your free listing to manage your profile and connect with customers. Upgrade to Windmill Pro for photos, analytics, social links and more.</p>
+        </div>
+        <div style="padding:14px 16px">
+          <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:8px">🏛 For Market Operators</div>
+          <p style="font-size:12px;color:var(--text2);line-height:1.5;margin:0">List your market, manage your vendor directory and promote your events to thousands of local shoppers — all in one place.</p>
+        </div>
+      </div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">📍 Where we are</div>
+        <p style="font-size:12px;color:var(--text2);line-height:1.5;margin:0">Currently live in Lee County, Sarasota/Bradenton and Tampa Bay, Florida. Expanding across the US — one market at a time.</p>
+      </div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">✉️ Contact us</div>
+        <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
+      </div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px">
+        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:10px">🌐 Follow us</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <a href="https://www.instagram.com/shop.windmill?utm_source=qr" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--terra);text-decoration:none">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+            @shop.windmill
+          </a>
+          <a href="https://www.facebook.com/people/Shopwindmill/61590166275828/" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--terra);text-decoration:none">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+            Shopwindmill
+          </a>
+        </div>
+      </div>
+    </div>`;
+  } else if(section === 'support') {
+    sb.innerHTML = backBtn + `<div style="padding:16px">
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:4px">Contact Support</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">We respond within 24 hours.</div>
+      <textarea class="form-textarea" placeholder="How can we help?" id="supportMsg" style="min-height:120px"></textarea>
+      <button onclick="submitContactSupport('vendor','Vendor')" style="width:100%;margin-top:10px;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Send message</button>
+    </div>`;
+  }
+}
+
+async function saveVendorSettingsProfile() {
+  const vendorId = ST.vendorId;
+  if(!vendorId) return;
+  let v = DATA.vendors.find(x=>x.id===vendorId);
+  if(!v) return;
+  v.name = document.getElementById('vsp_name')?.value?.trim() || v.name;
+  v.email = document.getElementById('vsp_email')?.value?.trim() || v.email;
+  v.phone = document.getElementById('vsp_phone')?.value?.trim() || '';
+  v.address = document.getElementById('vsp_address')?.value?.trim() || '';
+  if(supabaseClient) { try { await dbSaveVendor(v); } catch(e) { console.warn('Save failed:', e); } }
+  const toast = document.createElement('div');
+  toast.textContent = 'Profile updated ✓';
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+  renderVendorSettings();
+}
 function toggleVendorNotif(type, el) {
   el.classList.toggle('on');
   const isOn = el.classList.contains('on');
@@ -11917,24 +12284,316 @@ async function submitUpgradeRequest() {
 /* ── OPERATOR SUB-PAGES ── */
 function renderOperatorMarkets() {
   hideFilterUI();
-  const myMarkets = DATA.markets.filter(m=>m.operator_id==='local-roots');
+  const opId = ST.operatorId || 'local-roots';
+  const myMarkets = DATA.markets.filter(m=>m.operator_id===opId);
   document.getElementById('scrollBody').innerHTML=`<div class="operator-dash">
-    <div class="dash-title">My Markets</div><div class="dash-sub">${myMarkets.length} markets</div>
-    ${myMarkets.map((m,i)=>`<div class="vendor-card" onclick="navigate('market','${m.id}')">
-      <div class="vendor-avatar" style="background:${mbg(i)};width:52px;height:52px;border-radius:12px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${micn(i)}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2l1.5 4H21l-2 7H6L4.5 6"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg></div>
-      <div class="vendor-body"><div class="vendor-name">${m.name}</div><div class="vendor-at" style="color:var(--green)">${m.city} · ${getMarketScheduleLabel(m)} · ${vendorCount(m.id)} vendors</div></div>
+    <div class="dash-title">My Markets</div><div class="dash-sub">${myMarkets.length} market${myMarkets.length!==1?'s':''}</div>
+    ${myMarkets.map((m,i)=>`<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <div style="width:44px;height:44px;background:${mbg(i)};border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${micn(i)}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2l1.5 4H21l-2 7H6L4.5 6"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:2px">${m.name}</div>
+          <div style="font-size:12px;color:var(--text3)">${m.city} · ${getMarketScheduleLabel(m)} · ${vendorCount(m.id)} vendors</div>
+        </div>
+        <span style="font-size:10px;padding:3px 8px;background:${m.published?'var(--green-lt)':'var(--amber-lt)'};color:${m.published?'var(--green-dk)':'#7A4E08'};border-radius:var(--r-pill);white-space:nowrap">${m.published?'Live':'Draft'}</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="event.stopPropagation();navigate('market','${m.id}')" style="flex:1;padding:8px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:12px;cursor:pointer;color:var(--text);font-family:var(--font-sans);font-weight:500">👁 View Live</button>
+        <button onclick="event.stopPropagation();openOperatorMarketEdit('${m.id}')" style="flex:1;padding:8px;background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-md);font-size:12px;cursor:pointer;color:var(--green-dk);font-family:var(--font-sans);font-weight:500">✏️ Edit</button>
+      </div>
     </div>`).join('')}
   </div>`;
 }
 
+function openOperatorMarketEdit(id) {
+  const m = DATA.markets.find(x=>x.id===id);
+  if(!m) return;
+  const months = ['All Year','January','February','March','April','May','June','July','August','September','October','November','December'];
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const sb = document.getElementById('scrollBody');
+  const backBtn = `<div onclick="renderOperatorMarkets()" style="display:flex;align-items:center;gap:6px;padding:14px 16px;border-bottom:0.5px solid var(--border);cursor:pointer;background:var(--surface);position:sticky;top:0;z-index:10">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    <span style="font-size:14px;color:var(--text2)">My Markets</span>
+  </div>`;
+
+  sb.innerHTML = backBtn + `<div style="padding:16px">
+    <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:4px">${m.name}</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Edit your market's public listing</div>
+
+    <div style="font-size:12px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:0 0 10px">Basic Info</div>
+    <div class="form-field"><label class="form-label">Market name</label><input class="form-input" id="ome_name" value="${m.name||''}"></div>
+    <div class="form-field"><label class="form-label">Description</label><textarea class="form-textarea" id="ome_desc" style="min-height:100px">${m.description||''}</textarea></div>
+    <div class="form-field"><label class="form-label">Venue</label><input class="form-input" id="ome_venue" value="${m.venue||''}" placeholder="e.g. Downtown Fort Myers – Culinary District"></div>
+    <div class="form-field"><label class="form-label">Address</label><input class="form-input" id="ome_address" value="${m.address||''}"></div>
+    <div class="form-field"><label class="form-label">City</label><input class="form-input" id="ome_city" value="${m.city||''}"></div>
+    <div class="form-field"><label class="form-label">Parking notes</label><input class="form-input" id="ome_parking" value="${m.parking_notes||''}" placeholder="Parking details for visitors"></div>
+    <div class="form-field"><label class="form-label">Special notes</label><input class="form-input" id="ome_notes" value="${m.special_notes||''}" placeholder="Closures, holidays, etc."></div>
+
+    <div style="font-size:12px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:20px 0 10px">Hours & Season</div>
+    <div class="form-field"><label class="form-label">Day of week</label>
+      <select class="form-input" id="ome_day">${days.map(d=>`<option value="${d}" ${m.day_of_week===d?'selected':''}>${d}</option>`).join('')}</select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="form-field"><label class="form-label">Start time</label><input class="form-input" id="ome_start" value="${m.start_time||''}" placeholder="09:00"></div>
+      <div class="form-field"><label class="form-label">End time</label><input class="form-input" id="ome_end" value="${m.end_time||''}" placeholder="13:00"></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:12px;padding:10px;background:var(--surface2);border-radius:var(--r-md);border:0.5px solid var(--border)">
+      <input type="checkbox" id="ome_all_year" ${m.season_start==='All Year'?'checked':''} style="width:16px;height:16px" onchange="(function(){const ay=document.getElementById('ome_all_year').checked;document.getElementById('ome_season_start').disabled=ay;document.getElementById('ome_season_end').disabled=ay;if(ay){document.getElementById('ome_season_start').value='All Year';document.getElementById('ome_season_end').value='All Year';}})()">
+      <span><strong>Year Round</strong> — market runs all year</span>
+    </label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px">Season start</div>
+        <select class="form-input" id="ome_season_start" ${m.season_start==='All Year'?'disabled':''}>${months.map(mo=>`<option value="${mo}" ${m.season_start===mo?'selected':''}>${mo}</option>`).join('')}</select>
+      </div>
+      <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px">Season end</div>
+        <select class="form-input" id="ome_season_end" ${m.season_end==='All Year'?'disabled':''}>${months.map(mo=>`<option value="${mo}" ${m.season_end===mo?'selected':''}>${mo}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="form-field"><label class="form-label">Season description</label><input class="form-input" id="ome_season_dates" value="${m.season_dates||''}" placeholder="e.g. October through May"></div>
+
+    <div style="font-size:12px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:20px 0 10px">Contact & Links</div>
+    <div class="form-field"><label class="form-label">Public email</label><input class="form-input" id="ome_email" value="${m.email||''}" placeholder="shown on your market page" type="email"></div>
+    <div class="form-field"><label class="form-label">Phone</label><input class="form-input" id="ome_phone" value="${m.phone||''}" placeholder="+1 (239) 000-0000" type="tel"></div>
+    <div class="form-field"><label class="form-label">Website</label><input class="form-input" id="ome_website" value="${m.website||''}" placeholder="https://"></div>
+    <div class="form-field"><label class="form-label">Facebook</label><input class="form-input" id="ome_facebook" value="${m.facebook||''}" placeholder="https://facebook.com/..."></div>
+    <div class="form-field"><label class="form-label">Instagram</label><input class="form-input" id="ome_instagram" value="${m.instagram||''}" placeholder="https://instagram.com/..."></div>
+
+    <div style="display:flex;gap:10px;margin:8px 0 20px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="ome_pet" ${m.pet_friendly?'checked':''} style="width:16px;height:16px"> Pet friendly
+      </label>
+    </div>
+
+    <button onclick="saveOperatorMarketEdit('${id}')" style="width:100%;padding:14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:15px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Save changes</button>
+  </div>`;
+}
+
+async function saveOperatorMarketEdit(id) {
+  const m = DATA.markets.find(x=>x.id===id);
+  if(!m) return;
+  m.name = document.getElementById('ome_name')?.value?.trim() || m.name;
+  m.description = document.getElementById('ome_desc')?.value?.trim() || '';
+  m.venue = document.getElementById('ome_venue')?.value?.trim() || '';
+  m.address = document.getElementById('ome_address')?.value?.trim() || '';
+  m.city = document.getElementById('ome_city')?.value?.trim() || '';
+  m.parking_notes = document.getElementById('ome_parking')?.value?.trim() || '';
+  m.special_notes = document.getElementById('ome_notes')?.value?.trim() || '';
+  m.day_of_week = document.getElementById('ome_day')?.value;
+  m.start_time = document.getElementById('ome_start')?.value?.trim() || '';
+  m.end_time = document.getElementById('ome_end')?.value?.trim() || '';
+  const allYear = document.getElementById('ome_all_year')?.checked;
+  m.season_start = allYear ? 'All Year' : document.getElementById('ome_season_start')?.value;
+  m.season_end = allYear ? 'All Year' : document.getElementById('ome_season_end')?.value;
+  m.season_dates = document.getElementById('ome_season_dates')?.value?.trim() || '';
+  m.email = document.getElementById('ome_email')?.value?.trim() || '';
+  m.phone = document.getElementById('ome_phone')?.value?.trim() || '';
+  m.website = document.getElementById('ome_website')?.value?.trim() || '';
+  m.facebook = document.getElementById('ome_facebook')?.value?.trim() || '';
+  m.instagram = document.getElementById('ome_instagram')?.value?.trim() || '';
+  m.pet_friendly = document.getElementById('ome_pet')?.checked;
+
+  if(supabaseClient) {
+    try { await dbSaveMarket(m); } catch(e) { console.warn('Save failed:', e); }
+  }
+  const toast = document.createElement('div');
+  toast.textContent = m.name + ' updated ✓';
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+  renderOperatorMarkets();
+}
+
 function renderOperatorVendors() {
   hideFilterUI();
-  const ids = DATA.markets.filter(m=>m.operator_id==='local-roots').map(m=>m.id);
-  const vs = DATA.vendors.filter(v=>v.markets.some(id=>ids.includes(id)));
-  document.getElementById('scrollBody').innerHTML=`<div class="operator-dash">
-    <div class="dash-title">Vendor Roster</div><div class="dash-sub">${vs.length} vendors across your markets</div>
-    ${vs.map((v,i)=>{const c=vc(i);return `<div class="vendor-card" onclick="navigate('vendor','${v.id}')"><div class="vendor-avatar" style="background:${c.bg};color:${c.c}">${initials(v.name)}</div><div class="vendor-body"><div class="vendor-name">${v.name}</div><div class="vendor-category">${v.category}</div><span class="status-pill ${v.claimed?'claimed':'unclaimed'}" style="margin-top:4px;display:inline-block">${v.claimed?'Claimed':'Unclaimed'}</span></div></div>`;}).join('')}
+  const opId = ST.operatorId || 'local-roots';
+  const myMarkets = DATA.markets.filter(m=>m.operator_id===opId);
+  const myMarketIds = myMarkets.map(m=>m.id);
+  const vs = DATA.vendors.filter(v=>v.published && v.markets.some(id=>myMarketIds.includes(id)));
+
+  const sb = document.getElementById('scrollBody');
+  sb.innerHTML = `<div class="operator-dash">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div class="dash-title" style="margin-bottom:0">Vendor Roster</div>
+      <button onclick="openAddVendorModal()" style="padding:7px 14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">+ Add Vendor</button>
+    </div>
+    <div class="dash-sub" style="margin-bottom:16px">${vs.length} vendor${vs.length!==1?'s':''} across your markets</div>
+    ${vs.length === 0 ? `<div style="text-align:center;padding:32px 16px;color:var(--text3);font-size:13px">No vendors yet. Add your first vendor above.</div>` :
+      vs.map((v,i) => {
+        const c = vc(i);
+        const vendorMarkets = myMarkets.filter(m=>v.markets.includes(m.id));
+        const marketSummary = vendorMarkets.map(m=>m.name.replace(' Farmers Market','').replace(' Market','')).join(', ');
+        return `<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:12px 14px;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:40px;height:40px;background:${c.bg};color:${c.c};border-radius:10px;display:flex;align-items:center;justify-content:center;font-family:var(--font-serif);font-size:13px;font-weight:600;flex-shrink:0">${initials(v.name)}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:600;color:var(--text)">${v.name}</div>
+              <div style="font-size:11px;color:var(--text3)">${v.category} · <span style="color:${v.claimed?'var(--green-dk)':'var(--amber)'}">${v.claimed?'✓ Claimed':'Unclaimed'}</span></div>
+              <div style="font-size:11px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${marketSummary || 'No markets assigned'}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button onclick="navigate('vendor','${v.id}')" style="flex:1;padding:7px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:11px;cursor:pointer;color:var(--text);font-family:var(--font-sans);font-weight:500">👁 View</button>
+            <button onclick="openEditVendorRosterModal('${v.id}')" style="flex:1;padding:7px;background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-md);font-size:11px;cursor:pointer;color:var(--green-dk);font-family:var(--font-sans);font-weight:500">✏️ Edit Markets</button>
+          </div>
+        </div>`;
+      }).join('')}
   </div>`;
+}
+
+function openEditVendorRosterModal(vendorId) {
+  const opId = ST.operatorId || 'local-roots';
+  const myMarkets = DATA.markets.filter(m=>m.operator_id===opId);
+  const v = DATA.vendors.find(x=>x.id===vendorId);
+  if(!v) return;
+
+  const existing = document.getElementById('vendorRosterModal');
+  if(existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'vendorRosterModal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(44,32,22,.5);z-index:3000;display:flex;align-items:flex-end;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-width:600px;padding:20px 20px 40px;max-height:85vh;overflow-y:auto">
+      <div style="width:36px;height:4px;background:var(--border-med);border-radius:2px;margin:0 auto 16px"></div>
+      <div style="font-family:var(--font-serif);font-size:17px;font-weight:600;color:var(--text);margin-bottom:4px">${v.name}</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">${v.category} · Select which of your markets this vendor attends</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
+        ${myMarkets.map(m=>`
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;background:var(--surface2);border:0.5px solid ${v.markets.includes(m.id)?'var(--green)':'var(--border)'};border-radius:var(--r-md)">
+            <input type="checkbox" id="vrm_${m.id}" ${v.markets.includes(m.id)?'checked':''} style="width:16px;height:16px;accent-color:var(--green);cursor:pointer">
+            <div style="flex:1">
+              <div style="font-size:13px;font-weight:500;color:var(--text)">${m.name}</div>
+              <div style="font-size:11px;color:var(--text3)">${getMarketScheduleLabel(m)} · ${m.city}</div>
+            </div>
+          </label>`).join('')}
+      </div>
+      <button onclick="saveVendorRosterMarkets('${vendorId}')" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:10px">Save changes</button>
+      <button onclick="document.getElementById('vendorRosterModal').remove()" style="width:100%;padding:10px;background:transparent;border:none;font-size:13px;cursor:pointer;color:var(--text3);font-family:var(--font-sans)">Cancel</button>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function saveVendorRosterMarkets(vendorId) {
+  const opId = ST.operatorId || 'local-roots';
+  const myMarkets = DATA.markets.filter(m=>m.operator_id===opId);
+  const myMarketIds = myMarkets.map(m=>m.id);
+  const v = DATA.vendors.find(x=>x.id===vendorId);
+  if(!v) return;
+
+  // Keep markets outside this operator's scope, replace this operator's markets with new selection
+  const otherMarkets = v.markets.filter(id=>!myMarketIds.includes(id));
+  const selectedMarkets = myMarkets.filter(m=>document.getElementById('vrm_'+m.id)?.checked).map(m=>m.id);
+
+  if(selectedMarkets.length === 0) {
+    alert('Please select at least one market.');
+    return;
+  }
+
+  v.markets = [...otherMarkets, ...selectedMarkets];
+
+  if(supabaseClient) {
+    try { await dbSaveVendor(v); } catch(e) { console.warn('Save failed:', e); }
+  }
+
+  document.getElementById('vendorRosterModal').remove();
+  const toast = document.createElement('div');
+  toast.textContent = v.name + ' updated ✓';
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+  renderOperatorVendors();
+}
+
+function openAddVendorModal() {
+  const opId = ST.operatorId || 'local-roots';
+  const myMarkets = DATA.markets.filter(m=>m.operator_id===opId);
+  const categories = [...new Set(DATA.vendors.map(v=>v.category))].sort();
+
+  const existing = document.getElementById('addVendorRosterModal');
+  if(existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'addVendorRosterModal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(44,32,22,.5);z-index:3000;display:flex;align-items:flex-end;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-width:600px;padding:20px 20px 40px;max-height:90vh;overflow-y:auto">
+      <div style="width:36px;height:4px;background:var(--border-med);border-radius:2px;margin:0 auto 16px"></div>
+      <div style="font-family:var(--font-serif);font-size:17px;font-weight:600;color:var(--text);margin-bottom:4px">Add New Vendor</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Name, category and at least one market are required</div>
+
+      <div class="form-field"><label class="form-label">Vendor name *</label><input class="form-input" id="avr_name" placeholder="e.g. Sunshine Honey Co."></div>
+      <div class="form-field"><label class="form-label">Category *</label>
+        <input class="form-input" id="avr_cat" placeholder="e.g. Honey & Preserves" list="avr_cat_list">
+        <datalist id="avr_cat_list">${categories.map(c=>`<option value="${c}">`).join('')}</datalist>
+      </div>
+      <div class="form-field"><label class="form-label">Email</label><input class="form-input" id="avr_email" placeholder="vendor@email.com" type="email"></div>
+      <div class="form-field"><label class="form-label">Phone</label><input class="form-input" id="avr_phone" placeholder="+1 (239) 000-0000" type="tel"></div>
+      <div class="form-field"><label class="form-label">Website</label><input class="form-input" id="avr_website" placeholder="https://"></div>
+      <div class="form-field"><label class="form-label">Description</label><textarea class="form-textarea" id="avr_desc" placeholder="Brief description of this vendor..."></textarea></div>
+
+      <div class="form-label" style="margin-bottom:8px">Markets * <span style="font-size:10px;color:var(--text3);font-weight:400">(select at least one)</span></div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
+        ${myMarkets.map(m=>`
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;background:var(--surface2);border:0.5px solid var(--border);border-radius:var(--r-md)">
+            <input type="checkbox" id="avr_m_${m.id}" style="width:16px;height:16px;accent-color:var(--green);cursor:pointer">
+            <div style="flex:1">
+              <div style="font-size:13px;font-weight:500;color:var(--text)">${m.name}</div>
+              <div style="font-size:11px;color:var(--text3)">${getMarketScheduleLabel(m)} · ${m.city}</div>
+            </div>
+          </label>`).join('')}
+      </div>
+
+      <div id="avr_error" style="font-size:12px;color:var(--terra);margin-bottom:12px;display:none"></div>
+      <button onclick="submitAddVendorRoster()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:10px">Add vendor</button>
+      <button onclick="document.getElementById('addVendorRosterModal').remove()" style="width:100%;padding:10px;background:transparent;border:none;font-size:13px;cursor:pointer;color:var(--text3);font-family:var(--font-sans)">Cancel</button>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function submitAddVendorRoster() {
+  const opId = ST.operatorId || 'local-roots';
+  const myMarkets = DATA.markets.filter(m=>m.operator_id===opId);
+  const errEl = document.getElementById('avr_error');
+
+  const name = document.getElementById('avr_name')?.value?.trim();
+  const cat = document.getElementById('avr_cat')?.value?.trim();
+  const selectedMarkets = myMarkets.filter(m=>document.getElementById('avr_m_'+m.id)?.checked).map(m=>m.id);
+
+  const showErr = msg => { errEl.textContent = msg; errEl.style.display = 'block'; };
+  errEl.style.display = 'none';
+
+  if(!name) { showErr('Vendor name is required.'); return; }
+  if(!cat) { showErr('Category is required.'); return; }
+  if(selectedMarkets.length === 0) { showErr('Please select at least one market.'); return; }
+
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') + '-' + Date.now().toString(36);
+  const region = myMarkets.find(m=>selectedMarkets.includes(m.id))?.region || ST.region || '';
+
+  const vendor = {
+    id, name, slug: id, region, category: cat,
+    email: document.getElementById('avr_email')?.value?.trim() || '',
+    phone: document.getElementById('avr_phone')?.value?.trim() || '',
+    website: document.getElementById('avr_website')?.value?.trim() || '',
+    description: document.getElementById('avr_desc')?.value?.trim() || '',
+    markets: selectedMarkets,
+    claimed: false, published: true, pro: false,
+    facebook: '', instagram: '', tagline: '', photo: null
+  };
+
+  DATA.vendors.push(vendor);
+  if(supabaseClient) {
+    try { await dbSaveVendor(vendor); } catch(e) { console.warn('Save failed:', e); }
+  }
+
+  document.getElementById('addVendorRosterModal').remove();
+  const toast = document.createElement('div');
+  toast.textContent = name + ' added ✓';
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+  renderOperatorVendors();
 }
 
 function renderOperatorAnnouncements() {
@@ -12064,81 +12723,198 @@ function renderOperatorSettings() {
   const isPro = ST.opIsPro;
   const isFreeTrial = ST.opIsProTrial && !isPro;
   const isFree = !isPro && !isFreeTrial;
-
   const tierLabel = isPro ? 'Operator Pro' : isFreeTrial ? 'Pro Trial' : 'Free tier';
   const tierSub = isPro ? 'All Pro features active' : isFreeTrial ? 'Founding operator trial — full Pro access' : 'Ads shown on your market pages';
+  const chevron = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+  const opName = ST.user?.name || ST.user?.email?.split('@')[0] || 'Operator';
+  const initials2 = opName.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
 
-  const planSection = isFree ? `
-    <div class="dash-section">
-      <div class="dash-section-title">Your plan</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0">
-        <div><div style="font-size:13px;font-weight:500">Free tier</div><div style="font-size:11px;color:var(--text2)">Ads shown on your market pages</div></div>
-        <button onclick="alert('Operator Pro coming soon — $29/mo')" style="padding:6px 14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500">Upgrade — $29/mo</button>
-      </div>
-      <div style="background:var(--green-lt);border-radius:var(--r-md);padding:12px;margin-top:4px;font-size:11px;color:var(--green-dk);line-height:1.8">✓ Remove ads from all your market pages<br>✓ "Presented By" sponsor slot — sell it, keep the revenue<br>✓ Post announcements &amp; push notifications to followers<br>✓ Vendor attendance management<br>✓ Advanced analytics &amp; priority support<br><span style="color:var(--text3);font-size:10px">First month free · $29/mo after · Founding rate locked forever</span></div>
-    </div>` : `
-    <div class="dash-section">
-      <div class="dash-section-title">Your plan</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0">
-        <div>
-          <div style="display:flex;align-items:center;gap:6px"><div style="font-size:13px;font-weight:500">${tierLabel}</div>${isFreeTrial ? `<span style="font-size:10px;padding:2px 7px;background:var(--green);color:#fff;border-radius:var(--r-pill);font-weight:500">Founding</span>` : `<span style="font-size:10px;padding:2px 7px;background:var(--green);color:#fff;border-radius:var(--r-pill);font-weight:500">✓ Pro</span>`}</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:2px">${tierSub}</div>
-        </div>
+  const planHtml = isFree ? `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0">
+      <div style="width:36px;height:36px;background:var(--surface2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px">👤</div>
+      <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--text)">Free tier</div><div style="font-size:11px;color:var(--text2)">Ads shown on your market pages</div></div>
+    </div>
+    <div style="background:var(--green-lt);border-radius:var(--r-md);padding:12px;margin-bottom:10px;font-size:11px;color:var(--green-dk);line-height:2">
+      ✓ Remove ads from all your market pages<br>
+      ✓ "Presented By" sponsor slot — sell it, keep the revenue<br>
+      ✓ Post announcements &amp; push notifications to followers<br>
+      ✓ Vendor attendance management<br>
+      ✓ Advanced analytics &amp; priority support<br>
+      <span style="color:var(--text3);font-size:10px">First month free · $29/mo after · Founding rate locked forever</span>
+    </div>
+    <button onclick="alert('Operator Pro coming soon — $29/mo')" style="width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Upgrade — $29/mo</button>` : `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0">
+      <div style="width:36px;height:36px;background:var(--green);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px">${isFreeTrial ? '🌱' : '⭐'}</div>
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:6px"><div style="font-size:13px;font-weight:600;color:var(--text)">${tierLabel}</div>${isFreeTrial ? `<span style="font-size:10px;padding:2px 7px;background:var(--green);color:#fff;border-radius:var(--r-pill);font-weight:500">Founding</span>` : `<span style="font-size:10px;padding:2px 7px;background:var(--green);color:#fff;border-radius:var(--r-pill);font-weight:500">✓ Pro</span>`}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px">${tierSub}</div>
       </div>
     </div>`;
 
-  const marketsPickerHtml = myMarkets.length === 0
-    ? `<div style="font-size:12px;color:var(--text3)">No markets linked to your account yet.</div>`
-    : `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0">
-        <div style="font-size:13px;color:var(--text2)">Your market pages</div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <select id="opMarketPicker" style="font-size:12px;padding:5px 8px;border:0.5px solid var(--border-med);border-radius:var(--r-md);background:var(--surface);color:var(--text);font-family:var(--font-sans);cursor:pointer" onchange="openOperatorMarketPage(this.value)">
-            <option value="">Select a market…</option>
-            ${myMarkets.map(m=>`<option value="${m.slug||m.id}">${m.name}</option>`).join('')}
-          </select>
-          <span style="font-size:11px;color:var(--text3)">${myMarkets.length} market${myMarkets.length!==1?'s':''}</span>
-        </div>
-      </div>`;
+  document.getElementById('scrollBody').innerHTML = `<div style="padding:0 0 40px">
+    <!-- Settings header -->
+    <div style="padding:20px 16px 4px">
+      <div style="font-family:var(--font-serif);font-size:20px;font-weight:600;color:var(--text)">Settings</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:2px">Account and preferences</div>
+    </div>
+    <!-- Your Plan -->
+    <div style="background:var(--surface);border-top:0.5px solid var(--border);border-bottom:0.5px solid var(--border);padding:16px;margin-top:12px;margin-bottom:16px">
+      <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Your Plan</div>
+      ${planHtml}
+    </div>
 
-  document.getElementById('scrollBody').innerHTML=`<div class="operator-dash">
-    <div class="dash-title">Settings</div><div class="dash-sub">Operator account preferences</div>
-
-    ${planSection}
-
-    <!-- ACCOUNT -->
-    <div class="dash-section">
-      <div class="dash-section-title">Account</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--border)">
-        <div style="font-size:13px;color:var(--text2)">Email</div>
-        <div style="font-size:13px;color:var(--text)">${ST.user?.email || 'Not set'}</div>
+    <!-- Menu -->
+    <div style="background:var(--surface);border-bottom:0.5px solid var(--border);margin-bottom:16px">
+      <div onclick="renderOperatorSettingsSection('profile')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid var(--border);cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:18px">👤</span>
+          <div><div style="font-size:14px;font-weight:500;color:var(--text)">Your Profile</div><div style="font-size:11px;color:var(--text3)">Name, email, phone, address</div></div>
+        </div>${chevron}
       </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--border)">
-        <div style="font-size:13px;color:var(--text2)">Password</div>
-        <span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="showChangePasswordModal()">Change password →</span>
+      <div onclick="renderOperatorSettingsSection('security')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid var(--border);cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:18px">🔑</span>
+          <div><div style="font-size:14px;font-weight:500;color:var(--text)">Security</div><div style="font-size:11px;color:var(--text3)">Change password or login email</div></div>
+        </div>${chevron}
       </div>
-      ${marketsPickerHtml}
-      <button onclick="authSignOut()" style="width:100%;margin-top:12px;padding:10px;background:var(--surface2);color:var(--terra);border:0.5px solid var(--terra-lt);border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans)">Sign out</button>
+      <div onclick="renderOperatorSettingsSection('notifications')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid var(--border);cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:18px">🔔</span>
+          <div><div style="font-size:14px;font-weight:500;color:var(--text)">Notifications & Alerts</div><div style="font-size:11px;color:var(--text3)">Vendor claims, followers, weekly summary</div></div>
+        </div>${chevron}
+      </div>
+      <div onclick="renderOperatorSettingsSection('about')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:18px">🌿</span>
+          <div><div style="font-size:14px;font-weight:500;color:var(--text)">About Windmill</div><div style="font-size:11px;color:var(--text3)">Our mission, contact, social</div></div>
+        </div>${chevron}
+      </div>
     </div>
 
-    <!-- NOTIFICATIONS -->
-    <div class="dash-section">
-      <div class="dash-section-title">Notifications</div>
-      <div class="checklist-item"><div class="check-text"><div style="font-size:13px;color:var(--text)">Email when a vendor claims one of my markets</div><div style="font-size:11px;color:var(--text3)">Get notified when new vendors join</div></div><div class="toggle ${ST.opNotifVendorClaim!==false?'on':''}" onclick="toggleOperatorNotif('vendor_claim',this)"><div class="toggle-thumb"></div></div></div>
-      <div class="checklist-item"><div class="check-text"><div style="font-size:13px;color:var(--text)">Email when a shopper follows one of my markets</div></div><div class="toggle ${ST.opNotifFollower!==false?'on':''}" onclick="toggleOperatorNotif('follower',this)"><div class="toggle-thumb"></div></div></div>
-      <div class="checklist-item"><div class="check-text"><div style="font-size:13px;color:var(--text)">Weekly summary of market activity</div><div style="font-size:11px;color:var(--text3)">Followers, page views, vendor count</div></div><div class="toggle ${ST.opNotifWeekly!==false?'on':''}" onclick="toggleOperatorNotif('weekly',this)"><div class="toggle-thumb"></div></div></div>
+    <!-- Support & Sign out -->
+    <div style="padding:0 16px">
+      <button onclick="renderOperatorSettingsSection('support')" style="width:100%;padding:13px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans);margin-bottom:10px">💬 Contact Windmill Support</button>
+      <button onclick="authSignOut()" style="width:100%;padding:13px;background:transparent;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;color:var(--text3);font-family:var(--font-sans)">Sign out</button>
     </div>
-
-    <!-- CONTACT SUPPORT -->
-    <div class="dash-section">
-      <div class="dash-section-title">Contact Support</div>
-      <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Have a question? We respond within 24 hours.</div>
-      <textarea id="operatorSupportMsg" placeholder="How can we help?" style="width:100%;min-height:90px;padding:10px 12px;border:0.5px solid var(--border);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);color:var(--text);background:var(--surface);resize:vertical;box-sizing:border-box"></textarea>
-      <button onclick="submitOperatorSupportMessage()" style="width:100%;margin-top:10px;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Send message</button>
-    </div>
-
   </div>`;
 }
 
+function renderOperatorSettingsSection(section) {
+  const sb = document.getElementById('scrollBody');
+  const backBtn = `<div onclick="renderOperatorSettings()" style="display:flex;align-items:center;gap:6px;padding:14px 16px;border-bottom:0.5px solid var(--border);cursor:pointer;background:var(--surface)">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    <span style="font-size:14px;color:var(--text2)">Settings</span>
+  </div>`;
+
+  if(section === 'profile') {
+    sb.innerHTML = backBtn + `<div style="padding:16px">
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:4px">Your Profile</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Your operator contact information</div>
+      <div class="form-field"><label class="form-label">Name</label><input class="form-input" id="osp_name" value="${ST.user?.name||''}" placeholder="Your name or organization"></div>
+      <div class="form-field"><label class="form-label">Contact email</label><input class="form-input" id="osp_email" value="${ST.user?.email||''}" placeholder="shown publicly" type="email"></div>
+      <div class="form-field"><label class="form-label">Phone</label><input class="form-input" id="osp_phone" value="${ST.opPhone||''}" placeholder="+1 (239) 000-0000" type="tel"></div>
+      <div class="form-field"><label class="form-label">Address</label><input class="form-input" id="osp_address" value="${ST.opAddress||''}" placeholder="Organization address (optional)"></div>
+      <button onclick="saveOperatorSettingsProfile()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-top:8px">Save changes</button>
+    </div>`;
+  } else if(section === 'security') {
+    sb.innerHTML = backBtn + `<div style="padding:16px">
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:4px">Security</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Manage your login credentials</div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid var(--border)">
+          <div><div style="font-size:14px;font-weight:500;color:var(--text)">Login email</div><div style="font-size:11px;color:var(--text3)">${ST.user?.email || 'Not set'}</div></div>
+          <button onclick="showChangeEmailModal()" style="padding:7px 14px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;color:var(--text);font-family:var(--font-sans)">Change</button>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px">
+          <div><div style="font-size:14px;font-weight:500;color:var(--text)">Password</div><div style="font-size:11px;color:var(--text3)">Last changed: unknown</div></div>
+          <button onclick="showChangePasswordModal()" style="padding:7px 14px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;color:var(--text);font-family:var(--font-sans)">Change</button>
+        </div>
+      </div>
+    </div>`;
+  } else if(section === 'notifications') {
+    sb.innerHTML = backBtn + `<div style="padding:16px">
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:4px">Notifications & Alerts</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Control what Windmill sends you</div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden">
+        <div class="checklist-item" style="padding:12px 16px;border-bottom:0.5px solid var(--border)"><div class="check-text"><div style="font-size:13px;color:var(--text)">Email when a vendor claims one of my markets</div><div style="font-size:11px;color:var(--text3)">Get notified when new vendors join</div></div><div class="toggle ${ST.opNotifVendorClaim!==false?'on':''}" onclick="toggleOperatorNotif('vendor_claim',this)"><div class="toggle-thumb"></div></div></div>
+        <div class="checklist-item" style="padding:12px 16px;border-bottom:0.5px solid var(--border)"><div class="check-text"><div style="font-size:13px;color:var(--text)">Email when a shopper follows one of my markets</div></div><div class="toggle ${ST.opNotifFollower!==false?'on':''}" onclick="toggleOperatorNotif('follower',this)"><div class="toggle-thumb"></div></div></div>
+        <div class="checklist-item" style="padding:12px 16px"><div class="check-text"><div style="font-size:13px;color:var(--text)">Weekly summary of market activity</div><div style="font-size:11px;color:var(--text3)">Followers, page views, vendor count</div></div><div class="toggle ${ST.opNotifWeekly!==false?'on':''}" onclick="toggleOperatorNotif('weekly',this)"><div class="toggle-thumb"></div></div></div>
+      </div>
+    </div>`;
+  } else if(section === 'about') {
+    sb.innerHTML = backBtn + `<div style="padding:16px">
+            <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:16px">About Windmill</div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-bottom:12px">
+        <div style="padding:16px;border-bottom:0.5px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <svg width="20" height="20" viewBox="0 0 26 26" fill="none"><circle cx="13" cy="13" r="2.8" fill="#5C7A4E"/><line x1="13" y1="9.8" x2="13" y2="2" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="13" y1="16.2" x2="13" y2="24" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="9.8" y1="13" x2="2" y2="13" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="16.2" y1="13" x2="24" y2="13" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="11.4" y1="11.4" x2="5.5" y2="5.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><line x1="14.6" y1="14.6" x2="20.5" y2="20.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><line x1="14.6" y1="11.4" x2="20.5" y2="5.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><line x1="11.4" y1="14.6" x2="5.5" y2="20.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/></svg>
+            <span style="font-size:14px;font-weight:600;color:var(--text);font-family:var(--font-serif)">Our Mission</span>
+          </div>
+          <p style="font-size:12px;color:var(--text);line-height:1.6;margin:0">Windmill exists to connect communities with the local farmers markets, artisan vendors and small businesses that make them unique. We believe shopping local builds stronger neighborhoods — and we're building the platform that makes it effortless.</p>
+        </div>
+        <div style="padding:14px 16px;border-bottom:0.5px solid var(--border)">
+          <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:8px">🛍 For Shoppers</div>
+          <p style="font-size:12px;color:var(--text2);line-height:1.5;margin:0">Discover markets near you, explore vendors by category, follow your favorites and never miss a market day. Free forever.</p>
+        </div>
+        <div style="padding:14px 16px;border-bottom:0.5px solid var(--border)">
+          <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:8px">🏪 For Vendors</div>
+          <p style="font-size:12px;color:var(--text2);line-height:1.5;margin:0">Claim your free listing to manage your profile and connect with customers. Upgrade to Windmill Pro for photos, analytics, social links and more.</p>
+        </div>
+        <div style="padding:14px 16px">
+          <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:8px">🏛 For Market Operators</div>
+          <p style="font-size:12px;color:var(--text2);line-height:1.5;margin:0">List your market, manage your vendor directory and promote your events to thousands of local shoppers — all in one place.</p>
+        </div>
+      </div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">📍 Where we are</div>
+        <p style="font-size:12px;color:var(--text2);line-height:1.5;margin:0">Currently live in Lee County, Sarasota/Bradenton and Tampa Bay, Florida. Expanding across the US — one market at a time.</p>
+      </div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">✉️ Contact us</div>
+        <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
+      </div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px">
+        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:10px">🌐 Follow us</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <a href="https://www.instagram.com/shop.windmill?utm_source=qr" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--terra);text-decoration:none">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+            @shop.windmill
+          </a>
+          <a href="https://www.facebook.com/people/Shopwindmill/61590166275828/" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--terra);text-decoration:none">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+            Shopwindmill
+          </a>
+        </div>
+      </div>
+    </div>`;
+  } else if(section === 'support') {
+    sb.innerHTML = backBtn + `<div style="padding:16px">
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:4px">Contact Support</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">We respond within 24 hours.</div>
+      <textarea id="operatorSupportMsg" placeholder="How can we help?" style="width:100%;min-height:120px;padding:10px 12px;border:0.5px solid var(--border);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);color:var(--text);background:var(--surface);resize:vertical;box-sizing:border-box"></textarea>
+      <button onclick="submitOperatorSupportMessage()" style="width:100%;margin-top:10px;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Send message</button>
+    </div>`;
+  }
+}
+
+async function saveOperatorSettingsProfile() {
+  const updates = {
+    name: document.getElementById('osp_name')?.value?.trim(),
+    phone: document.getElementById('osp_phone')?.value?.trim(),
+    address: document.getElementById('osp_address')?.value?.trim()
+  };
+  if(updates.phone) ST.opPhone = updates.phone;
+  if(updates.address) ST.opAddress = updates.address;
+  if(supabaseClient && ST.operatorId) {
+    try { await supabaseClient.from('operators').update(updates).eq('id', ST.operatorId); } catch(e) { console.warn('Save failed:', e); }
+  }
+  const toast = document.createElement('div');
+  toast.textContent = 'Profile updated ✓';
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+  renderOperatorSettings();
+}
 function openOperatorMarketPage(slug) {
   if(!slug) return;
   window.open('https://shopwindmill.com/markets/' + slug, '_blank', 'noopener');
