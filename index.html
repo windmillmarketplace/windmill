@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.65.12 -->
+<!-- v1.68.18 -->
 <!-- Google Analytics -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-S8FMXZ1YJL"></script>
 <script>
@@ -169,18 +169,26 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .market-card:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(44,32,22,.08)}
 @media(min-width:768px){.market-card{min-width:195px;max-width:195px}}
 /* Spotlight cards — same size as market cards */
-.spotlight-card{min-width:160px;max-width:160px;background:var(--surface);border-radius:var(--r-lg);border:0.5px solid var(--green-mid);overflow:hidden;flex-shrink:0;cursor:pointer;transition:transform .15s,box-shadow .15s;position:relative}
+.spotlight-card{min-width:200px;max-width:200px;background:var(--surface);border-radius:var(--r-lg);border:0.5px solid var(--green-mid);overflow:hidden;flex-shrink:0;cursor:pointer;transition:transform .15s,box-shadow .15s;position:relative}
 .spotlight-card:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(92,122,78,.15)}
-@media(min-width:768px){.spotlight-card{min-width:180px;max-width:180px}}
+@media(min-width:768px){.spotlight-card{min-width:220px;max-width:220px}}
 .spotlight-badge{position:absolute;top:7px;left:7px;font-size:9px;font-weight:600;padding:3px 7px;border-radius:var(--r-pill);background:var(--green);color:#fff;letter-spacing:.2px;z-index:2}
-.spotlight-img{height:80px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;background:var(--green-lt)}
+.spotlight-img{height:95px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;background:var(--green-lt)}
 .spotlight-info{padding:9px 10px 10px}
 .spotlight-name{font-size:12px;font-weight:500;color:var(--text);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .spotlight-tagline{font-size:10px;color:var(--text2);line-height:1.3;margin-bottom:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ann-card{min-width:200px;max-width:200px;border-radius:var(--r-lg);border:0.5px solid var(--green-mid);overflow:hidden;flex-shrink:0;cursor:pointer;position:relative;display:flex;flex-direction:column}
+@media(min-width:768px){.ann-card{min-width:220px;max-width:220px}}
+.ann-badge{position:absolute;top:7px;left:7px;font-size:9px;font-weight:600;padding:3px 7px;border-radius:var(--r-pill);background:var(--terra);color:#fff;letter-spacing:.2px;z-index:2}
+.ann-body{padding:30px 11px 0;flex:1;min-height:95px}
+.ann-text{font-size:12px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.ann-footer{display:flex;align-items:center;justify-content:space-between;padding:8px 10px 9px;margin-top:8px;border-top:0.5px solid rgba(0,0,0,.08)}
+.ann-vendor{font-size:10px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
+.ann-expires{font-size:9px;opacity:.7;white-space:nowrap}
 /* SPOTLIGHT CAROUSEL */
 .spotlight-carousel-wrap{position:relative;overflow:hidden}
 .spotlight-track{display:flex;transition:transform .5s cubic-bezier(.4,0,.2,1);will-change:transform}
-.spotlight-track .spotlight-card{flex:0 0 160px;margin-right:10px}
+.spotlight-track .spotlight-card,.spotlight-track .ann-card{flex:0 0 200px;margin-right:10px}
 /* Sponsored row cards — same size */
 .sponsored-card{min-width:160px;max-width:160px;background:var(--surface);border-radius:var(--r-lg);border:0.5px solid var(--border);overflow:hidden;flex-shrink:0;cursor:pointer;transition:transform .15s;position:relative}
 .sponsored-card:hover{transform:translateY(-2px)}
@@ -888,6 +896,10 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
       <div id="locationModalSuggestions" style="margin-top:6px;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-md);overflow:hidden;display:none"></div>
     </div>
     <button onclick="useMyLocation()" style="width:100%;padding:10px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;color:var(--text2);font-family:var(--font-sans);margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:6px">📍 Use my location</button>
+    <label id="expandAreaRow" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);cursor:pointer;margin-bottom:8px">
+      <input type="checkbox" id="expandAreaCheck" onchange="setExpandArea(this.checked)" style="width:16px;height:16px;accent-color:var(--green);cursor:pointer;flex-shrink:0">
+      <span style="font-size:13px;color:var(--text2);line-height:1.3">Expand my search area</span>
+    </label>
     <button class="btn-primary" onclick="applyLocationModal()">Set location</button>
     <div style="margin-top:16px">
       <div id="locationModalChips"></div>
@@ -1018,6 +1030,17 @@ async function loadFromSupabase() {
       if(regions && regions.length > 0) DATA.regions = regions;
       if(cities && cities.length > 0) DATA.cities = cities;
 
+      // Preserve test vendor pro flags that Supabase may have overwritten
+      ['test-vendor-free','test-vendor-trial','test-vendor-pro'].forEach(tid => {
+        const tv = DATA.vendors.find(x => x.id === tid);
+        if(tv) {
+          tv.published = false;
+          if(tid === 'test-vendor-pro') tv.pro = true;
+          if(tid === 'test-vendor-trial') { tv.pro = false; tv.claimed = true; }
+          if(tid === 'test-vendor-free') { tv.pro = false; tv.claimed = true; }
+        }
+      });
+
       // Rebuild market_photos from market.photo field
       const photos = {};
       (markets || []).forEach(m => { if(m.photo) photos[m.id] = m.photo; });
@@ -1025,6 +1048,34 @@ async function loadFromSupabase() {
 
       DB_LOADED = true;
       console.log(`✓ Loaded from Supabase: ${vendors.length} vendors, ${markets.length} markets`);
+
+      // Auto-expiry: clear stale weekly_update and announcement fields
+      const now = new Date();
+      const dayMs = 24 * 60 * 60 * 1000;
+      DATA.vendors.forEach(v => {
+        if(!v.weekly_update) return;
+        const wu = typeof v.weekly_update === 'object' ? v.weekly_update : null;
+        if(!wu || !wu.posted_at) return;
+        const posted = new Date(wu.posted_at);
+        const expires = wu.expires || 'week';
+        const ageDays = (now - posted) / dayMs;
+        if((expires === 'week' && ageDays > 7) || (expires === 'month' && ageDays > 30)) {
+          v.weekly_update = null;
+          if(supabaseClient) supabaseClient.from('vendors').update({ weekly_update: null }).eq('id', v.id).then(()=>{});
+        }
+      });
+      DATA.operators.forEach(op => {
+        if(!op.announcement) return;
+        const ann = typeof op.announcement === 'object' ? op.announcement : null;
+        if(!ann || !ann.posted_at) return;
+        const posted = new Date(ann.posted_at);
+        const expires = ann.expires || 'week';
+        const ageDays = (now - posted) / dayMs;
+        if((expires === 'week' && ageDays > 7) || (expires === 'month' && ageDays > 30)) {
+          op.announcement = null;
+          if(supabaseClient) supabaseClient.from('operators').update({ announcement: null }).eq('id', op.id).then(()=>{});
+        }
+      });
 
       // Load claims for admin
       try {
@@ -1318,7 +1369,7 @@ const DATA = {
       primary_link:{label:"Website",url:"https://empanadaqueen.com"},
       markets:["lakes-park","fort-myers-downtown","cape-coral-downtown","babcock-ranch"],
       photo:"https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=200&q=80",
-      weekly_update:{date:"This Saturday",text:"This week we're bringing our new Nutella & Banana dessert empanada — only 24 made, first come first served! Also restocking our fan-favorite pulled pork & jalapeño. See you at Lakes Park Wednesday and Fort Myers Downtown Saturday! 🫔"},
+      weekly_update:{text:"New this Saturday: Nutella & Banana dessert empanadas — only 24 made, first come first served! Find us at Lakes Park and Fort Myers Downtown 🫔",expires:"week",badge:"This week",posted_at:"2026-06-13"},
       photos:[
         {url:"https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=600&q=80",caption:"Our signature chicken & sofrito empanadas, fresh from the oven"},
         {url:"https://images.unsplash.com/photo-1565299507177-b0ac66763828?w=600&q=80",caption:"Market setup at Lakes Park — we're always the green tent!"},
@@ -1359,7 +1410,7 @@ const DATA = {
       market_count:6,vendor_count:200,
       photo:"https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=200&q=80",
       sponsor:{name:"First Florida Credit Union",tagline:"Proud community partner"},
-      announcement:{date:"This week",text:"🌧 Rain contingency: If heavy rain is forecast Saturday morning, our Fort Myers location moves under the pavilion at Centennial Park. Follow us on Instagram for real-time updates! All other markets operating as normal."},
+      announcement:{text:"Rain contingency: If heavy rain is forecast Saturday morning, our Fort Myers location moves under the pavilion at Centennial Park. Follow us on Instagram for real-time updates! All other markets operating as normal.",expires:"week",badge:"This week",posted_at:"2026-06-13"},
       photos:[
         {url:"https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=600&q=80",caption:"Our flagship Fort Myers Saturday market — 80+ vendors every week"},
         {url:"https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=600&q=80",caption:"The kids corner at our Bonita Springs location"},
@@ -1465,7 +1516,8 @@ let ST = {
   mapInstance:null, mapMarkers:{}, mapSelectedId:null,
   mapView:'map', mapSearchQuery:'', mapBoundsMode:true, mapReady:false,
   mapMode:'markets', mapVendorSearch:'',
-  mapFilterDay:null, mapFilterOpen:false, mapFilterPet:false,
+  mapFilterDay:null, mapFilterOpen:false, mapFilterPet:false, mapFilterExpand:false,
+  expandArea: (()=>{try{return localStorage.getItem('wm_expandArea')==='true'}catch(e){return false}})(),
   globalSearchQuery:'', globalSearchOverride:'', vendorListSearch:'', vendorListCat:'',
   pendingVendorMap: null, pendingMarketMap: null,
   areaRequests:[
@@ -2268,7 +2320,7 @@ function buildGlobalSearchResults(val) {
 
   // Markets — search within current region first, fall back to all if none found
   const regionMarkets = DATA.markets.filter(m => m.published !== false &&
-    (!ST.region || m.region === ST.region) && (
+    (!getActiveRegions() || getActiveRegions().includes(m.region)) && (
       m.name.toLowerCase().includes(q) ||
       m.city.toLowerCase().includes(q) ||
       (m.venue && m.venue.toLowerCase().includes(q))
@@ -2286,7 +2338,7 @@ function buildGlobalSearchResults(val) {
 
   // Vendors — search within current region first
   const regionVendors = DATA.vendors.filter(v =>
-    v.published && (!ST.region || v.region === ST.region) && (
+    v.published && (!getActiveRegions() || getActiveRegions().includes(v.region)) && (
       v.name.toLowerCase().includes(q) ||
       v.category.toLowerCase().includes(q) ||
       v.slug.toLowerCase().includes(q)
@@ -2719,8 +2771,7 @@ function hideFilterUI() {
   const pills = document.getElementById('topbarFilterPills');
   if(pills) pills.innerHTML = '';
   // Update location text still
-  const locEl = document.getElementById('topbarLocationText');
-  if(locEl) locEl.textContent = ST.location;
+  updateTopbarLocation();
 }
 
 /* ── FILTER PILLS HTML ── */
@@ -2771,9 +2822,72 @@ function renderFilterStrip() {
   }
 
   // Update location text in topbar row1 (always visible)
-  const locEl = document.getElementById('topbarLocationText');
-  if(locEl) locEl.textContent = ST.location;
+  updateTopbarLocation();
 }
+
+// ── Expand Area helpers ──────────────────────────────────────────────────────
+function haversineMiles(lat1, lng1, lat2, lng2) {
+  const R = 3958.8, dLat = (lat2-lat1)*Math.PI/180, dLng = (lng2-lng1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// Get region center from its cities' average lat/lng
+function getRegionCenter(regionId) {
+  const cities = DATA.cities.filter(c => c.region_id === regionId);
+  if(!cities.length) return null;
+  return { lat: cities.reduce((s,c)=>s+c.lat,0)/cities.length, lng: cities.reduce((s,c)=>s+c.lng,0)/cities.length };
+}
+
+// Returns array of region IDs within 50 miles of the current region (excluding current)
+function getNearbyRegionIds() {
+  if(!ST.region) return [];
+  const home = getRegionCenter(ST.region);
+  if(!home) return [];
+  return DATA.regions
+    .filter(r => r.id !== ST.region)
+    .filter(r => {
+      const c = getRegionCenter(r.id);
+      return c && haversineMiles(home.lat, home.lng, c.lat, c.lng) <= 50;
+    })
+    .map(r => r.id);
+}
+
+// Returns array of region IDs to filter by (current + nearby if expanded)
+function getActiveRegions() {
+  if(!ST.region) return null; // null = all regions
+  if(!ST.expandArea) return [ST.region];
+  return [ST.region, ...getNearbyRegionIds()];
+}
+
+function setExpandArea(val) {
+  ST.expandArea = val;
+  try { localStorage.setItem('wm_expandArea', val ? 'true' : 'false'); } catch(e) {}
+  // Keep modal checkbox in sync
+  const chk = document.getElementById('expandAreaCheck');
+  if(chk) chk.checked = val;
+  updateTopbarLocation();
+  // If on explore, just refresh the map filters; otherwise full re-render
+  if(ST.tab === 'explore' && document.getElementById('mapFilterBar')) {
+    refreshMapFilters();
+  } else {
+    renderFilterStrip();
+    renderCurrentPage();
+  }
+}
+
+function updateTopbarLocation() {
+  const locEl = document.getElementById('topbarLocationText');
+  if(!locEl) return;
+  let txt = ST.location;
+  if(ST.expandArea && ST.region && getNearbyRegionIds().length > 0) {
+    // Show just the city name + + indicator
+    const city = ST.location.split(',')[0].trim();
+    txt = city + ' +';
+  }
+  locEl.textContent = txt;
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 function updateLocation(val) {
   ST.location = val;
@@ -2915,7 +3029,7 @@ function applyDateFilter(markets) {
 function applyAllFilters(markets) {
   let ms = [...markets];
   ms = ms.filter(m => m.published !== false); // hide draft markets from public
-  if(ST.region) ms = ms.filter(m => m.region === ST.region);
+  if(ST.region) ms = ms.filter(m => getActiveRegions().includes(m.region));
   if(ST.globalSearchOverride) {
     const q = ST.globalSearchOverride.toLowerCase();
     ms = ms.filter(m => m.name.toLowerCase().includes(q) || m.city.toLowerCase().includes(q) || (m.venue && m.venue.toLowerCase().includes(q)));
@@ -2948,7 +3062,7 @@ function applyAllFilters(markets) {
 /* ── APPLY VENDOR FILTERS ── */
 function applyVendorFilters(vendors) {
   let vs = [...vendors].filter(v=>v.published);
-  if(ST.region) vs = vs.filter(v => v.region === ST.region);
+  if(ST.region) vs = vs.filter(v => getActiveRegions().includes(v.region));
   if(ST.filters.cats.length > 0) {
     vs = vs.filter(v => ST.filters.cats.includes(v.category));
   }
@@ -2965,14 +3079,15 @@ function applyVendorFilters(vendors) {
   // Sort: vendors with at least one in-season market first
   const dayOrder = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   const todayIdx = new Date().getDay();
+  const sortActiveRegions = getActiveRegions();
   vs.sort((a, b) => {
-    const aInSeason = a.markets.some(mid => { const m = getMarket(mid); return m && isOpen(m); });
-    const bInSeason = b.markets.some(mid => { const m = getMarket(mid); return m && isOpen(m); });
+    const aInSeason = a.markets.some(mid => { const m = getMarket(mid); return m && (!sortActiveRegions || sortActiveRegions.includes(m.region)) && isOpen(m); });
+    const bInSeason = b.markets.some(mid => { const m = getMarket(mid); return m && (!sortActiveRegions || sortActiveRegions.includes(m.region)) && isOpen(m); });
     if(aInSeason && !bInSeason) return -1;
     if(!aInSeason && bInSeason) return 1;
-    // Within same season group, sort by next upcoming day
-    const aNext = Math.min(...a.markets.map(mid => { const m = getMarket(mid); return m ? (dayOrder.indexOf(getNextMarketDay(m)) - todayIdx + 7) % 7 : 7; }));
-    const bNext = Math.min(...b.markets.map(mid => { const m = getMarket(mid); return m ? (dayOrder.indexOf(getNextMarketDay(m)) - todayIdx + 7) % 7 : 7; }));
+    // Within same season group, sort by next upcoming day (region-scoped)
+    const aNext = Math.min(...a.markets.map(mid => { const m = getMarket(mid); return m && (!sortActiveRegions || sortActiveRegions.includes(m.region)) ? (dayOrder.indexOf(getNextMarketDay(m)) - todayIdx + 7) % 7 : 7; }));
+    const bNext = Math.min(...b.markets.map(mid => { const m = getMarket(mid); return m && (!sortActiveRegions || sortActiveRegions.includes(m.region)) ? (dayOrder.indexOf(getNextMarketDay(m)) - todayIdx + 7) % 7 : 7; }));
     return aNext - bNext;
   });
   return vs;
@@ -2985,9 +3100,11 @@ function vendorAnchorMarket(vendor) {
   const todayIdx = new Date().getDay();
   let bestInSeason = null, bestInSeasonDiff = 999;
   let bestOutOfSeason = null, bestOutOfSeasonDiff = 999;
+  const activeRegions = getActiveRegions();
   (vendor.markets || []).forEach(mid => {
     const m = getMarket(mid);
     if(!m) return;
+    if(activeRegions && !activeRegions.includes(m.region)) return;
     const diff = (dayOrder.indexOf(getNextMarketDay(m)) - todayIdx + 7) % 7;
     if(isOpen(m)) {
       if(diff < bestInSeasonDiff) { bestInSeasonDiff = diff; bestInSeason = m; }
@@ -3047,11 +3164,115 @@ function renderHome() {
   const regionVendors = ST.region ? DATA.vendors.filter(v=>v.published&&v.region===ST.region) : DATA.vendors.filter(v=>v.published);
   const marketCount = regionMarkets.length;
   const vendorCount2 = regionVendors.length;
-  const regionLabel = ST.region==='sarasota-bradenton'?'Sarasota / Bradenton':ST.region==='tampa-bay'?'Tampa Bay':ST.region==='collier-county'?'Naples / Collier County':'Lee County, FL';
+  const _rl = ST.region==='sarasota-bradenton'?'Sarasota / Bradenton':ST.region==='tampa-bay'?'Tampa Bay':ST.region==='collier-county'?'Naples / Collier County':'Lee County, FL';
+  const regionLabel = (ST.expandArea && getNearbyRegionIds().length > 0) ? _rl + ' + nearby' : _rl;
 
   let h = '';
 
-  // ── HERO ──
+  // ── HAPPENING TODAY / TOMORROW — compute before hero so button label is correct ──
+  let happeningHtml = '';
+  let happeningActive = false;
+  let heroBtnLabel = 'Browse markets near you';
+  let heroBtnAction = `navigate('explore')`;
+
+  (()=>{
+    const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const now = new Date();
+    const todayIdx = now.getDay();
+    const todayName = dayNames[todayIdx];
+    const tomorrowName = dayNames[(todayIdx + 1) % 7];
+    const activeRegions = getActiveRegions();
+    const ROW_CAP = 4;
+
+    // Region-scoped published markets
+    const scopedMarkets = DATA.markets.filter(m =>
+      m.published !== false &&
+      (!activeRegions || activeRegions.includes(m.region))
+    );
+
+    // Markets running today (in season + has today as a day)
+    const todayMarkets = scopedMarkets.filter(m => isOpen(m) && marketHasDay(m, todayName));
+
+    // Check if any today market is still open right now (end_time not yet passed)
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const parseTime = t => { if(!t) return 9999; const [hh,mi] = t.split(':'); return parseInt(hh)*60+parseInt(mi); };
+    const stillOpenMarkets = todayMarkets.filter(m => parseTime(m.end_time) > nowMinutes);
+    const allTodayClosed = todayMarkets.length > 0 && stillOpenMarkets.length === 0;
+
+    // Decide mode: 'today', 'tomorrow', or null
+    let mode = null;
+    let allMarkets = [];
+    let sectionDay = '';
+
+    if(stillOpenMarkets.length > 0) {
+      mode = 'today';
+      allMarkets = stillOpenMarkets.sort((a,b) => parseTime(a.start_time) - parseTime(b.start_time));
+      sectionDay = 'Today';
+    } else if(allTodayClosed || todayMarkets.length === 0) {
+      const tomorrowMarkets = scopedMarkets.filter(m => isOpen(m) && marketHasDay(m, tomorrowName));
+      if(tomorrowMarkets.length > 0) {
+        mode = 'tomorrow';
+        allMarkets = tomorrowMarkets.sort((a,b) => parseTime(a.start_time) - parseTime(b.start_time));
+        sectionDay = 'Tomorrow';
+      }
+    }
+
+    if(mode && allMarkets.length > 0) {
+      happeningActive = true;
+      const isToday = mode === 'today';
+      const filterDay = isToday ? todayName : tomorrowName;
+
+      // Hero button label + action — 3 contextual states
+      heroBtnLabel = isToday ? 'Explore today\'s markets' : 'Explore tomorrow\'s markets';
+      heroBtnAction = `ST.dateFilter={day:'${filterDay}'};ST.dateFilterLabel='${sectionDay}';ST.mapFilterOpen=true;navigate('explore')`;
+
+      const dotHtml = isToday
+        ? `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0"></span>`
+        : '';
+      const label = isToday ? 'Happening today' : "Tomorrow's markets";
+      const dayLabel = isToday
+        ? `Today · ${allMarkets.length} market${allMarkets.length===1?'':'s'} open`
+        : `${tomorrowName} · ${allMarkets.length} market${allMarkets.length===1?'':'s'}`;
+
+      const displayMarkets = allMarkets.slice(0, ROW_CAP);
+      const overflow = allMarkets.length - ROW_CAP;
+
+      happeningHtml += `<div style="margin:12px 16px 4px;border-radius:var(--r-lg);border:0.5px solid var(--border);background:var(--surface);overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px 8px;border-bottom:0.5px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:6px">
+            ${dotHtml}
+            <span style="font-size:11px;font-weight:600;color:var(--text);letter-spacing:0.3px;text-transform:uppercase">${label}</span>
+          </div>
+          <span style="font-size:11px;color:var(--brown)">${dayLabel}</span>
+        </div>`;
+
+      displayMarkets.forEach(m => {
+        const vc = vendorCount(m.id);
+        const timeLabel = (m.start_time && m.end_time) ? `${formatTime(m.start_time)}–${formatTime(m.end_time)}` : m.start_time ? formatTime(m.start_time) : '';
+        happeningHtml += `<div onclick="navigate('market','${m.id}')" style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:0.5px solid var(--surface2);gap:8px;cursor:pointer;-webkit-tap-highlight-color:transparent">
+          <div style="min-width:0;flex:1">
+            <div style="font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.name}</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:1px">${m.city}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0">
+            ${timeLabel ? `<div style="font-size:11px;font-weight:500;color:var(--green)">${timeLabel}</div>` : ''}
+            <div style="font-size:10px;color:var(--text3)">${vc} ${vc===1?'vendor':'vendors'}</div>
+          </div>
+        </div>`;
+      });
+
+      // Overflow link — only when rows are capped
+      if(overflow > 0) {
+        happeningHtml += `<div onclick="${heroBtnAction}" style="padding:8px 12px;text-align:center;cursor:pointer;border-top:0.5px solid var(--surface2)">
+          <span style="font-size:11px;font-weight:500;color:var(--terra)">and ${overflow} more →</span>
+        </div>`;
+      }
+
+      happeningHtml += `</div>`;
+    }
+  })();
+
+  // ── HERO — button label and action are context-aware ──
   h += `<div class="home-hero">
     <div class="home-hero-eyebrow">🌾 Southwest Florida</div>
     <div class="home-hero-headline">Your local farmers market,<br>at your fingertips</div>
@@ -3063,33 +3284,156 @@ function renderHome() {
       <span class="home-hero-stat-divider"></span>
       <span class="home-hero-stat">${regionLabel}</span>
     </div>
-    <button class="home-hero-cta" onclick="navigate('explore')">
+    <button class="home-hero-cta" onclick="${heroBtnAction}">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-      Browse markets near you
+      ${heroBtnLabel}
     </button>
   </div>`;
+
+  // ── HAPPENING TODAY / TOMORROW — inject after hero ──
+  h += happeningHtml;
 
   // ── SPOTLIGHT ROW ──
   h += `<div class="section"><div class="section-header">
     <span class="section-title">⭐ Spotlight</span>
     <span style="font-size:10px;color:var(--text3);font-style:italic">Featured vendors & markets</span>
   </div></div>
-  <div class="spotlight-carousel-wrap" id="spotlightCarousel" style="overflow:hidden;position:relative">
-    <div id="spotlightTrack" style="display:flex;gap:10px;padding:0 16px 16px;transition:transform .5s cubic-bezier(.4,0,.2,1);will-change:transform">`;
-  const spotlightItems = DATA.spotlight[ST.region] || DATA.spotlight['lee-county'];
-  spotlightItems.forEach(s => {
-    h += `<div class="spotlight-card" onclick="navigate('${s.route==='demo-vendor-pro'||s.route==='demo-operator-pro'?s.route:s.type}','${s.id}')">
-      <span class="spotlight-badge">⭐ Pro</span>
-      <div class="spotlight-img">
-        <img src="${s.photo}" alt="${s.name}" style="width:100%;height:100%;object-fit:cover" loading="lazy">
-      </div>
-      <div class="spotlight-info">
-        <div class="spotlight-name">${s.name}</div>
-        <div class="spotlight-tagline">${s.tagline}</div>
-      </div>
-    </div>`;
+  <div class="hscroll">`;
+
+  // Announcement card light background colors — hardwired for demo, hash for live
+  const annLightColors = [
+    { bg: '#EEF2EB', text: '#3D5435' },  // sage green
+    { bg: '#FDF3DC', text: '#7A4E08' },  // warm amber
+    { bg: '#FAEDE6', text: '#7A2E10' },  // soft terra cotta
+    { bg: '#F5F0EA', text: '#6B4F2A' },  // warm brown
+  ];
+  const annColorMap = {
+    'demo-vendor-pro':   { bg: '#EEF2EB', text: '#3D5435' },
+    'demo-operator-pro': { bg: '#FDF3DC', text: '#7A4E08' }
+  };
+  function annColorForId(id) {
+    if(annColorMap[id]) return annColorMap[id];
+    let hash = 0;
+    for(let i=0;i<id.length;i++) hash = ((hash<<5)-hash)+id.charCodeAt(i);
+    return annLightColors[Math.abs(hash) % annLightColors.length];
+  }
+  function annCategoryLabel(id, isOperator) {
+    if(id === 'demo-vendor-pro') return 'Vendor update';
+    if(id === 'demo-operator-pro') return 'Market news';
+    return isOperator ? 'Market news' : 'Vendor update';
+  }
+
+  // Collect active announcements from vendors and operators in active region
+  const activeRegionsNow = getActiveRegions();
+  const annCards = [];
+
+  // Vendor weekly updates
+  DATA.vendors.filter(v => v.published && v.weekly_update && (!activeRegionsNow || activeRegionsNow.includes(v.region))).forEach(v => {
+    const wu = typeof v.weekly_update === 'object' ? v.weekly_update : { text: v.weekly_update, expires: 'week' };
+    if(!wu.text) return;
+    const expiresLabel = wu.badge || (wu.expires === 'month' ? 'This month' : wu.expires === 'weekend' ? 'This weekend' : wu.expires === 'permanent' ? 'Ongoing' : 'This week');
+    const colors = annColorForId(v.id);
+    const catLabel = annCategoryLabel(v.id, false);
+    annCards.push({ id: v.id, name: v.name, text: wu.text, expiresLabel, catLabel, colors, nav: `navigate('vendor','${v.id}')` });
   });
-  h += `</div></div>`;
+
+  // Operator announcements
+  DATA.operators.forEach(op => {
+    if(!op.announcement) return;
+    const ann = typeof op.announcement === 'object' ? op.announcement : { text: op.announcement, expires: 'week' };
+    if(!ann.text) return;
+    // Demo operator always passes — real operators need a market in active region
+    const isDemo = op.id === 'demo-operator-pro';
+    if(!isDemo) {
+      const opMarkets = DATA.markets.filter(m => m.operator_id === op.id && (!activeRegionsNow || activeRegionsNow.includes(m.region)));
+      if(!opMarkets.length) return;
+    }
+    const expiresLabel = ann.badge || (ann.expires === 'month' ? 'This month' : ann.expires === 'weekend' ? 'This weekend' : ann.expires === 'permanent' ? 'Ongoing' : 'This week');
+    const colors = annColorForId(op.id);
+    const nav = isDemo ? `navigate('demo-operator-pro')` : `navigate('operator','${op.id}')`;
+    const catLabel = annCategoryLabel(op.id, true);
+    annCards.push({ id: op.id, name: op.name, text: ann.text, expiresLabel, catLabel, colors, nav });
+  });
+
+  // Build pro profile cards — pin demo cards first, shuffle the rest
+  const spotlightItems = DATA.spotlight[ST.region] || DATA.spotlight['lee-county'];
+  const pinnedIds = ['demo-vendor-pro', 'demo-operator-pro'];
+  const pinnedCards = pinnedIds.map(id => spotlightItems.find(s => s.id === id)).filter(Boolean).map(s => ({ type: 'pro', s }));
+  const remainingCards = spotlightItems.filter(s => !pinnedIds.includes(s.id));
+
+  // Shuffle remaining pro cards seeded by day
+  const daySeed = new Date().getDate();
+  const shuffledRest = [...remainingCards].sort((a,b) => {
+    const ha = (a.id.charCodeAt(0) + daySeed) % 7;
+    const hb = (b.id.charCodeAt(0) + daySeed) % 7;
+    return ha - hb;
+  }).map(s => ({ type: 'pro', s }));
+
+  // Build hardwired demo announcement cards
+  const eqAnnCards = [];
+  const eqVendor = DATA.demo_vendors ? DATA.demo_vendors.find(v => v.id === 'demo-vendor-pro') : null;
+  if(eqVendor?.weekly_update) {
+    const wu = typeof eqVendor.weekly_update === 'object' ? eqVendor.weekly_update : { text: eqVendor.weekly_update, expires: 'week' };
+    if(wu.text) {
+      const expiresLabel = wu.badge || (wu.expires === 'month' ? 'This month' : wu.expires === 'weekend' ? 'This weekend' : wu.expires === 'permanent' ? 'Ongoing' : 'This week');
+      const colors = annColorForId(eqVendor.id);
+      const catLabel = annCategoryLabel(eqVendor.id, false);
+      eqAnnCards.push({ type: 'ann', a: { id: eqVendor.id, name: eqVendor.name, text: wu.text, expiresLabel, catLabel, colors, nav: `navigate('demo-vendor-pro')` } });
+    }
+  }
+
+  const suncoastAnnCards = [];
+  const suncoastOp = DATA.demo_operators ? DATA.demo_operators.find(op => op.id === 'demo-operator-pro') : null;
+  if(suncoastOp?.announcement) {
+    const ann = typeof suncoastOp.announcement === 'object' ? suncoastOp.announcement : { text: suncoastOp.announcement, expires: 'week' };
+    if(ann.text) {
+      const expiresLabel = ann.badge || (ann.expires === 'month' ? 'This month' : ann.expires === 'weekend' ? 'This weekend' : ann.expires === 'permanent' ? 'Ongoing' : 'This week');
+      const colors = annColorForId(suncoastOp.id);
+      const catLabel = annCategoryLabel(suncoastOp.id, true);
+      suncoastAnnCards.push({ type: 'ann', a: { id: suncoastOp.id, name: suncoastOp.name, text: ann.text, expiresLabel, catLabel, colors, nav: `navigate('demo-operator-pro')` } });
+    }
+  }
+
+  // Final order: EQ pro → Suncoast pro → EQ announcement → first shuffled pro card → Suncoast announcement → rest
+  const allCards = [
+    ...pinnedCards,
+    ...eqAnnCards,
+    ...(shuffledRest.length > 0 ? [shuffledRest[0]] : []),
+    ...suncoastAnnCards,
+    ...annCards.filter(a => a.id !== 'demo-vendor-pro' && a.id !== 'demo-operator-pro').map(a=>({type:'ann',a})),
+    ...(shuffledRest.length > 1 ? shuffledRest.slice(1) : [])
+  ].slice(0, 8);
+
+  allCards.forEach(item => {
+    if(item.type === 'ann') {
+      const { id, name, text, expiresLabel, colors, nav } = item.a;
+      h += `<div class="ann-card" onclick="${nav}" style="background:${colors.bg};border-color:${colors.text}33">
+        <span class="ann-badge" style="background:${colors.text};color:#fff">${expiresLabel}</span>
+        <div class="ann-body">
+          <div style="font-size:13px;font-weight:600;color:${colors.text};margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+          <div class="ann-text" style="color:${colors.text};opacity:0.85">${text}</div>
+        </div>
+        <div class="ann-footer" style="border-top-color:${colors.text}22">
+          <span style="font-size:10px;color:${colors.text};opacity:0.5">${id.includes('operator') || id === 'demo-operator-pro' ? 'Market' : 'Vendor'}</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="${colors.text}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".4"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+      </div>`;
+    } else {
+      const s = item.s;
+      h += `<div class="spotlight-card" onclick="navigate('${s.route==='demo-vendor-pro'||s.route==='demo-operator-pro'?s.route:s.type}','${s.id}')">
+        <span class="spotlight-badge">Pro</span>
+        <div class="spotlight-img">
+          <img src="${s.photo}" alt="${s.name}" style="width:100%;height:100%;object-fit:cover" loading="lazy">
+        </div>
+        <div class="spotlight-info">
+          <div class="spotlight-name">${s.name}</div>
+          <div class="spotlight-tagline">${s.tagline}</div>
+        </div>
+      </div>`;
+    }
+  });
+
+  h += `</div>`;
 
   // ── SPONSORED PLACEHOLDER ──
   h += adUnit();
@@ -3189,7 +3533,6 @@ function renderHome() {
   </div>
   ${adUnit()}`;
   document.getElementById('scrollBody').innerHTML = h;
-  setTimeout(initSpotlightCarousel, 100);
 }
 
 /* ── VENDORS LIST PAGE ── */
@@ -3205,7 +3548,7 @@ function renderVendorsList() {
   let catFilter = ST.vendorListCat || '';
 
   const renderList = () => {
-    let vendors = DATA.vendors.filter(v => v.published && (!ST.region || v.region === ST.region));
+    let vendors = DATA.vendors.filter(v => v.published && (!getActiveRegions() || getActiveRegions().includes(v.region)));
     if(vendorSearch) {
       const q = vendorSearch.toLowerCase();
       vendors = vendors.filter(v =>
@@ -3325,12 +3668,82 @@ const CATEGORY_COPY = {
 };
 
 /* ── CATEGORY HUB PAGE ── */
+function catShowMoreMarkets(catId) {
+  const cat = DATA.categories.find(c => c.id === catId);
+  if(!cat) return;
+  const moreEl = document.getElementById('cat-markets-more');
+  const btnEl = document.getElementById('cat-markets-more-btn');
+  if(!moreEl || !btnEl) return;
+  const ids = JSON.parse(moreEl.textContent || '[]');
+  const markets = ids.map(id => DATA.markets.find(m => m.id === id)).filter(Boolean);
+  // Find current last market card to determine color offset
+  const existing = document.querySelectorAll('#scrollBody .vendor-card');
+  let colorOffset = existing.length;
+  let html = '';
+  markets.forEach((m, i) => {
+    const idx = colorOffset + i;
+    const open = isOpen(m);
+    const photo = DATA.market_photos[m.id];
+    html += `<div class="vendor-card" onclick="navigate('market','${m.id}')">
+      <div class="vendor-avatar" style="background:${mbg(idx)};width:52px;height:52px;border-radius:12px;overflow:hidden;padding:0;flex-shrink:0">
+        ${photo ? `<img src="${photo}" style="width:100%;height:100%;object-fit:cover" loading="lazy">` : `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${micn(idx)}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2l1.5 4H21l-2 7H6L4.5 6"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>`}
+      </div>
+      <div class="vendor-body">
+        <div class="vendor-name">${m.name}</div>
+        <div class="vendor-at"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${m.city} · ${getMarketScheduleLabel(m)}</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">
+          <span class="market-pill">${formatTimeRange(m.start_time,m.end_time)}</span>
+          <span class="market-pill" style="${open?'background:var(--green-lt);color:var(--green-dk)':'background:var(--amber-lt);color:#7A4E08'}">${open?(m.season_start==='All Year'?'Year Round':'In Season'):(m.season_start.slice(0,3)+'–'+m.season_end.slice(0,3))}</span>
+        </div>
+      </div>
+      <button onclick="event.stopPropagation();seeMarketOnMap('${m.id}')" style="font-size:10px;padding:4px 8px;border:0.5px solid var(--green-mid);border-radius:var(--r-pill);color:var(--green-dk);background:var(--green-lt);cursor:pointer;white-space:nowrap;font-family:var(--font-sans);align-self:flex-start">📍 Map</button>
+    </div>`;
+  });
+  // Insert before the button row
+  btnEl.insertAdjacentHTML('beforebegin', html);
+  moreEl.remove();
+  btnEl.remove();
+}
+
+function catShowMoreVendors(catId, offset) {
+  const cat = DATA.categories.find(c => c.id === catId);
+  if(!cat) return;
+  const listEl = document.getElementById('cat-vendor-list');
+  const btnEl = document.getElementById('cat-vendors-more-btn');
+  if(!listEl || !btnEl) return;
+  let regionVendors = DATA.vendors.filter(v => v.published && (!getActiveRegions() || getActiveRegions().includes(v.region)) && v.category === cat.label);
+  regionVendors = sortVendors(regionVendors);
+  const batch = regionVendors.slice(offset, offset + 10);
+  const newOffset = offset + batch.length;
+  let html = '';
+  batch.forEach((v, i) => {
+    const c = vc(offset + i);
+    html += `<div class="vendor-card" onclick="navigate('vendor','${v.id}')">
+      <div class="vendor-avatar" style="background:${c.bg};color:${c.c};overflow:hidden">${v.photo ? `<img src="${v.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : initials(v.name)}</div>
+      <div class="vendor-body">
+        <div class="vendor-name">${v.name}</div>
+        <div class="vendor-category">${v.category}${vendorSeasonPill(v)}</div>
+        ${vendorNextLine(v)}
+      </div>
+      <button class="follow-btn" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor',v.id)?t('following'):t('follow')}</button>
+    </div>`;
+  });
+  listEl.insertAdjacentHTML('beforeend', html);
+  if(newOffset >= regionVendors.length) {
+    btnEl.remove();
+  } else {
+    btnEl.querySelector('button').setAttribute('onclick', `catShowMoreVendors('${catId}',${newOffset})`);
+    const remaining = regionVendors.length - newOffset;
+    btnEl.querySelector('button').textContent = `Show ${Math.min(10, remaining)} more vendor${remaining===1?'':'s'}`;
+  }
+}
+
 function renderCategoryHub() {
   const sb = document.getElementById('scrollBody');
   if(sb) sb.classList.remove('explore-mode');
 
-  const regionVendors = DATA.vendors.filter(v => v.published && (!ST.region || v.region === ST.region));
-  const regionMarkets = DATA.markets.filter(m => m.published !== false && (!ST.region || m.region === ST.region));
+  const regionVendors = DATA.vendors.filter(v => v.published && (!getActiveRegions() || getActiveRegions().includes(v.region)));
+  const regionMarkets = DATA.markets.filter(m => m.published !== false && (!getActiveRegions() || getActiveRegions().includes(m.region)));
 
   let h = `<div>
     <div style="background:var(--surface);padding:12px 16px;border-bottom:0.5px solid var(--border);position:sticky;top:0;z-index:10">
@@ -3378,8 +3791,8 @@ function renderCategoryPage(catId) {
   const copy = CATEGORY_COPY[catId] || { desc: `Discover ${cat.label} vendors at farmers markets near you.` };
 
   // Build filtered vendor and market lists
-  let regionVendors = DATA.vendors.filter(v => v.published && (!ST.region || v.region === ST.region) && v.category === cat.label);
-  let regionMarkets = DATA.markets.filter(m => (!ST.region || m.region === ST.region));
+  let regionVendors = DATA.vendors.filter(v => v.published && (!getActiveRegions() || getActiveRegions().includes(v.region)) && v.category === cat.label);
+  let regionMarkets = DATA.markets.filter(m => (!getActiveRegions() || getActiveRegions().includes(m.region)));
   regionMarkets = applyDateFilter(regionMarkets);
   if(ST.filters.open) regionMarkets = regionMarkets.filter(m => isOpen(m));
   if(ST.filters.pet) regionMarkets = regionMarkets.filter(m => m.pet_friendly);
@@ -3447,17 +3860,29 @@ function renderCategoryPage(catId) {
   }
 
   // ── MARKETS SECTION ──
+  const MARKETS_PAGE = 5;
+  const VENDORS_PAGE = 5;
+  const VENDORS_MORE = 10;
+
+  const hasVendors = regionVendors.length > 0;
+
   h += `<div class="section" style="padding-top:16px;padding-bottom:8px">
-    <div class="section-header">
-      <span class="section-title">Where to find it</span>
-      <span style="font-size:12px;color:var(--text2)">${regionMarkets.length} market${regionMarkets.length===1?'':'s'}</span>
+    <div class="section-header" style="align-items:flex-start">
+      <div>
+        <span class="section-title">Where to find it</span>
+        <span style="font-size:12px;color:var(--text2);margin-left:8px">${regionMarkets.length} market${regionMarkets.length===1?'':'s'}</span>
+      </div>
+      ${hasVendors ? `<a onclick="document.getElementById('cat-vendors-section').scrollIntoView({behavior:'smooth'})" style="font-size:11px;color:var(--green-dk);cursor:pointer;white-space:nowrap;padding-top:2px">↓ Jump to vendors</a>` : ''}
     </div>
   </div>`;
 
   if(regionMarkets.length === 0) {
     h += `<div style="margin:0 16px 16px;padding:24px;text-align:center;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-lg);font-size:13px;color:var(--text2)">No markets found for this category in your area.</div>`;
   } else {
-    regionMarkets.forEach((m, i) => {
+    const initialMarkets = regionMarkets.slice(0, MARKETS_PAGE);
+    const remainingMarkets = regionMarkets.slice(MARKETS_PAGE);
+
+    initialMarkets.forEach((m, i) => {
       const open = isOpen(m);
       const photo = DATA.market_photos[m.id];
       h += `<div class="vendor-card" onclick="navigate('market','${m.id}')">
@@ -3475,10 +3900,18 @@ function renderCategoryPage(catId) {
         <button onclick="event.stopPropagation();seeMarketOnMap('${m.id}')" style="font-size:10px;padding:4px 8px;border:0.5px solid var(--green-mid);border-radius:var(--r-pill);color:var(--green-dk);background:var(--green-lt);cursor:pointer;white-space:nowrap;font-family:var(--font-sans);align-self:flex-start">📍 Map</button>
       </div>`;
     });
+
+    if(remainingMarkets.length > 0) {
+      // Store remaining markets in a JS-accessible way via a hidden element
+      h += `<div id="cat-markets-more" style="display:none">${JSON.stringify(remainingMarkets.map(m=>m.id))}</div>`;
+      h += `<div id="cat-markets-more-btn" style="margin:4px 16px 8px">
+        <button onclick="catShowMoreMarkets('${catId}')" style="width:100%;padding:10px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;color:var(--text2);cursor:pointer;font-family:var(--font-sans)">Show ${remainingMarkets.length} more market${remainingMarkets.length===1?'':'s'}</button>
+      </div>`;
+    }
   }
 
   // ── VENDORS SECTION ──
-  h += `<div class="section" style="padding-top:20px;padding-bottom:8px">
+  h += `<div id="cat-vendors-section" class="section" style="padding-top:20px;padding-bottom:8px">
     <div class="section-header">
       <span class="section-title">Vendors</span>
       <span style="font-size:12px;color:var(--text2)">${regionVendors.length} found</span>
@@ -3488,7 +3921,9 @@ function renderCategoryPage(catId) {
   if(regionVendors.length === 0) {
     h += noResultsSuggestions('vendors');
   } else {
-    regionVendors.forEach((v, i) => {
+    const initialVendors = regionVendors.slice(0, VENDORS_PAGE);
+    h += `<div id="cat-vendor-list">`;
+    initialVendors.forEach((v, i) => {
       const c = vc(i);
       h += `<div class="vendor-card" onclick="navigate('vendor','${v.id}')">
         <div class="vendor-avatar" style="background:${c.bg};color:${c.c};overflow:hidden">${v.photo ? `<img src="${v.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : initials(v.name)}</div>
@@ -3500,7 +3935,19 @@ function renderCategoryPage(catId) {
         <button class="follow-btn" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor',v.id)?t('following'):t('follow')}</button>
       </div>`;
     });
+    h += `</div>`;
+
+    if(regionVendors.length > VENDORS_PAGE) {
+      h += `<div id="cat-vendors-more-btn" style="margin:4px 16px 16px">
+        <button onclick="catShowMoreVendors('${catId}',${VENDORS_PAGE})" style="width:100%;padding:10px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;color:var(--text2);cursor:pointer;font-family:var(--font-sans)">Show more vendors</button>
+      </div>`;
+    }
   }
+
+  // ── ALL CATEGORIES BACK BUTTON ──
+  h += `<div style="margin:8px 16px 24px">
+    <button onclick="navigate('category-hub')" style="width:100%;padding:10px;background:none;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:12px;color:var(--text3);cursor:pointer;font-family:var(--font-sans)">← All categories</button>
+  </div>`;
 
   h += `</div>`;
   document.getElementById('scrollBody').innerHTML = h;
@@ -3574,6 +4021,7 @@ function renderMapModeContent() {
         <div class="mfpill ${!ST.mapFilterOpen&&!ST.mapFilterPet?'active':''}" onclick="clearMapFilters()">All markets</div>
         <div class="mfpill ${ST.mapFilterOpen?'active':''}" onclick="toggleMapFilter('open')">In Season</div>
         <div class="mfpill ${ST.mapFilterPet?'active':''}" onclick="toggleMapFilter('pet')">🐾 Pets OK</div>
+        <div class="mfpill ${ST.expandArea?'active':''}" onclick="setExpandArea(!ST.expandArea)" id="expandPill">📍 Expand area</div>
       </div>
       <div class="map-count" id="mapCount"></div>
       <div id="mapCardList"></div>`;
@@ -3593,7 +4041,7 @@ function renderMapModeContent() {
     const visibleMarketIds = new Set(visibleMarkets.map(m => m.id));
     let vendors = DATA.vendors.filter(v =>
       v.published &&
-      (!ST.region || v.region === ST.region) &&
+      (!getActiveRegions() || getActiveRegions().includes(v.region)) &&
       v.markets.some(mid => visibleMarketIds.has(mid))
     );
     if(ST.mapVendorSearch) {
@@ -3630,7 +4078,8 @@ function renderMapModeContent() {
 }
 
 function getMapFilteredMarkets() {
-  let markets = DATA.markets.filter(m => m.published && m.lat && m.lng && (!ST.region || m.region === ST.region));
+  const activeRegions = getActiveRegions();
+  let markets = DATA.markets.filter(m => m.published && m.lat && m.lng && (!activeRegions || activeRegions.includes(m.region)));
   if(ST.mapSearchQuery) {
     const q = ST.mapSearchQuery.toLowerCase();
     markets = markets.filter(m =>
@@ -4257,16 +4706,26 @@ function clearMapFilters() {
 function refreshMapFilters() {
   const bar = document.getElementById('mapFilterBar');
   if(bar) {
-    bar.querySelectorAll('.mfpill').forEach(el => el.classList.remove('active'));
-    if(!ST.mapFilterOpen && !ST.mapFilterPet) bar.querySelectorAll('.mfpill')[0]?.classList.add('active');
-    if(ST.mapFilterOpen) bar.querySelector('.mfpill:nth-last-child(2)')?.classList.add('active');
-    if(ST.mapFilterPet) bar.querySelector('.mfpill:last-child')?.classList.add('active');
+    const pills = bar.querySelectorAll('.mfpill');
+    // pill order: All markets [0], In Season [1], Pets OK [2], Expand area [3]
+    pills.forEach(el => el.classList.remove('active'));
+    if(!ST.mapFilterOpen && !ST.mapFilterPet) pills[0]?.classList.add('active');
+    if(ST.mapFilterOpen) pills[1]?.classList.add('active');
+    if(ST.mapFilterPet) pills[2]?.classList.add('active');
+    if(ST.expandArea) pills[3]?.classList.add('active');
   }
   const markets = getMapFilteredMarkets();
   renderMapPins(markets);
   renderMapCards(markets);
   if(markets.length === 0) showMapComingSoon();
   else hideMapComingSoon();
+  // Re-fit map bounds to the updated market set
+  if(ST.mapInstance && markets.length > 1) {
+    const bounds = L.latLngBounds(markets.map(m => [m.lat, m.lng]));
+    ST.mapInstance.fitBounds(bounds, {padding: [40, 40], animate: true});
+  } else if(ST.mapInstance && markets.length === 1) {
+    ST.mapInstance.setView([markets[0].lat, markets[0].lng], 13, {animate: true});
+  }
 }
 
 function setMapView(view) {
@@ -4349,8 +4808,8 @@ function noResultsSuggestions(type = 'markets') {
   const hasDateFilter = !!ST.dateFilter;
   const hasCatFilter = ST.filters.cats.length > 0;
   const hasOtherFilter = ST.filters.open || ST.filters.pet;
-  const regionMarkets = DATA.markets.filter(m => m.published !== false && (!ST.region || m.region === ST.region));
-  const regionVendors = DATA.vendors.filter(v => v.published && (!ST.region || v.region === ST.region));
+  const regionMarkets = DATA.markets.filter(m => m.published !== false && (!getActiveRegions() || getActiveRegions().includes(m.region)));
+  const regionVendors = DATA.vendors.filter(v => v.published && (!getActiveRegions() || getActiveRegions().includes(v.region)));
 
   // Build suggestion content first
   let suggestions = '';
@@ -7155,8 +7614,8 @@ function renderFollowing() {
   function buildCarouselItems(followedVendors, followedMarkets) {
     const dayOrder = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     const todayIdx = new Date().getDay();
-    const regionVendors = DATA.vendors.filter(v => v.published && (!ST.region || v.region === ST.region));
-    const regionMarkets = DATA.markets.filter(m => (!ST.region || m.region === ST.region));
+    const regionVendors = DATA.vendors.filter(v => v.published && (!getActiveRegions() || getActiveRegions().includes(v.region)));
+    const regionMarkets = DATA.markets.filter(m => (!getActiveRegions() || getActiveRegions().includes(m.region)));
 
     // Shuffle helper
     const shuffle = arr => [...arr].sort(() => Math.random() - 0.5);
@@ -7788,7 +8247,7 @@ function renderMe() {
 function showVendorOnboarding(step) {
   step = step || 1;
   const vendorId = ST.vendorId;
-  const v = vendorId ? DATA.vendors.find(x => x.id === vendorId) : null;
+  const v = vendorId ? applyVendorProState(DATA.vendors.find(x => x.id === vendorId)) : null;
   const isPro = v?.pro || ST.isProTrial;
   const name = ST.user?.name?.split(' ')[0] || 'there';
 
@@ -8006,7 +8465,7 @@ function updateGalleryCaption(idx, caption) {
 
 async function vendorOnboardingNext(step) {
   const vendorId = ST.vendorId;
-  const v = vendorId ? DATA.vendors.find(x => x.id === vendorId) : null;
+  const v = vendorId ? applyVendorProState(DATA.vendors.find(x => x.id === vendorId)) : null;
   const isPro = v?.pro || ST.isProTrial;
 
   // Save data from current step — works with or without local vendor object
@@ -8365,7 +8824,7 @@ async function renderVendorDash() {
   document.title = 'Vendor Dashboard | Windmill';
 
   const vendorId = ST.vendorId;
-  const v = vendorId ? DATA.vendors.find(x => x.id === vendorId) : null;
+  const v = vendorId ? applyVendorProState(DATA.vendors.find(x => x.id === vendorId)) : null;
   const isPro = v?.pro || ST.isProTrial;
   const isFreeTrial = ST.isProTrial && !v?.pro;
 
@@ -9740,7 +10199,8 @@ async function onAuthSuccess(user) {
   if(!ST.devMode) ST.role = role;
 
   // If vendor, also fetch fresh trial_start from vendors table to ensure tier is accurate
-  if(role === 'vendor' && vendorId && supabaseClient) {
+  // Skip for test/demo vendors — their pro state is managed by setTestVendorTier
+  if(role === 'vendor' && vendorId && supabaseClient && !vendorId.startsWith('test-vendor')) {
     try {
       const { data: vRow } = await supabaseClient.from('vendors').select('pro, trial_start').eq('id', vendorId).single();
       if(vRow) {
@@ -11309,11 +11769,41 @@ async function savePreOrderInterest(vendorId, role) {
   setTimeout(() => toast.remove(), 4000);
 }
 
-function showWeeklyUpdateModal() {
-  const v = ST.vendorId ? DATA.vendors.find(x => x.id === ST.vendorId) : null;
-  const existing = v?.weekly_update ? (typeof v.weekly_update === 'object' ? v.weekly_update.text : v.weekly_update) : '';
+// Re-applies correct pro state to a vendor object after any Supabase fetch.
+// Ensures ST.isProTrial and demo tier flags are never overwritten by stale DB values.
+function applyVendorProState(v) {
+  if(!v) return v;
+  if(ST.isProTrial) { v.pro = false; } // trial: pro flag stays false, ST.isProTrial drives gates
+  if(ST.vendorId && v.id === ST.vendorId) {
+    // For test vendors, always trust what setTestVendorTier injected into DATA
+    const dataV = DATA.vendors.find(x => x.id === v.id);
+    if(dataV && v.id.startsWith('test-vendor')) {
+      v.pro = dataV.pro;
+      v.claimed = dataV.claimed;
+    }
+  }
+  return v;
+}
 
-  // Remove any existing overlay first
+function showToast(msg, color) {
+  const toast = document.createElement('div');
+  toast.textContent = msg;
+  toast.style.cssText = `position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:${color||'var(--green)'};color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+function showWeeklyUpdateModal() {
+  const vendorId = ST.vendorId;
+  const v = vendorId ? DATA.vendors.find(x => x.id === vendorId) : null;
+  const isPro = v?.pro || ST.isProTrial;
+  if(!isPro) { navigate('vendors-join'); return; }
+
+  const existing = v?.weekly_update ? (typeof v.weekly_update === 'object' ? v.weekly_update.text : v.weekly_update) : '';
+  const existingExpires = v?.weekly_update?.expires || 'week';
+  const existingBadge = v?.weekly_update?.badge || '';
+  const hasExisting = !!v?.weekly_update;
+
   document.getElementById('weeklyUpdateOverlay')?.remove();
 
   const overlay = document.createElement('div');
@@ -11322,18 +11812,27 @@ function showWeeklyUpdateModal() {
   overlay.innerHTML = `
     <div style="background:var(--surface);border-radius:var(--r-lg) var(--r-lg) 0 0;width:100%;max-width:480px;padding:24px 20px 32px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-        <div style="font-family:var(--font-serif);font-size:17px;font-weight:600;color:var(--text)">📣 This week's update</div>
+        <div style="font-family:var(--font-serif);font-size:17px;font-weight:600;color:var(--text)">Post an update</div>
         <button onclick="document.getElementById('weeklyUpdateOverlay').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3)">×</button>
       </div>
-      <textarea id="weeklyUpdateText" placeholder="What are you bringing this week? Any specials, new items, or market appearances to share with your followers..." style="width:100%;min-height:120px;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none;resize:vertical;line-height:1.6;margin-bottom:12px">${existing}</textarea>
-      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;background:var(--surface2);border:0.5px solid var(--border);border-radius:var(--r-md);margin-bottom:16px;opacity:.6">
-        <input type="checkbox" disabled style="width:16px;height:16px;accent-color:#1877F2;cursor:not-allowed">
-        <div>
-          <div style="font-size:13px;font-weight:500;color:var(--text)">📘 Also post to Facebook</div>
-          <div style="font-size:11px;color:var(--text3)">Coming soon — Facebook API integration in progress</div>
+      <textarea id="weeklyUpdateText" maxlength="160" placeholder="What are you bringing this week? Any specials, new items, or market news to share with your followers..." style="width:100%;min-height:100px;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none;resize:none;line-height:1.6;margin-bottom:6px" oninput="document.getElementById('wuCharCount').textContent=160-this.value.length">${existing}</textarea>
+      <div style="text-align:right;font-size:11px;color:var(--text3);margin-bottom:12px"><span id="wuCharCount">${160 - existing.length}</span> characters remaining</div>
+      <div style="margin-bottom:12px">
+        <div style="font-size:11px;font-weight:500;color:var(--text2);margin-bottom:6px">Duration</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${['week','weekend','month','permanent'].map(val => {
+            const labels = {week:'This week',weekend:'This weekend',month:'This month',permanent:'Until removed'};
+            const active = existingExpires === val;
+            return `<div onclick="document.querySelectorAll('.wu-expire-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active');this.dataset.val='${val}';const bl=document.getElementById('wuBadgeLabel');if(bl&&!bl.dataset.edited)bl.value='${labels[val]}'" data-val="${val}" class="wu-expire-btn" style="padding:7px 10px;border-radius:var(--r-md);font-size:11px;cursor:pointer;border:0.5px solid ${active?'var(--green)':'var(--border-med)'};background:${active?'var(--green-lt)':'var(--surface2)'};color:${active?'var(--green-dk)':'var(--text2)'};font-family:var(--font-sans);transition:all .15s">${labels[val]}</div>`;
+          }).join('')}
         </div>
-      </label>
-      <button onclick="saveWeeklyUpdate()" style="width:100%;padding:13px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Post update</button>
+      </div>
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;font-weight:500;color:var(--text2);margin-bottom:4px">Badge label <span style="font-weight:400;color:var(--text3)">(shown on your card — max 15 chars)</span></div>
+        <input id="wuBadgeLabel" maxlength="15" placeholder="e.g. Father's Day, July 4th, This week..." value="${existingBadge || (existingExpires==='week'?'This week':existingExpires==='weekend'?'This weekend':existingExpires==='month'?'This month':'')}" oninput="this.dataset.edited='1'" style="width:100%;padding:8px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none">
+      </div>
+      <button onclick="saveWeeklyUpdate()" style="width:100%;padding:13px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:10px">Post update</button>
+      ${hasExisting ? `<button onclick="removeWeeklyUpdate()" style="width:100%;padding:10px;background:transparent;color:var(--terra);border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:13px;cursor:pointer;font-family:var(--font-sans)">Remove current update</button>` : ''}
     </div>`;
   document.body.appendChild(overlay);
   overlay.addEventListener('click', e => { if(e.target === overlay) overlay.remove(); });
@@ -11344,25 +11843,36 @@ async function saveWeeklyUpdate() {
   const text = document.getElementById('weeklyUpdateText')?.value?.trim();
   if(!text) { alert('Please write something first.'); return; }
   const vendorId = ST.vendorId;
-  const v = vendorId ? DATA.vendors.find(x => x.id === vendorId) : null;
-  const update = { text, date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) };
-
-  // Save to local DATA if available
+  if(!vendorId) { alert('Could not identify your vendor account. Please try again.'); return; }
+  const v = DATA.vendors.find(x => x.id === vendorId);
+  const activeBtn = document.querySelector('.wu-expire-btn.active');
+  const expires = activeBtn?.dataset?.val || 'week';
+  const badgeRaw = document.getElementById('wuBadgeLabel')?.value?.trim();
+  const defaultBadge = {week:'This week',weekend:'This weekend',month:'This month',permanent:'Ongoing'}[expires] || 'This week';
+  const badge = badgeRaw || defaultBadge;
+  const update = { text, expires, badge, posted_at: new Date().toISOString().split('T')[0] };
   if(v) v.weekly_update = update;
-
-  // Save to Supabase directly by vendor ID (works even without local vendor object)
-  if(supabaseClient && vendorId) {
+  if(supabaseClient) {
     try {
       await supabaseClient.from('vendors').update({ weekly_update: update }).eq('id', vendorId);
     } catch(e) { console.warn('Weekly update save failed:', e); }
   }
-
   document.getElementById('weeklyUpdateOverlay')?.remove();
-  const toast = document.createElement('div');
-  toast.textContent = 'Update posted ✓';
-  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 3000);
+  showToast('Update posted ✓');
+}
+
+async function removeWeeklyUpdate() {
+  const vendorId = ST.vendorId;
+  if(!vendorId) return;
+  const v = DATA.vendors.find(x => x.id === vendorId);
+  if(v) v.weekly_update = null;
+  if(supabaseClient) {
+    try {
+      await supabaseClient.from('vendors').update({ weekly_update: null }).eq('id', vendorId);
+    } catch(e) { console.warn('Weekly update remove failed:', e); }
+  }
+  document.getElementById('weeklyUpdateOverlay')?.remove();
+  showToast('Update removed ✓');
 }
 
 function collapseSection(id) {
@@ -11393,7 +11903,7 @@ function collapsibleSection(id, title, content, badge, defaultOpen) {
 function renderVendorProfileEdit() {
   hideFilterUI();
   const vendorId = ST.vendorId;
-  const v = vendorId ? DATA.vendors.find(x => x.id === vendorId) : null;
+  const v = vendorId ? applyVendorProState(DATA.vendors.find(x => x.id === vendorId)) : null;
   const isPro = v?.pro || ST.isProTrial;
 
   // Determine existing social link type and value
@@ -11853,10 +12363,12 @@ async function renderVendorSchedule() {
     try {
       const { data } = await supabaseClient.from('vendors').select('id, name, markets, pro, trial_start').eq('id', vendorId).single();
       if(data) {
-        v = data;
+        v = applyVendorProState(data);
         DATA.vendors.push(v); // cache it
       }
     } catch(e) { console.warn('Could not load vendor data:', e); }
+  } else if(v) {
+    v = applyVendorProState(v);
   }
 
   const isPro = !!(v && (v.pro || ST.isProTrial));
@@ -11910,8 +12422,10 @@ async function renderVendorProducts() {
   if(!v && vendorId && supabaseClient) {
     try {
       const { data } = await supabaseClient.from('vendors').select('id, name, pro, trial_start').eq('id', vendorId).single();
-      if(data) { v = data; DATA.vendors.push(v); }
+      if(data) { v = applyVendorProState(data); DATA.vendors.push(v); }
     } catch(e) { console.warn('Could not load vendor data:', e); }
+  } else if(v) {
+    v = applyVendorProState(v);
   }
 
   var isPro = !!(v && (v.pro || ST.isProTrial));
@@ -11965,7 +12479,7 @@ async function renderVendorProducts() {
 function renderVendorSettings() {
   hideFilterUI();
   const vendorId = ST.vendorId;
-  const v = vendorId ? DATA.vendors.find(x=>x.id===vendorId) : null;
+  const v = vendorId ? applyVendorProState(DATA.vendors.find(x=>x.id===vendorId)) : null;
   const isPro = v?.pro || ST.isProTrial;
   const isTrial = !v?.pro && ST.isProTrial;
   const trialStart = ST.trialStart;
@@ -12677,9 +13191,36 @@ function renderOperatorAnnouncements() {
     <div class="dash-section">
       <div class="dash-section-title" style="display:flex;align-items:center;justify-content:space-between">
         Announcements
-        <span style="font-size:10px;color:var(--text3)">🔒 Pro</span>
+        ${!(ST.opIsPro || ST.opIsProTrial) ? '<span style="font-size:10px;color:var(--text3)">🔒 Pro</span>' : ''}
       </div>
-      ${proLockedSection('Post Announcements','Send updates to your market followers. Great for closures, events, and seasonal news.')}
+      ${(ST.opIsPro || ST.opIsProTrial) ? (() => {
+        const opId = ST.operatorId;
+        const op = DATA.operators.find(o => o.id === opId);
+        const existing = op?.announcement?.text || '';
+        const existingExpires = op?.announcement?.expires || 'week';
+        const existingBadge = op?.announcement?.badge || '';
+        const hasExisting = !!op?.announcement;
+        return `
+        <div style="font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.5">Post updates to all your market followers — closures, events, seasonal news, and more.</div>
+        <textarea id="opAnnounceText" maxlength="160" placeholder="Share an update with your market followers..." style="width:100%;min-height:90px;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none;resize:none;line-height:1.6;margin-bottom:6px" oninput="document.getElementById('opAnnCharCount').textContent=160-this.value.length">${existing}</textarea>
+        <div style="text-align:right;font-size:11px;color:var(--text3);margin-bottom:12px"><span id="opAnnCharCount">${160 - existing.length}</span> characters remaining</div>
+        <div style="margin-bottom:12px">
+          <div style="font-size:11px;font-weight:500;color:var(--text2);margin-bottom:6px">Duration</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${['week','weekend','month','permanent'].map(val => {
+              const labels = {week:'This week',weekend:'This weekend',month:'This month',permanent:'Until removed'};
+              const active = existingExpires === val;
+              return `<div onclick="document.querySelectorAll('.op-expire-btn').forEach(b=>{const a=b.dataset.val===this.dataset.val;b.style.background=a?'var(--green-lt)':'var(--surface2)';b.style.color=a?'var(--green-dk)':'var(--text2)';b.style.borderColor=a?'var(--green)':'var(--border-med)';b.dataset.active=a?'1':'0'});const bl=document.getElementById('opBadgeLabel');if(bl&&!bl.dataset.edited)bl.value='${labels[val]}'" data-val="${val}" data-active="${active?'1':'0'}" class="op-expire-btn" style="padding:7px 10px;border-radius:var(--r-md);font-size:11px;cursor:pointer;border:0.5px solid ${active?'var(--green)':'var(--border-med)'};background:${active?'var(--green-lt)':'var(--surface2)'};color:${active?'var(--green-dk)':'var(--text2)'};font-family:var(--font-sans)">${labels[val]}</div>`;
+            }).join('')}
+          </div>
+        </div>
+        <div style="margin-bottom:12px">
+          <div style="font-size:11px;font-weight:500;color:var(--text2);margin-bottom:4px">Badge label <span style="font-weight:400;color:var(--text3)">(max 15 chars)</span></div>
+          <input id="opBadgeLabel" maxlength="15" placeholder="e.g. Father's Day, Holiday hours..." value="${existingBadge || (existingExpires==='week'?'This week':existingExpires==='weekend'?'This weekend':existingExpires==='month'?'This month':'')}" oninput="this.dataset.edited='1'" style="width:100%;padding:8px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none">
+        </div>
+        <button onclick="saveOperatorAnnouncement()" style="width:100%;padding:11px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans);margin-bottom:8px">Post announcement</button>
+        ${hasExisting ? `<button onclick="removeOperatorAnnouncement()" style="width:100%;padding:9px;background:transparent;color:var(--terra);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:12px;cursor:pointer;font-family:var(--font-sans)">Remove current announcement</button>` : ''}`;
+      })() : proLockedSection('Post Announcements','Send updates to your market followers. Great for closures, events, and seasonal news.')}
     </div>` : `<div style="padding:24px;text-align:center;color:var(--text2);font-size:13px">No markets found for your account.</div>`}
   </div>`;
 }
@@ -12713,6 +13254,53 @@ async function opSaveSchedule(marketId) {
       console.warn('Could not save schedule:', e);
     }
   }
+  renderOperatorAnnouncements();
+}
+
+async function saveOperatorAnnouncement() {
+  const text = document.getElementById('opAnnounceText')?.value?.trim();
+  if(!text) { alert('Please write something first.'); return; }
+  const opId = ST.operatorId;
+  if(!opId) { alert('Could not identify your operator account. Please try again.'); return; }
+  const op = DATA.operators.find(o => o.id === opId);
+  const activeBtn = [...document.querySelectorAll('.op-expire-btn')].find(b => b.dataset.active === '1');
+  const expires = activeBtn?.dataset?.val || 'week';
+  const badgeRaw = document.getElementById('opBadgeLabel')?.value?.trim();
+  const defaultBadge = {week:'This week',weekend:'This weekend',month:'This month',permanent:'Ongoing'}[expires] || 'This week';
+  const badge = badgeRaw || defaultBadge;
+  const announcement = {
+    text,
+    expires,
+    badge,
+    posted_at: new Date().toISOString().split('T')[0]
+  };
+  if(op) op.announcement = announcement;
+  if(supabaseClient) {
+    try {
+      await supabaseClient.from('operators').update({ announcement }).eq('id', opId);
+      showToast('Announcement posted ✓');
+      renderOperatorAnnouncements();
+    } catch(e) {
+      console.warn('Operator announcement save failed:', e);
+      showToast('Save failed — please try again', 'var(--terra)');
+    }
+  } else {
+    showToast('Announcement posted ✓');
+    renderOperatorAnnouncements();
+  }
+}
+
+async function removeOperatorAnnouncement() {
+  const opId = ST.operatorId;
+  if(!opId) return;
+  const op = DATA.operators.find(o => o.id === opId);
+  if(op) op.announcement = null;
+  if(supabaseClient) {
+    try {
+      await supabaseClient.from('operators').update({ announcement: null }).eq('id', opId);
+    } catch(e) { console.warn('Operator announcement remove failed:', e); }
+  }
+  showToast('Announcement removed ✓');
   renderOperatorAnnouncements();
 }
 
@@ -13290,7 +13878,7 @@ function renderDemoVendorPro() {
     ${v.weekly_update ? `<div style="margin:8px 0 0;background:var(--surface);border-bottom:0.5px solid var(--border);padding:14px 16px">
       <div style="font-size:10px;font-weight:600;color:var(--green-dk);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📣 This week's update</div>
       <p style="font-size:13px;color:var(--text);line-height:1.5">${v.weekly_update.text}</p>
-      <div style="font-size:10px;color:var(--text3);margin-top:6px">${v.weekly_update.date}</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:6px">${v.weekly_update.posted_at ? new Date(v.weekly_update.posted_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : (v.weekly_update.date||'')}</div>
     </div>` : ''}
 
     <div class="profile-section">
@@ -13753,6 +14341,8 @@ function openLocationModal() {
   if(inp) { inp.value = ST.location; }
   const sug = document.getElementById('locationModalSuggestions');
   if(sug) sug.style.display = 'none';
+  const chk = document.getElementById('expandAreaCheck');
+  if(chk) chk.checked = ST.expandArea;
   renderLocationModalChips();
   openModal('locationModal');
 }
@@ -13907,84 +14497,6 @@ function initSectionNavObserver(navId, sectionIds) {
   sectionIds.forEach(id => {
     const el = document.getElementById(id);
     if(el) observer.observe(el);
-  });
-}
-
-/* ── SPOTLIGHT CAROUSEL ── */
-let _carouselTimer = null;
-let _carouselIdx = 0;
-let _carouselPaused = false;
-
-function initSpotlightCarousel() {
-  const track = document.getElementById('spotlightTrack');
-  if(!track) return;
-
-  if(_carouselTimer) clearInterval(_carouselTimer);
-  _carouselPaused = false;
-
-  const origCards = Array.from(track.querySelectorAll('.spotlight-card'));
-  if(origCards.length <= 1) return;
-
-  // Clone all cards and append for seamless infinite loop
-  origCards.forEach(card => {
-    const clone = card.cloneNode(true);
-    clone.setAttribute('aria-hidden', 'true');
-    track.appendChild(clone);
-  });
-
-  const total = origCards.length;
-  _carouselIdx = 0;
-
-  requestAnimationFrame(() => {
-    const cardWidth = origCards[0].getBoundingClientRect().width + 10;
-
-    function goTo(idx, animated) {
-      if(animated === false) track.style.transition = 'none';
-      else track.style.transition = 'transform .5s cubic-bezier(.4,0,.2,1)';
-      _carouselIdx = idx;
-      track.style.transform = `translateX(-${idx * cardWidth}px)`;
-    }
-
-    function advance() {
-      if(_carouselPaused) return;
-      const next = _carouselIdx + 1;
-      goTo(next, true);
-      // When we've shown all clones, silently reset to real cards
-      if(next >= total) {
-        setTimeout(() => goTo(0, false), 520);
-      }
-    }
-
-    if(_carouselTimer) clearInterval(_carouselTimer);
-    _carouselTimer = setInterval(advance, 4500);
-
-    const wrap = document.getElementById('spotlightCarousel');
-    if(wrap) {
-      let touchStartX = 0;
-      wrap.addEventListener('touchstart', e => {
-        touchStartX = e.touches[0].clientX;
-        _carouselPaused = true;
-        clearInterval(_carouselTimer);
-      }, {passive:true});
-
-      wrap.addEventListener('touchend', e => {
-        const diff = touchStartX - e.changedTouches[0].clientX;
-        if(Math.abs(diff) > 40) goTo(_carouselIdx + (diff > 0 ? 1 : -1), true);
-        setTimeout(() => {
-          _carouselPaused = false;
-          _carouselTimer = setInterval(advance, 4500);
-        }, 8000);
-      }, {passive:true});
-
-      wrap.addEventListener('click', () => {
-        _carouselPaused = true;
-        clearInterval(_carouselTimer);
-        setTimeout(() => {
-          _carouselPaused = false;
-          _carouselTimer = setInterval(advance, 4500);
-        }, 8000);
-      });
-    }
   });
 }
 
@@ -14150,10 +14662,10 @@ async function initApp() {
 
   renderSidebar();
   renderFilterStrip();
+  updateTopbarLocation();
   renderBottom();
   renderCurrentPage();
   initViewToggle();
-  setTimeout(initSpotlightCarousel, 100);
 }
 
 // Add spin animation
