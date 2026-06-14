@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.69.5 -->
+<!-- v1.69.6 -->
 <!-- v1.69.4 -->
 <!-- v1.68.18 -->
 <!-- Google Analytics -->
@@ -277,9 +277,10 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 /* Desktop two-column home layout */
 .home-desktop-layout{display:block}
 @media(min-width:768px){.home-desktop-layout{display:grid;grid-template-columns:55% 45%;border-bottom:0.5px solid #C8D8BE;background:linear-gradient(120deg,#EEF2EB 0%,#F5F8F2 50%,#EAF0E5 100%)}}
-.home-right-col{display:block}
+/* Right col: hidden on mobile, flex on desktop */
+.home-right-col{display:none}
 @media(min-width:768px){.home-right-col{display:flex;flex-direction:column;justify-content:center;padding:24px 24px 24px 0;min-height:320px;overflow:hidden}}
-/* Mobile happening section hidden on desktop — shown in right col instead */
+/* Mobile happening section: shown on mobile, hidden on desktop */
 .home-happening-mobile{display:block}
 @media(min-width:768px){.home-happening-mobile{display:none}}
 .home-hero-eyebrow{font-size:10px;font-weight:600;color:var(--green-dk);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
@@ -3362,14 +3363,13 @@ function renderHome() {
     </button>
   </div>`;
 
-  // Right: happening today/tomorrow, or spotlight fallback
+  // Right col: desktop only — happening today/tomorrow or spotlight fallback
   h += `<div class="home-right-col">`;
   if(happeningActive) {
     h += happeningHtml;
   } else {
-    // Spotlight fallback — show first 3 spotlight cards vertically
     const spotlightFallbackItems = (DATA.spotlight[ST.region] || DATA.spotlight['lee-county']).slice(0, 3);
-    h += `<div style="padding:0 0 0 0">
+    h += `<div>
       <div style="font-size:11px;font-weight:600;color:var(--green-dk);text-transform:uppercase;letter-spacing:0.3px;padding:16px 16px 8px">⭐ Spotlight</div>`;
     spotlightFallbackItems.forEach(s => {
       h += `<div onclick="navigate('${s.route==='demo-vendor-pro'||s.route==='demo-operator-pro'?s.route:s.type}','${s.id}')" style="display:flex;align-items:center;gap:10px;padding:8px 16px;cursor:pointer;border-bottom:0.5px solid var(--border)">
@@ -3389,7 +3389,7 @@ function renderHome() {
 
   h += `</div>`; // end home-desktop-layout
 
-  // ── HAPPENING TODAY / TOMORROW — mobile only (already shown in right col on desktop) ──
+  // Mobile only: happening today/tomorrow shown below hero
   h += `<div class="home-happening-mobile">${happeningHtml}</div>`;
 
   // ── SPOTLIGHT ROW ──
