@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
+<!-- v1.69.5 -->
+<!-- v1.69.4 -->
 <!-- v1.68.18 -->
 <!-- Google Analytics -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-S8FMXZ1YJL"></script>
@@ -59,10 +61,10 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
   .desktop-sidebar{display:flex;flex-direction:column;width:220px;min-height:calc(100vh - 32px);background:var(--surface);border-right:0.5px solid var(--border);position:sticky;top:0;height:100vh;overflow-y:auto;padding:20px 0}
   .role-bar:not(.hidden) ~ .shell .desktop-sidebar{top:32px;height:calc(100vh - 32px)}
   .desktop-main{flex:1;min-width:0;display:flex;flex-direction:column}
-  .desktop-topnav{display:flex;align-items:center;background:#EEF2EB;border-bottom:0.5px solid #C8D8BE;padding:12px 24px;gap:16px;position:sticky;top:0;z-index:50}
+  .desktop-topnav{display:flex;align-items:center;background:#EEF2EB;border-bottom:0.5px solid #C8D8BE;padding:10px 24px;gap:12px;position:sticky;top:0;z-index:50}
   .role-bar:not(.hidden) ~ .shell .desktop-topnav{top:32px}
   .topbar{display:none}
-  .filter-strip{padding:10px 24px}
+  .filter-strip{display:none!important}
   .scroll-body{padding:0}
 }
 
@@ -82,6 +84,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .desktop-search input{border:none;background:transparent;outline:none;width:100%;font-size:13px;color:var(--text);font-family:var(--font-sans)}
 .desktop-search input::placeholder{color:var(--text3)}
 .desktop-actions{margin-left:auto;display:flex;align-items:center;gap:12px}
+.desktop-topnav-pills{display:flex;align-items:center;gap:6px;flex-shrink:0}
 
 /* MOBILE TOPBAR */
 .topbar{background:#EEF2EB;border-bottom:0.5px solid #C8D8BE;position:sticky;top:0;z-index:200;transition:all .25s ease}
@@ -139,9 +142,8 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .gs-no-results{padding:24px 14px;text-align:center;font-size:13px;color:var(--text2)}
 .gs-see-all{border-top:0.5px solid var(--border);background:var(--surface2)!important}
 
-/* FILTER STRIP — desktop only, hidden on mobile */
+/* FILTER STRIP — desktop hidden, kept for mobile compatibility */
 .filter-strip{display:none}
-@media(min-width:768px){.filter-strip{display:flex;background:var(--surface);padding:8px 24px;gap:7px;border-bottom:0.5px solid var(--border);overflow-x:auto;scrollbar-width:none;position:sticky;top:calc(32px + 57px);z-index:90}}
 .filter-strip::-webkit-scrollbar{display:none}
 .fpill{display:flex;align-items:center;gap:5px;padding:6px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;font-family:var(--font-sans);color:var(--text2);background:var(--surface);white-space:nowrap;cursor:pointer;transition:all .15s;flex-shrink:0}
 .fpill.active{background:var(--green-lt);border-color:var(--green);color:var(--green-dk);font-weight:500}
@@ -271,7 +273,15 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 
 /* HOME HERO */
 .home-hero{background:linear-gradient(135deg,var(--green-lt) 0%,#F5F8F2 100%);border-bottom:0.5px solid #C8D8BE;padding:20px 16px 18px}
-@media(min-width:768px){.home-hero{padding:40px 48px;background:linear-gradient(120deg,#EEF2EB 0%,#F5F8F2 50%,#EAF0E5 100%);text-align:center;display:flex;flex-direction:column;align-items:center}}
+@media(min-width:768px){.home-hero{padding:40px 48px;background:linear-gradient(120deg,#EEF2EB 0%,#F5F8F2 50%,#EAF0E5 100%);text-align:center;display:flex;flex-direction:column;align-items:center;border-bottom:none;border-right:0.5px solid #C8D8BE;justify-content:center;min-height:320px}}
+/* Desktop two-column home layout */
+.home-desktop-layout{display:block}
+@media(min-width:768px){.home-desktop-layout{display:grid;grid-template-columns:55% 45%;border-bottom:0.5px solid #C8D8BE;background:linear-gradient(120deg,#EEF2EB 0%,#F5F8F2 50%,#EAF0E5 100%)}}
+.home-right-col{display:block}
+@media(min-width:768px){.home-right-col{display:flex;flex-direction:column;justify-content:center;padding:24px 24px 24px 0;min-height:320px;overflow:hidden}}
+/* Mobile happening section hidden on desktop — shown in right col instead */
+.home-happening-mobile{display:block}
+@media(min-width:768px){.home-happening-mobile{display:none}}
 .home-hero-eyebrow{font-size:10px;font-weight:600;color:var(--green-dk);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
 .home-hero-headline{font-family:var(--font-serif);font-size:24px;font-weight:600;color:var(--text);line-height:1.25;letter-spacing:-.3px;margin-bottom:6px}
 @media(min-width:768px){.home-hero-headline{font-size:32px;max-width:560px}}
@@ -606,7 +616,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 @media(max-width:767px){
   .explore-map-wrap{display:flex;flex-direction:column;height:100%;overflow:hidden}
   .map-panel{height:220px;flex-shrink:0;width:100%;position:relative;z-index:2}
-  .map-list-panel{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0}
+  .map-list-panel{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0;padding-bottom:80px}
 }
 
 /* DESKTOP: map sticky left, list scrolls independently right */
@@ -725,11 +735,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
   <!-- DESKTOP MAIN -->
   <div class="desktop-main" id="desktopMain">
     <!-- DESKTOP TOP NAV -->
-    <div class="desktop-topnav">
-      <div class="brand" onclick="navigate('home')">
-        <svg width="22" height="22" viewBox="0 0 26 26" fill="none"><circle cx="13" cy="13" r="2.8" fill="#5C7A4E"/><line x1="13" y1="9.8" x2="13" y2="2" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="13" y1="16.2" x2="13" y2="24" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="9.8" y1="13" x2="2" y2="13" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="16.2" y1="13" x2="24" y2="13" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="11.4" y1="11.4" x2="5.5" y2="5.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><line x1="14.6" y1="14.6" x2="20.5" y2="20.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><line x1="14.6" y1="11.4" x2="20.5" y2="5.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><line x1="11.4" y1="14.6" x2="5.5" y2="20.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/></svg>
-        <span class="brand-name">wind<span>mill</span></span>
-      </div>
+    <div class="desktop-topnav" id="desktopTopnav">
       <div class="desktop-search">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <div class="global-search-wrap">
@@ -737,13 +743,24 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
           <div id="desktopSearchDropdown" class="global-search-dropdown" style="display:none"></div>
         </div>
       </div>
+      <!-- Location + Date + Filters — always visible on desktop -->
+      <div class="desktop-topnav-pills" id="desktopTopnavPills">
+        <div class="fpill" onclick="openLocationModal()" id="desktopLocPill">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <span id="desktopLocText">Fort Myers, FL</span>
+        </div>
+        <div class="fpill" id="desktopDatePill" onclick="openDatePicker()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span id="desktopDateLabel">Date</span>
+        </div>
+        <div class="fpill" id="desktopFiltersPill" onclick="openFilters()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+          <span id="desktopFiltersLabel">Filters</span>
+        </div>
+      </div>
       <div class="desktop-actions">
         <button class="icon-btn" onclick="cycleLang()" title="Change language" style="padding:3px 8px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);background:var(--surface2)">
           <span id="desktopLangBadge" style="font-size:11px;font-weight:600;color:var(--green-dk);font-family:var(--font-sans)">EN</span>
-        </button>
-        <button class="icon-btn bell-loggedout" id="desktopBellBtn" onclick="toggleNotif()">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-          <span class="notif-dot"></span>
         </button>
         <button onclick="openSignIn()" style="padding:7px 16px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)" id="desktopSigninBtn">Sign in</button>
       </div>
@@ -764,10 +781,9 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
           <svg class="topbar-location-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
         <div class="topbar-actions">
-          <!-- Bell: only shown when logged in (toggled by JS) -->
-          <button class="icon-btn bell-loggedout" id="mobileBellBtn" onclick="toggleNotif()">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            <span class="notif-dot"></span>
+          <!-- Lang pill: shown for vendor/operator -->
+          <button class="icon-btn" id="mobileLangBtn" onclick="cycleLang()" style="display:none;padding:3px 8px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);background:var(--surface2)">
+            <span id="mobileLangBadge" style="font-size:11px;font-weight:600;color:var(--green-dk);font-family:var(--font-sans)">EN</span>
           </button>
         </div>
       </div>
@@ -1516,7 +1532,7 @@ let ST = {
   mapInstance:null, mapMarkers:{}, mapSelectedId:null,
   mapView:'map', mapSearchQuery:'', mapBoundsMode:true, mapReady:false,
   mapMode:'markets', mapVendorSearch:'',
-  mapFilterDay:null, mapFilterOpen:false, mapFilterPet:false, mapFilterExpand:false,
+  mapFilterDay:null, mapFilterOpen:false, mapFilterPet:false, mapFilterExpand:false, mapVendorCat:'', mapFilterToday:false, mapVendorCats:[],
   expandArea: (()=>{try{return localStorage.getItem('wm_expandArea')==='true'}catch(e){return false}})(),
   globalSearchQuery:'', globalSearchOverride:'', vendorListSearch:'', vendorListCat:'',
   pendingVendorMap: null, pendingMarketMap: null,
@@ -1643,7 +1659,16 @@ const T = {
     my_account:"My Account",signin_sub:"Sign in to follow vendors, save favorites, and get personalized market updates.",
     create_account:"Create free account",app_settings:"App Settings",language:"Language",
     currently:"Currently",view_label:"View",auto_detect:"Auto-detect",toggle:"Toggle",
-    claim_vendor_title:"Are you a vendor?",claim_vendor_me:"Claim your free listing"
+    claim_vendor_title:"Are you a vendor?",claim_vendor_me:"Claim your free listing",
+    quick_actions:"Quick actions",view_site:"View site",finish_setup:"Finish setup — 5 minutes",
+    your_public_profile:"Your public profile",see_how_customers:"See how customers see your page",
+    complete_profile_sub:"Add your photo, story, and link so customers can find and connect with you.",
+    pro_trial_badge:"Pro features unlocked — founding vendor trial",days_remaining:"days remaining · No card needed",
+    op_trial_badge:"Pro features unlocked — founding operator trial",
+    total_followers:"Total followers",page_views:"Page views",claimed_vendors:"Claimed vendors",
+    pro_features:"Pro features",managing_sub:"Managing your markets on Windmill",
+    reach_followers:"Reach your followers",view_messages:"View shopper messages",
+    photo_story_links:"Photo, story, links",listed:"listed"
   },
   es:{
     search:"Buscar mercados, vendedores...",date:"Fecha",lang:"ES",filters:"Filtros",
@@ -1716,7 +1741,16 @@ const T = {
     my_account:"Mi Cuenta",signin_sub:"Inicia sesión para seguir vendedores y recibir actualizaciones.",
     create_account:"Crear cuenta gratis",app_settings:"Ajustes",language:"Idioma",
     currently:"Actualmente",view_label:"Vista",auto_detect:"Automático",toggle:"Cambiar",
-    claim_vendor_title:"¿Eres vendedor?",claim_vendor_me:"Reclama tu listado gratis"
+    claim_vendor_title:"¿Eres vendedor?",claim_vendor_me:"Reclama tu listado gratis",
+    quick_actions:"Acciones rápidas",view_site:"Ver sitio",finish_setup:"Completar configuración — 5 minutos",
+    your_public_profile:"Tu perfil público",see_how_customers:"Ve cómo los clientes ven tu página",
+    complete_profile_sub:"Agrega tu foto, historia y enlace para que los clientes puedan encontrarte.",
+    pro_trial_badge:"Funciones Pro desbloqueadas — prueba de vendedor fundador",days_remaining:"días restantes · Sin tarjeta requerida",
+    op_trial_badge:"Funciones Pro desbloqueadas — prueba de operador fundador",
+    total_followers:"Seguidores totales",page_views:"Vistas de página",claimed_vendors:"Vendedores reclamados",
+    pro_features:"Funciones Pro",managing_sub:"Administrando tus mercados en Windmill",
+    reach_followers:"Llega a tus seguidores",view_messages:"Ver mensajes de compradores",
+    photo_story_links:"Foto, historia, enlaces",listed:"listados"
   },
   pt:{
     search:"Buscar mercados, vendedores...",date:"Data",lang:"PT",filters:"Filtros",
@@ -1789,7 +1823,16 @@ const T = {
     my_account:"Minha Conta",signin_sub:"Entre para seguir vendedores e receber atualizações.",
     create_account:"Criar conta grátis",app_settings:"Configurações",language:"Idioma",
     currently:"Atualmente",view_label:"Visualização",auto_detect:"Automático",toggle:"Alternar",
-    claim_vendor_title:"Você é vendedor?",claim_vendor_me:"Reivindique seu perfil grátis"
+    claim_vendor_title:"Você é vendedor?",claim_vendor_me:"Reivindique seu perfil grátis",
+    quick_actions:"Ações rápidas",view_site:"Ver site",finish_setup:"Concluir configuração — 5 minutos",
+    your_public_profile:"Seu perfil público",see_how_customers:"Veja como os clientes veem sua página",
+    complete_profile_sub:"Adicione sua foto, história e link para que os clientes possam encontrá-lo.",
+    pro_trial_badge:"Recursos Pro desbloqueados — teste de vendedor fundador",days_remaining:"dias restantes · Sem cartão necessário",
+    op_trial_badge:"Recursos Pro desbloqueados — teste de operador fundador",
+    total_followers:"Seguidores totais",page_views:"Visualizações de página",claimed_vendors:"Vendedores reivindicados",
+    pro_features:"Recursos Pro",managing_sub:"Gerenciando seus mercados no Windmill",
+    reach_followers:"Alcance seus seguidores",view_messages:"Ver mensagens de compradores",
+    photo_story_links:"Foto, história, links",listed:"listados"
   }
 };
 const t = k => (T[ST.lang]||T.en)[k] || k;
@@ -2662,6 +2705,8 @@ function renderCurrentPage() {
 
   if(p !== null || ST.tab !== 'explore') {
     if(sb) sb.classList.remove('explore-mode');
+    ST.mapFilterToday = false;
+    ST.mapVendorCats = [];
   }
   if(p === 'vendor') { renderVendorProfile(ST.currentId); return; }
   if(p === 'vendor-pending') return renderVendorPending();
@@ -2754,12 +2799,10 @@ function renderSidebar() {
     <div class="sidebar-nav-item ${ST.tab===item.id?'active':''}" onclick="navigate('${item.id}')">
       <span>${item.e}</span><span>${item.l}</span>
     </div>`).join('');
-  // Show bell only when logged in (any role with a real user)
-  const loggedIn = ST.user && ST.role !== 'customer';
-  ['mobileBellBtn','desktopBellBtn'].forEach(id => {
-    const el = document.getElementById(id);
-    if(el) { loggedIn ? el.classList.remove('bell-loggedout') : el.classList.add('bell-loggedout'); }
-  });
+  // Show lang pill for vendor/operator only
+  const isVendorOrOp = ST.user && (ST.role === 'vendor' || ST.role === 'operator');
+  const mobileLang = document.getElementById('mobileLangBtn');
+  if(mobileLang) { mobileLang.style.display = isVendorOrOp ? 'inline-flex' : 'none'; }
 }
 
 /* ── HIDE FILTER UI (called by non-customer pages) ── */
@@ -2796,18 +2839,44 @@ function renderFilterStrip() {
   const onExplore = ST.tab==='explore' && !ST.currentPage;
   const showPills = isCustomer && !onHome && ST.currentPage!=='vendor' && ST.currentPage!=='market' && ST.currentPage!=='area-request' && ST.currentPage!=='vendors-join' && ST.currentPage!=='vendors-login' && ST.currentPage!=='markets-join' && ST.currentPage!=='markets-login';
 
-  // Desktop filter strip — hide on home, show with location+pills on markets/explore
-  const el = document.getElementById('filterStrip');
-  if(el) {
-    if(!showPills) { el.innerHTML=''; }
-    else {
-      el.innerHTML = `
-        <div class="fpill active">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-          <input class="location-input" value="${ST.location}" placeholder="City or ZIP" onchange="updateLocation(this.value)" onclick="this.select()">
-        </div>` + filterPillsHTML(onExplore);
+  // Desktop topnav pills — always update location, date, filters state
+  const locPill = document.getElementById('desktopLocPill');
+  const locText = document.getElementById('desktopLocText');
+  const datePill = document.getElementById('desktopDatePill');
+  const dateLabel = document.getElementById('desktopDateLabel');
+  const filtersPill = document.getElementById('desktopFiltersPill');
+  const filtersLabel = document.getElementById('desktopFiltersLabel');
+  if(locText) {
+    let loc = ST.location;
+    if(ST.expandArea && ST.region && getNearbyRegionIds().length > 0) loc = ST.location.split(',')[0].trim() + ' +';
+    locText.textContent = loc;
+    if(locPill) locPill.className = 'fpill active';
+  }
+  if(datePill && dateLabel) {
+    const dateActive = !!ST.dateFilter;
+    datePill.className = 'fpill' + (dateActive ? ' active' : '');
+    dateLabel.textContent = dateActive ? ST.dateFilterLabel : t('date');
+    // Add/remove clear x
+    const existingX = datePill.querySelector('.date-clear-x');
+    if(existingX) existingX.remove();
+    if(dateActive) {
+      const x = document.createElement('span');
+      x.className = 'date-clear-x';
+      x.textContent = '×';
+      x.style.cssText = 'margin-left:2px;font-size:13px;cursor:pointer;line-height:1';
+      x.onclick = e => { e.stopPropagation(); clearDateFilter(); };
+      datePill.appendChild(x);
     }
   }
+  if(filtersPill && filtersLabel) {
+    const fc = ST.filters.cats.length + (ST.filters.pet?1:0) + (ST.filters.open?1:0);
+    filtersPill.className = 'fpill' + (fc > 0 ? ' active' : '');
+    filtersLabel.innerHTML = t('filters') + (fc > 0 ? ` <span style="background:var(--terra);color:#fff;border-radius:99px;padding:0 5px;font-size:9px">${fc}</span>` : '');
+  }
+
+  // Desktop filter strip — no longer used on desktop, kept empty
+  const el = document.getElementById('filterStrip');
+  if(el) el.innerHTML = '';
 
   // Mobile topbar row2 — search always visible; pills only on markets/explore
   const pillsEl = document.getElementById('topbarFilterPills');
@@ -2877,15 +2946,15 @@ function setExpandArea(val) {
 }
 
 function updateTopbarLocation() {
-  const locEl = document.getElementById('topbarLocationText');
-  if(!locEl) return;
   let txt = ST.location;
   if(ST.expandArea && ST.region && getNearbyRegionIds().length > 0) {
-    // Show just the city name + + indicator
     const city = ST.location.split(',')[0].trim();
     txt = city + ' +';
   }
-  locEl.textContent = txt;
+  const locEl = document.getElementById('topbarLocationText');
+  if(locEl) locEl.textContent = txt;
+  const desktopLoc = document.getElementById('desktopLocText');
+  if(desktopLoc) desktopLoc.textContent = txt;
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -2950,7 +3019,7 @@ function cycleLang() {
   });
   // Update signin button text
   const signinBtn=document.getElementById('desktopSigninBtn'); if(signinBtn) signinBtn.textContent=t('signin');
-  renderFilterStrip(); renderCurrentPage();
+  renderSidebar(); renderBottom(); renderFilterStrip(); renderCurrentPage();
 }
 
 /* ── DATE PICKER ── */
@@ -3141,8 +3210,8 @@ function renderBottom() {
   const SETT_I='<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>';
   const maps = {
     customer:[{id:'home',l:t('nav_home'),i:HOME_I},{id:'explore',l:t('nav_explore'),i:EXPL_I},{id:'markets',l:t('nav_markets'),i:MARK_I},{id:'following',l:t('nav_following'),i:FOLL_I},{id:'me',l:t('nav_me'),i:ME_I}],
-    vendor:[{id:'home',l:'Dashboard',i:DASH_I},{id:'explore',l:'Profile',i:ME_I},{id:'markets',l:'Schedule',i:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>'},{id:'following',l:'Products',i:'<path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>'},{id:'me',l:'Settings',i:SETT_I}],
-    operator:[{id:'home',l:'Dashboard',i:DASH_I},{id:'markets',l:'Markets',i:MARK_I},{id:'explore',l:'Vendors',i:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'},{id:'following',l:'Announce',i:'<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.58 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 8a16 16 0 0 0 6 6l.81-.81a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>'},{id:'me',l:'Settings',i:SETT_I}],
+    vendor:[{id:'home',l:t('dashboard'),i:DASH_I},{id:'explore',l:t('my_profile'),i:ME_I},{id:'markets',l:t('my_schedule'),i:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>'},{id:'following',l:t('my_products'),i:'<path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>'},{id:'me',l:t('settings'),i:SETT_I}],
+    operator:[{id:'home',l:t('dashboard'),i:DASH_I},{id:'markets',l:t('your_markets'),i:MARK_I},{id:'explore',l:t('vendor_roster'),i:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'},{id:'following',l:t('announcements'),i:'<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.58 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 8a16 16 0 0 0 6 6l.81-.81a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>'},{id:'me',l:t('settings'),i:SETT_I}],
     admin:[{id:'home',l:'Dashboard',i:DASH_I},{id:'markets',l:'Markets',i:MARK_I},{id:'explore',l:'Vendors',i:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>'},{id:'following',l:'Claims',i:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>'},{id:'me',l:'Expand',i:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>'}]
   };
   el.innerHTML = (maps[ST.role]||maps.customer).map(item=>`
@@ -3272,7 +3341,10 @@ function renderHome() {
     }
   })();
 
-  // ── HERO — button label and action are context-aware ──
+  // ── HERO + RIGHT COLUMN (desktop two-col, mobile stacked) ──
+  h += `<div class="home-desktop-layout">`;
+
+  // Left: hero
   h += `<div class="home-hero">
     <div class="home-hero-eyebrow">🌾 Southwest Florida</div>
     <div class="home-hero-headline">Your local farmers market,<br>at your fingertips</div>
@@ -3290,8 +3362,35 @@ function renderHome() {
     </button>
   </div>`;
 
-  // ── HAPPENING TODAY / TOMORROW — inject after hero ──
-  h += happeningHtml;
+  // Right: happening today/tomorrow, or spotlight fallback
+  h += `<div class="home-right-col">`;
+  if(happeningActive) {
+    h += happeningHtml;
+  } else {
+    // Spotlight fallback — show first 3 spotlight cards vertically
+    const spotlightFallbackItems = (DATA.spotlight[ST.region] || DATA.spotlight['lee-county']).slice(0, 3);
+    h += `<div style="padding:0 0 0 0">
+      <div style="font-size:11px;font-weight:600;color:var(--green-dk);text-transform:uppercase;letter-spacing:0.3px;padding:16px 16px 8px">⭐ Spotlight</div>`;
+    spotlightFallbackItems.forEach(s => {
+      h += `<div onclick="navigate('${s.route==='demo-vendor-pro'||s.route==='demo-operator-pro'?s.route:s.type}','${s.id}')" style="display:flex;align-items:center;gap:10px;padding:8px 16px;cursor:pointer;border-bottom:0.5px solid var(--border)">
+        <div style="width:44px;height:44px;border-radius:8px;overflow:hidden;flex-shrink:0;background:var(--surface2)">
+          <img src="${s.photo}" alt="${s.name}" style="width:100%;height:100%;object-fit:cover" loading="lazy">
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.name}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.tagline}</div>
+        </div>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>`;
+    });
+    h += `</div>`;
+  }
+  h += `</div>`; // end home-right-col
+
+  h += `</div>`; // end home-desktop-layout
+
+  // ── HAPPENING TODAY / TOMORROW — mobile only (already shown in right col on desktop) ──
+  h += `<div class="home-happening-mobile">${happeningHtml}</div>`;
 
   // ── SPOTLIGHT ROW ──
   h += `<div class="section"><div class="section-header">
@@ -3995,6 +4094,7 @@ function renderExplore() {
 
 function setMapMode(mode) {
   ST.mapMode = mode;
+  if(mode === 'markets') ST.mapVendorCat = ''; // clear explore-only vendor category filter
   renderMapModeContent();
   // Re-render explore to update tab styles
   const listPanel = document.getElementById('mapListPanel');
@@ -4018,9 +4118,8 @@ function renderMapModeContent() {
   if(ST.mapMode === 'markets') {
     content.innerHTML = `
       <div class="map-filter-bar" id="mapFilterBar">
-        <div class="mfpill ${!ST.mapFilterOpen&&!ST.mapFilterPet?'active':''}" onclick="clearMapFilters()">All markets</div>
+        <div class="mfpill ${ST.mapFilterToday?'active':''}" onclick="toggleMapFilter('today')">Today</div>
         <div class="mfpill ${ST.mapFilterOpen?'active':''}" onclick="toggleMapFilter('open')">In Season</div>
-        <div class="mfpill ${ST.mapFilterPet?'active':''}" onclick="toggleMapFilter('pet')">🐾 Pets OK</div>
         <div class="mfpill ${ST.expandArea?'active':''}" onclick="setExpandArea(!ST.expandArea)" id="expandPill">📍 Expand area</div>
       </div>
       <div class="map-count" id="mapCount"></div>
@@ -4051,13 +4150,39 @@ function renderMapModeContent() {
         v.category.toLowerCase().includes(q)
       );
     }
-    // Also apply global category filter
+    // Apply global category filter
     if(ST.filters.cats.length > 0) {
       vendors = vendors.filter(v => ST.filters.cats.includes(v.category));
     }
+    // Apply explore-only vendor category multi-filter
+    if(ST.mapVendorCats.length > 0) {
+      vendors = vendors.filter(v => ST.mapVendorCats.includes(v.category));
+    }
+    // Apply In Season filter
+    if(ST.mapFilterOpen) {
+      vendors = vendors.filter(v => {
+        const vendorMarkets = DATA.markets.filter(m => v.markets.includes(m.id) && m.published);
+        return vendorMarkets.some(m => isOpen(m));
+      });
+    }
     vendors = sortVendors(vendors);
 
+    // Category button label
+    const catCount = ST.mapVendorCats.length;
+    const catLabel = catCount === 0 ? '\u{1F5C2} Category' : catCount === 1
+      ? `${DATA.categories.find(c=>c.label===ST.mapVendorCats[0])?.emoji||'\u{1F5C2}'} ${ST.mapVendorCats[0]}`
+      : `\u{1F5C2} ${catCount} Categories`;
+    const catActive = catCount > 0;
+
     content.innerHTML = `
+      <div class="map-filter-bar" id="mapFilterBar">
+        <div class="mfpill ${ST.mapFilterToday?'active':''}" onclick="toggleMapFilter('today')">Today</div>
+        <div class="mfpill ${ST.mapFilterOpen?'active':''}" onclick="toggleMapFilter('open')">In Season</div>
+        <div class="mfpill ${ST.expandArea?'active':''}" onclick="setExpandArea(!ST.expandArea)">\u{1F4CD} Expand area</div>
+        <div class="mfpill ${catActive?'active':''}" onclick="openVendorCatModal()" style="display:flex;align-items:center;gap:4px">
+          ${catLabel}${catActive?` <span onclick="event.stopPropagation();ST.mapVendorCats=[];renderMapModeContent()" style="margin-left:2px;font-size:11px;opacity:.7">\u00D7</span>`:''}
+        </div>
+      </div>
       <div class="map-count">${vendors.length} vendor${vendors.length===1?'':'s'} at ${visibleMarkets.length} market${visibleMarkets.length===1?'':'s'}</div>
       <div id="mapVendorList">
         ${vendors.slice(0, 60).map((v,i) => {
@@ -4088,9 +4213,12 @@ function getMapFilteredMarkets() {
       m.venue.toLowerCase().includes(q)
     );
   }
-  // Map's own day filter takes priority; fall back to global date filter
+  // Map's own day filter takes priority; fall back to Today pill, then global date filter
   if(ST.mapFilterDay) {
     markets = markets.filter(m => marketHasDay(m, ST.mapFilterDay));
+  } else if(ST.mapFilterToday) {
+    const todayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date().getDay()];
+    markets = markets.filter(m => marketHasDay(m, todayName));
   } else if(ST.dateFilter?.day) {
     markets = markets.filter(m => marketHasDay(m, ST.dateFilter.day));
   } else if(ST.dateFilter?.days) {
@@ -4692,11 +4820,85 @@ function setMapDayFilter(day) {
 function toggleMapFilter(type) {
   if(type==='open') ST.mapFilterOpen = !ST.mapFilterOpen;
   if(type==='pet') ST.mapFilterPet = !ST.mapFilterPet;
+  if(type==='today') ST.mapFilterToday = !ST.mapFilterToday;
   refreshMapFilters();
 }
 
+function setMapVendorCat(cat) {
+  ST.mapVendorCat = ST.mapVendorCat === cat ? '' : cat;
+  renderMapModeContent();
+}
+
+function openVendorCatModal() {
+  // Get available categories from vendors in the current view
+  const visibleMarkets = getMapFilteredMarkets();
+  const visibleMarketIds = new Set(visibleMarkets.map(m => m.id));
+  const regionVendors = DATA.vendors.filter(v => v.published && (!getActiveRegions() || getActiveRegions().includes(v.region)) && v.markets.some(mid => visibleMarketIds.has(mid)));
+  const availableCats = [...new Set(regionVendors.map(v => v.category))].sort();
+
+  // Build modal
+  const overlay = document.createElement('div');
+  overlay.id = 'vendorCatModal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:3000;display:flex;align-items:flex-end;justify-content:center';
+  overlay.onclick = e => { if(e.target === overlay) closeVendorCatModal(pending); };
+
+  const sheet = document.createElement('div');
+  sheet.style.cssText = 'background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-width:600px;padding:20px 16px 32px;max-height:80vh;overflow-y:auto';
+
+  let pending = [...ST.mapVendorCats];
+
+  const render = () => {
+    sheet.innerHTML = `
+      <div style="width:36px;height:4px;background:var(--border-med);border-radius:2px;margin:0 auto 16px"></div>
+      <div style="font-family:var(--font-serif);font-size:17px;font-weight:600;color:var(--text);margin-bottom:4px">Filter by Category</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:16px">Select one or more categories</div>
+      <div style="display:flex;flex-direction:column;gap:2px">
+        ${availableCats.map(cat => {
+          const catData = DATA.categories.find(c => c.label === cat);
+          const emoji = catData ? catData.emoji : '';
+          const checked = pending.includes(cat);
+          const count = regionVendors.filter(v => v.category === cat).length;
+          return `<div onclick="vendorCatToggle('${cat}')" style="display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:var(--r-md);background:${checked?'var(--green-lt)':'transparent'};cursor:pointer;border:0.5px solid ${checked?'var(--green)':'transparent'}">
+            <span style="flex:1;font-size:14px;color:var(--text);font-family:var(--font-sans)">${cat}</span>
+            <span style="font-size:11px;color:var(--text3)">${count}</span>
+            <div style="width:20px;height:20px;border-radius:50%;border:1.5px solid ${checked?'var(--green)':'var(--border-med)'};background:${checked?'var(--green)':'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              ${checked?'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>':''}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div style="display:flex;gap:8px;margin-top:20px">
+        <button onclick="closeVendorCatModal([])" style="flex:1;padding:11px;background:var(--surface2);color:var(--text2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans)">Clear</button>
+        <button onclick="closeVendorCatModal(window._pendingCats)" style="flex:2;padding:11px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Apply${pending.length>0?' ('+pending.length+')':''}</button>
+      </div>`;
+    window._pendingCats = pending;
+  };
+
+  window.vendorCatToggle = (cat) => {
+    if(pending.includes(cat)) pending = pending.filter(c => c !== cat);
+    else pending = [...pending, cat];
+    window._pendingCats = pending;
+    render();
+  };
+
+  overlay.appendChild(sheet);
+  document.body.appendChild(overlay);
+  render();
+}
+
+function closeVendorCatModal(cats) {
+  ST.mapVendorCats = cats || [];
+  const modal = document.getElementById('vendorCatModal');
+  if(modal) modal.remove();
+  window._pendingCats = null;
+  renderMapModeContent();
+}
+
 function clearMapFilters() {
-  ST.mapFilterOpen = false; ST.mapFilterPet = false;
+  ST.mapFilterOpen = false;
+  ST.mapFilterToday = false;
+  ST.mapVendorCats = [];
+  ST.mapVendorCat = '';
   ST.mapSearchQuery = '';
   const input = document.getElementById('mapSearchInput');
   if(input) input.value = '';
@@ -4707,12 +4909,11 @@ function refreshMapFilters() {
   const bar = document.getElementById('mapFilterBar');
   if(bar) {
     const pills = bar.querySelectorAll('.mfpill');
-    // pill order: All markets [0], In Season [1], Pets OK [2], Expand area [3]
+    // pill order: Today [0], In Season [1], Expand area [2]
     pills.forEach(el => el.classList.remove('active'));
-    if(!ST.mapFilterOpen && !ST.mapFilterPet) pills[0]?.classList.add('active');
+    if(ST.mapFilterToday) pills[0]?.classList.add('active');
     if(ST.mapFilterOpen) pills[1]?.classList.add('active');
-    if(ST.mapFilterPet) pills[2]?.classList.add('active');
-    if(ST.expandArea) pills[3]?.classList.add('active');
+    if(ST.expandArea) pills[2]?.classList.add('active');
   }
   const markets = getMapFilteredMarkets();
   renderMapPins(markets);
@@ -8849,8 +9050,8 @@ async function renderVendorDash() {
     trialBadge = `<div style="background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-md);padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
       <span style="font-size:18px">🌟</span>
       <div>
-        <div style="font-size:12px;font-weight:600;color:var(--green-dk)">Pro features unlocked — founding vendor trial</div>
-        <div style="font-size:11px;color:var(--green-dk);opacity:.8">${daysLeft} days remaining · No card needed</div>
+        <div style="font-size:12px;font-weight:600;color:var(--green-dk)">${t('pro_trial_badge')}</div>
+        <div style="font-size:11px;color:var(--green-dk);opacity:.8">${daysLeft} ${t('days_remaining')}</div>
       </div>
     </div>`;
   }
@@ -8864,18 +9065,18 @@ async function renderVendorDash() {
 
   // Quick action cards
   const actions = [
-    { icon:'👤', label:'Edit Profile', sub:'Photo, story, links', tab:'explore' },
-    { icon:'📅', label:'My Schedule', sub:`${marketCount} market${marketCount!==1?'s':''}`, tab:'markets' },
-    { icon:'📦', label:'Products', sub: isPro ? `${productCount} listed` : '🔒 Pro feature', tab:'following', locked: !isPro },
-    { icon:'📢', label:'Post Update', sub: isPro ? 'Reach your followers' : '🔒 Pro feature', tab:null, locked: !isPro, action: isPro ? 'showWeeklyUpdateModal()' : "navigate('vendors-join')" },
-    { icon:'💬', label:'Messages', sub: isPro ? 'View shopper messages' : '🔒 Pro feature', tab:null, locked: !isPro, action: isPro ? 'showVendorInbox()' : "navigate('vendors-join')" },
-    { icon:'🛒', label:'Pre-Orders', sub:'Coming soon', tab:null, locked:true, action:'showPreOrderComingSoon()', comingSoon:true },
+    { icon:'👤', label:t('my_profile'), sub:t('photo_story_links'), tab:'explore' },
+    { icon:'📅', label:t('my_schedule'), sub:`${marketCount} ${marketCount!==1?t('markets_label'):t('market_label')}`, tab:'markets' },
+    { icon:'📦', label:t('my_products'), sub: isPro ? `${productCount} ${t('listed')}` : `🔒 ${t('pro_feature')}`, tab:'following', locked: !isPro },
+    { icon:'📢', label:t('post_update'), sub: isPro ? t('reach_followers') : `🔒 ${t('pro_feature')}`, tab:null, locked: !isPro, action: isPro ? 'showWeeklyUpdateModal()' : "navigate('vendors-join')" },
+    { icon:'💬', label:t('messaging'), sub: isPro ? t('view_messages') : `🔒 ${t('pro_feature')}`, tab:null, locked: !isPro, action: isPro ? 'showVendorInbox()' : "navigate('vendors-join')" },
+    { icon:'🛒', label:'Pre-Orders', sub:t('coming_soon_label'), tab:null, locked:true, action:'showPreOrderComingSoon()', comingSoon:true },
   ];
 
   document.getElementById('scrollBody').innerHTML = `<div class="vendor-dash">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
-      <div class="dash-title">Vendor Dashboard</div>
-      <button onclick="ST.viewSiteMode=true;navigate('home')" style="padding:6px 14px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;color:var(--text2);font-family:var(--font-sans);display:flex;align-items:center;gap:5px">🌐 View site</button>
+      <div class="dash-title">${t('dashboard')}</div>
+      <button onclick="ST.viewSiteMode=true;navigate('home')" style="padding:6px 14px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;color:var(--text2);font-family:var(--font-sans);display:flex;align-items:center;gap:5px">🌐 ${t('view_site')}</button>
     </div>
     <div class="dash-sub">${tierLabel}</div>
     ${trialBadge}
@@ -8892,7 +9093,7 @@ async function renderVendorDash() {
 
     <!-- QUICK ACTIONS -->
     <div class="dash-section">
-      <div class="dash-section-title">Quick actions</div>
+      <div class="dash-section-title">${t('quick_actions')}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         ${actions.map(a=>`
           <div onclick="${a.action || `navigate('${a.tab}')`}" style="background:${a.locked?'var(--surface2)':'var(--surface)'};border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px;cursor:pointer;opacity:${a.locked&&!a.comingSoon?.7:1};position:relative">
@@ -8907,19 +9108,19 @@ async function renderVendorDash() {
     <!-- SETUP PROMPT (only if not complete) -->
     ${!ST.profileSetupComplete ? `
     <div class="dash-section" style="background:var(--terra-lt);border:0.5px solid #ECC4B0;border-radius:var(--r-md);padding:16px">
-      <div style="font-size:13px;font-weight:600;color:#7A2E10;margin-bottom:6px">Complete your profile setup</div>
-      <div style="font-size:12px;color:var(--terra-mid);margin-bottom:12px;line-height:1.5">Add your photo, story, and link so customers can find and connect with you.</div>
-      <button onclick="showVendorOnboarding(1)" style="width:100%;padding:10px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Finish setup — 5 minutes</button>
+      <div style="font-size:13px;font-weight:600;color:#7A2E10;margin-bottom:6px">${t('complete_profile')}</div>
+      <div style="font-size:12px;color:var(--terra-mid);margin-bottom:12px;line-height:1.5">${t('complete_profile_sub')}</div>
+      <button onclick="showVendorOnboarding(1)" style="width:100%;padding:10px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">${t('finish_setup')}</button>
     </div>` : ''}
 
     <!-- VIEW PUBLIC PROFILE -->
     ${v ? `<div class="dash-section">
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div>
-          <div style="font-size:13px;font-weight:500;color:var(--text)">Your public profile</div>
-          <div style="font-size:12px;color:var(--text3)">See how customers see your page</div>
+          <div style="font-size:13px;font-weight:500;color:var(--text)">${t('your_public_profile')}</div>
+          <div style="font-size:12px;color:var(--text3)">${t('see_how_customers')}</div>
         </div>
-        <button onclick="navigate('vendor', ST.vendorId)" style="padding:7px 14px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-family:var(--font-sans)">View →</button>
+        <button onclick="navigate('vendor', ST.vendorId)" style="padding:7px 14px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-family:var(--font-sans)">${t('view')} →</button>
       </div>
     </div>` : ''}
 
@@ -8956,8 +9157,8 @@ async function renderOperatorDash() {
     trialBadge = `<div style="background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-md);padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
       <span style="font-size:18px">🌟</span>
       <div>
-        <div style="font-size:12px;font-weight:600;color:var(--green-dk)">Pro features unlocked — founding operator trial</div>
-        <div style="font-size:11px;color:var(--green-dk);opacity:.8">${daysLeft} days remaining · No card needed</div>
+        <div style="font-size:12px;font-weight:600;color:var(--green-dk)">${t('op_trial_badge')}</div>
+        <div style="font-size:11px;color:var(--green-dk);opacity:.8">${daysLeft} ${t('days_remaining')}</div>
       </div>
     </div>`;
   }
@@ -8966,34 +9167,34 @@ async function renderOperatorDash() {
     ? `<span style="color:var(--green-dk);font-weight:500">Operator Pro</span>`
     : isFreeTrial
       ? `<span style="color:var(--green-dk);font-weight:500">Pro Trial</span> <span style="color:var(--text3)">· Founding operator</span>`
-      : `Free tier · <span style="color:var(--terra);cursor:pointer;font-weight:500" onclick="ST.sub='me';renderCurrentPage()">Upgrade to Pro — $29/mo</span>`;
+      : `${t('free_tier')} · <span style="color:var(--terra);cursor:pointer;font-weight:500" onclick="ST.sub='me';renderCurrentPage()">${t('upgrade_pro')} — $29/mo</span>`;
 
-  const adSection = isFree ? `<div class="dash-ad"><div><div class="ad-label">${t('ad_label')}</div><div class="ad-text">Upgrade to Operator Pro to remove ads and unlock sponsored placements</div></div><div class="ad-placeholder">📢</div></div>` : '';
+  const adSection = isFree ? `<div class="dash-ad"><div><div class="ad-label">${t('ad_label')}</div><div class="ad-text">${t('operator_upgrade')}</div></div><div class="ad-placeholder">📢</div></div>` : '';
 
-  const upgradeBanner = isFree ? `<div class="upgrade-banner"><span style="font-size:20px">⭐</span><div class="upgrade-text">Upgrade to <strong>Operator Pro</strong> — remove ads, control "Presented By" sponsor slots on your market pages, advanced analytics. <strong>$29/month</strong></div><button class="upgrade-btn" onclick="ST.sub='me';renderCurrentPage()">Upgrade</button></div>` : '';
+  const upgradeBanner = isFree ? `<div class="upgrade-banner"><span style="font-size:20px">⭐</span><div class="upgrade-text">${t('upgrade_banner')} <strong>$29/mo · ${t('first_month_free')}</strong></div><button class="upgrade-btn" onclick="ST.sub='me';renderCurrentPage()">${t('upgrade_pro')}</button></div>` : '';
 
   document.getElementById('scrollBody').innerHTML = `<div class="operator-dash">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
-      <div class="dash-title">Operator Dashboard</div>
-      <button onclick="ST.viewSiteMode=true;navigate('home')" style="padding:6px 14px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;color:var(--text2);font-family:var(--font-sans);display:flex;align-items:center;gap:5px">🌐 View site</button>
+      <div class="dash-title">${t('operator_dashboard')}</div>
+      <button onclick="ST.viewSiteMode=true;navigate('home')" style="padding:6px 14px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;color:var(--text2);font-family:var(--font-sans);display:flex;align-items:center;gap:5px">🌐 ${t('view_site')}</button>
     </div>
-    <div class="dash-sub">Managing your markets on Windmill · ${tierLabel}</div>
+    <div class="dash-sub">${t('managing_sub')} · ${tierLabel}</div>
 
     ${trialBadge}
     ${adSection}
     ${upgradeBanner}
 
     <div class="dash-grid">
-      <div class="dash-card"><div class="dash-card-num">${myMarkets.length}</div><div class="dash-card-label">Your markets</div></div>
-      <div class="dash-card"><div class="dash-card-num">${totalFollowers}</div><div class="dash-card-label">Total followers</div></div>
-      <div class="dash-card"><div class="dash-card-num">0</div><div class="dash-card-label">Page views</div></div>
-      <div class="dash-card"><div class="dash-card-num">${DATA.vendors.filter(v=>v.claimed&&myMarkets.some(m=>v.markets&&v.markets.includes(m.id))).length}</div><div class="dash-card-label">Claimed vendors</div></div>
+      <div class="dash-card"><div class="dash-card-num">${myMarkets.length}</div><div class="dash-card-label">${t('your_markets')}</div></div>
+      <div class="dash-card"><div class="dash-card-num">${totalFollowers}</div><div class="dash-card-label">${t('total_followers')}</div></div>
+      <div class="dash-card"><div class="dash-card-num">0</div><div class="dash-card-label">${t('page_views')}</div></div>
+      <div class="dash-card"><div class="dash-card-num">${DATA.vendors.filter(v=>v.claimed&&myMarkets.some(m=>v.markets&&v.markets.includes(m.id))).length}</div><div class="dash-card-label">${t('claimed_vendors')}</div></div>
     </div>
 
     <div class="dash-section">
       <div class="dash-section-title" style="display:flex;align-items:center;justify-content:space-between">
-        Pro features
-        ${isFree ? `<span style="font-size:10px;padding:2px 8px;background:var(--amber-lt);color:#7A4E08;border-radius:var(--r-pill);font-weight:500">Upgrade to unlock</span>` : ''}
+        ${t('pro_features')}
+        ${isFree ? `<span style="font-size:10px;padding:2px 8px;background:var(--amber-lt);color:#7A4E08;border-radius:var(--r-pill);font-weight:500">${t('upgrade_pro')}</span>` : ''}
       </div>
       <div style="display:flex;flex-direction:column;gap:10px">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);${isFree?'opacity:0.6':''}">
