@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.69.6 -->
+<!-- v1.69.8 -->
 <!-- v1.69.4 -->
 <!-- v1.68.18 -->
 <!-- Google Analytics -->
@@ -1838,6 +1838,9 @@ const T = {
 };
 const t = k => (T[ST.lang]||T.en)[k] || k;
 
+// Disclaimer shown at bottom of market/vendor pages and lists
+const DISCLAIMER_HTML = `<div style="padding:16px;text-align:center;font-size:11px;color:var(--text3);line-height:1.5">Market details may vary. Always worth a quick check before you go!</div>`;
+
 /* ── HELPERS ── */
 const CLRS=[{bg:'#FDF3DC',c:'#7A4E08'},{bg:'#EEF2EB',c:'#3D5435'},{bg:'#FAEDE6',c:'#7A2E10'},{bg:'#F5F0EA',c:'#6B4F2A'},{bg:'#E8EFF6',c:'#2A4A6B'}];
 const MBG=['#EEF2EB','#FAEDE6','#FDF3DC','#F5F0EA','#E8EFF6'];
@@ -3363,26 +3366,43 @@ function renderHome() {
     </button>
   </div>`;
 
-  // Right col: desktop only — happening today/tomorrow or spotlight fallback
+  // Right col: desktop only — happening today/tomorrow or upcoming markets fallback
   h += `<div class="home-right-col">`;
   if(happeningActive) {
     h += happeningHtml;
   } else {
-    const spotlightFallbackItems = (DATA.spotlight[ST.region] || DATA.spotlight['lee-county']).slice(0, 3);
-    h += `<div>
-      <div style="font-size:11px;font-weight:600;color:var(--green-dk);text-transform:uppercase;letter-spacing:0.3px;padding:16px 16px 8px">⭐ Spotlight</div>`;
-    spotlightFallbackItems.forEach(s => {
-      h += `<div onclick="navigate('${s.route==='demo-vendor-pro'||s.route==='demo-operator-pro'?s.route:s.type}','${s.id}')" style="display:flex;align-items:center;gap:10px;padding:8px 16px;cursor:pointer;border-bottom:0.5px solid var(--border)">
-        <div style="width:44px;height:44px;border-radius:8px;overflow:hidden;flex-shrink:0;background:var(--surface2)">
-          <img src="${s.photo}" alt="${s.name}" style="width:100%;height:100%;object-fit:cover" loading="lazy">
+    // Build "Coming up this week" — next 5 in-season markets sorted by next occurrence
+    const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const todayIdx = new Date().getDay();
+    const activeRegions = getActiveRegions();
+    const scopedMarkets = DATA.markets.filter(m => m.published !== false && (!activeRegions || activeRegions.includes(m.region)) && isOpen(m));
+    const upcomingMarkets = scopedMarkets
+      .map(m => {
+        const mDay = getNextMarketDay(m);
+        const mDayIdx = dayNames.indexOf(mDay);
+        const daysUntil = (mDayIdx - todayIdx + 7) % 7 || 7;
+        return { m, daysUntil, mDay };
+      })
+      .sort((a, b) => a.daysUntil - b.daysUntil)
+      .slice(0, 5);
+
+    h += `<div style="padding:16px 16px 8px">
+      <div style="font-size:11px;font-weight:600;color:var(--green-dk);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:12px">📅 Coming up this week</div>`;
+    upcomingMarkets.forEach(({ m, daysUntil, mDay }) => {
+      const photo = DATA.market_photos[m.id];
+      const dayLabel = daysUntil === 1 ? 'Tomorrow' : mDay;
+      h += `<div onclick="navigate('market','${m.id}')" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border);cursor:pointer">
+        <div style="width:40px;height:40px;border-radius:8px;overflow:hidden;flex-shrink:0;background:var(--surface2);display:flex;align-items:center;justify-content:center">
+          ${photo ? `<img src="${photo}" alt="${m.name}" style="width:100%;height:100%;object-fit:cover" loading="lazy">` : `<span style="font-size:18px">🏪</span>`}
         </div>
         <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.name}</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.tagline}</div>
+          <div style="font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.name}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:1px">${dayLabel} · ${formatTimeRange(m.start_time, m.end_time)}</div>
         </div>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
       </div>`;
     });
+    h += `<div onclick="navigate('explore')" style="padding:10px 0;text-align:center;font-size:12px;color:var(--green-dk);cursor:pointer;font-weight:500">See all markets →</div>`;
     h += `</div>`;
   }
   h += `</div>`; // end home-right-col
@@ -3718,6 +3738,7 @@ function renderVendorsList() {
     ${adUnit()}
     <div style="padding:6px 16px 4px;font-size:11px;color:var(--text2)" id="vendorListCount"></div>
     <div id="vendorsListBody"></div>
+    ${DISCLAIMER_HTML}
   </div>`;
 
   renderList();
@@ -4608,7 +4629,7 @@ function renderMapCards(markets) {
   const slots = buildMapCardList(realCards);
   list.innerHTML = slots.map(s =>
     s.type === 'ad' ? sponsoredMapCard(s.slotIndex) : s.card.html
-  ).join('');
+  ).join('') + DISCLAIMER_HTML;
 }
 
 function selectMapMarket(id) {
@@ -5156,6 +5177,7 @@ function renderMarketsPage() {
       </div>`;
     });
   }
+  h += DISCLAIMER_HTML;
   document.getElementById('scrollBody').innerHTML = h;
 }
 
@@ -5353,6 +5375,8 @@ async function renderVendorProfile(id) {
         }).join('');
       })():`<p style="font-size:13px;color:var(--text2)">${t('no_markets_yet')}</p>`}
     </div>
+
+    ${DISCLAIMER_HTML}
 
     <!-- MORE VENDORS NEAR YOU: free/unclaimed only, same category, manual scroll -->
     ${!isPro ? buildMoreVendorsStrip(v) : ''}
@@ -5786,6 +5810,8 @@ function renderMarketDetail(id) {
       <div style="font-size:12px;color:var(--text3);text-align:center;margin-bottom:10px" id="mktVendorShowing"></div>
       <button onclick="showMoreMarketVendors()" style="width:100%;padding:10px;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:13px;cursor:pointer;color:var(--text);font-family:var(--font-sans);font-weight:500" id="mktVendorShowMoreBtn">Show 10 more</button>
     </div>
+
+    ${DISCLAIMER_HTML}
 
     <!-- OTHER MARKETS IN YOUR AREA -->
     ${renderOtherMarketsCarousel(m.id, m.region)}
