@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
+<!-- v1.70 -->
+<!-- v1.69.12 -->
+<!-- v1.69.11 -->
+<!-- v1.69.10 -->
+<!-- v1.69.9 -->
 <!-- v1.69.8 -->
 <!-- v1.69.4 -->
 <!-- v1.68.18 -->
@@ -1515,7 +1520,7 @@ let ST = {
   weekend:true, location:'Fort Myers, FL',
   searchQuery:'', currentPage:null, currentId:null,
   filters:{days:[],cats:[],pet:false,open:false,parking:false},
-  adminTab:'vendors',
+  adminTab:'dashboard',
   devMode:false,
   region:'lee-county',
   user:null,
@@ -1575,8 +1580,38 @@ let ST = {
   adminMarketTier: '',
   adminMarketVendor: '',
   marketVendorSearch: '',
-  marketVendorCat: ''
+  marketVendorCat: '',
+  adminViewsFilter: 'all',
+  adminViewsAsType: '',
+  adminViewsAsId: '',
+  adminViewsPage: 0
 };
+
+/* ── VISITOR IDENTITY + APPROX LOCATION (anonymous, for analytics) ── */
+let VISITOR = { id: null, city: null, region: null, locTime: 0 };
+(function initVisitor() {
+  try {
+    const stored = JSON.parse(localStorage.getItem('wm_visitor') || 'null');
+    if(stored && stored.id) VISITOR = stored;
+  } catch(e) {}
+  if(!VISITOR.id) {
+    VISITOR.id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('v-' + Math.random().toString(36).slice(2) + Date.now().toString(36));
+    try { localStorage.setItem('wm_visitor', JSON.stringify(VISITOR)); } catch(e) {}
+  }
+  // Refresh approximate location at most every 30 days, non-blocking, never breaks anything if it fails
+  const THIRTY_DAYS = 30*24*60*60*1000;
+  if(!VISITOR.city || !VISITOR.locTime || (Date.now() - VISITOR.locTime) > THIRTY_DAYS) {
+    fetch('https://free.freeipapi.com/api/json')
+      .then(r => r.json())
+      .then(data => {
+        VISITOR.city = data.cityName || null;
+        VISITOR.region = data.regionName || null;
+        VISITOR.locTime = Date.now();
+        try { localStorage.setItem('wm_visitor', JSON.stringify(VISITOR)); } catch(e) {}
+      })
+      .catch(()=>{}); // non-fatal — location just stays blank
+  }
+})();
 
 /* ── TRANSLATIONS ── */
 const T = {
@@ -2599,7 +2634,7 @@ function globalSearchKeydown(e) {
 
 /* ── NAVIGATE ── */
 /* ── SEO: PAGE META + CANONICAL ── */
-function updatePageMeta(title, desc, path) {
+function updatePageMeta(title, desc, path, pageType, entityId) {
   // Title
   document.title = title;
   // Meta description
@@ -2613,6 +2648,35 @@ function updatePageMeta(title, desc, path) {
   if(path && window.location.protocol !== 'file:' && window.location.pathname !== path) {
     history.pushState({page: ST.currentPage, id: ST.currentId, tab: ST.tab}, title, path);
   }
+  // Track page view (non-blocking, only for page types we explicitly pass in)
+  if(pageType) trackPageView(pageType, entityId || null, path || window.location.pathname);
+}
+
+/* ── PAGE VIEW TRACKING ── */
+function trackPageView(pageType, entityId, path) {
+  if(!supabaseClient) return;
+  // Don't count admin's own browsing (demo profiles, test area, admin checking pages)
+  if(ST.role === 'admin') return;
+  // Don't count a vendor viewing their own page
+  if(pageType === 'vendor' && ST.vendorId && ST.vendorId === entityId) return;
+  // Don't count an operator viewing a market page they themselves operate
+  if(pageType === 'market' && ST.operatorId) {
+    const myMkt = DATA.markets.find(m => m.id === entityId);
+    if(myMkt && myMkt.operator_id === ST.operatorId) return;
+  }
+  try {
+    supabaseClient.from('page_views').insert({
+      page_type: pageType,
+      entity_id: entityId || null,
+      path: path || null,
+      viewer_id: ST.user?.id || null,
+      viewer_email: ST.user?.email || null,
+      referrer: document.referrer || null,
+      visitor_id: VISITOR.id || null,
+      city: VISITOR.city || null,
+      region: VISITOR.region || null
+    }).then(()=>{}, ()=>{}); // non-fatal — table may not exist yet
+  } catch(e) { /* non-fatal */ }
 }
 
 /* ── HISTORY API: handle back/forward buttons ── */
@@ -2642,6 +2706,7 @@ function routeFromURL() {
   if(path === '/markets/join') { ST.currentPage = 'markets-join'; return; }
   if(path === '/markets/login') { ST.currentPage = 'markets-login'; return; }
   if(path === '/vendors/dashboard') { ST.currentPage = null; ST.tab = 'home'; return; }
+  if(path === '/privacy') { ST.currentPage = 'privacy-policy'; return; }
   const marketMatch = path.match(/^\/markets\/([^/]+)\/?$/);
   const vendorMatch = path.match(/^\/vendors\/([^/]+)\/?$/);
   if(marketMatch) {
@@ -2716,9 +2781,10 @@ function renderCurrentPage() {
   if(p === 'vendor-pending') return renderVendorPending();
   if(p === 'market') return renderMarketDetail(ST.currentId);
   if(p === 'area-request') { updatePageMeta('Request Your Area | Windmill','Ask us to bring Windmill to your city.','/area-request'); return renderAreaRequest(); }
-  if(p === 'vendors-list') { updatePageMeta('Browse Vendors | Windmill','Browse all local market vendors on Windmill.','/vendors'); return renderVendorsList(); }
-  if(p === 'category-hub') { updatePageMeta('Explore by Category | Windmill','Browse farmers market vendors and markets by category.','/categories'); return renderCategoryHub(); }
-  if(p === 'category') { updatePageMeta('Category | Windmill','Browse vendors and markets by category.','/categories/'+ST.currentId); return renderCategoryPage(ST.currentId); }
+  if(p === 'privacy-policy') { updatePageMeta('Privacy Policy | Windmill','How Windmill collects, uses, and protects your information.','/privacy'); return renderPrivacyPolicy(); }
+  if(p === 'vendors-list') { updatePageMeta('Browse Vendors | Windmill','Browse all local market vendors on Windmill.','/vendors', 'vendors_list'); return renderVendorsList(); }
+  if(p === 'category-hub') { updatePageMeta('Explore by Category | Windmill','Browse farmers market vendors and markets by category.','/categories', 'category_hub'); return renderCategoryHub(); }
+  if(p === 'category') { updatePageMeta('Category | Windmill','Browse vendors and markets by category.','/categories/'+ST.currentId, 'category', ST.currentId); return renderCategoryPage(ST.currentId); }
   if(p === 'vendors-join') { updatePageMeta('Join Windmill as a Vendor | Grow Your Farmers Market Business','Claim your free vendor listing on Windmill. Be found between markets, showcase your products, and connect with customers.','/vendors/join'); return renderVendorsJoin(); }
   if(p === 'vendors-login') { updatePageMeta('Vendor Sign In | Windmill','Sign in to your Windmill vendor dashboard.','/vendors/login'); return renderVendorsLogin(); }
   if(p === 'markets-join') { updatePageMeta('List Your Market on Windmill | Reach More Shoppers','Claim your market listing on Windmill. Help shoppers find your market, follow your vendors, and come back every week.','/markets/join'); return renderMarketsJoin(); }
@@ -2747,9 +2813,9 @@ function renderCurrentPage() {
   if(ST.role === 'operator') return renderOperatorSubPage();
   if(ST.role === 'admin') return renderAdminSubPage();
   // customer views — update meta + URL for each tab
-  if(ST.tab === 'home') { updatePageMeta('Windmill — Discover Local Markets & Vendors','Find farmers markets and local vendors near you. Browse fresh produce, artisan goods, and more.','/'); return renderHome(); }
-  if(ST.tab === 'explore') { updatePageMeta('Explore Markets | Windmill','Explore farmers markets on the map near you.','/explore'); return renderExplore(); }
-  if(ST.tab === 'markets') { updatePageMeta('Markets | Windmill','Browse all farmers markets on Windmill.','/markets'); return renderMarketsPage(); }
+  if(ST.tab === 'home') { updatePageMeta('Windmill — Discover Local Markets & Vendors','Find farmers markets and local vendors near you. Browse fresh produce, artisan goods, and more.','/', 'home'); return renderHome(); }
+  if(ST.tab === 'explore') { updatePageMeta('Explore Markets | Windmill','Explore farmers markets on the map near you.','/explore', 'explore'); return renderExplore(); }
+  if(ST.tab === 'markets') { updatePageMeta('Markets | Windmill','Browse all farmers markets on Windmill.','/markets', 'markets_list'); return renderMarketsPage(); }
   if(ST.tab === 'following') { updatePageMeta('Following | Windmill','Markets and vendors you follow on Windmill.','/following'); return renderFollowing(); }
   if(ST.tab === 'me') { updatePageMeta('My Account | Windmill','Manage your Windmill account.','/me'); return renderMe(); }
   updatePageMeta('Windmill — Discover Local Markets & Vendors','Find farmers markets and local vendors near you.','/');
@@ -2779,13 +2845,13 @@ function renderOperatorSubPage() {
 function renderAdminSubPage() {
   const sub = ST.tab;
   // These map to the admin sidebar/bottom nav items
-  if(sub === 'markets') { ST.adminTab='markets'; return renderAdminPanel(); }
-  if(sub === 'explore') { ST.adminTab='vendors'; return renderAdminPanel(); }
-  if(sub === 'following') { ST.adminTab='claims'; return renderAdminPanel(); }
-  if(sub === 'me') { ST.adminTab='expansion'; return renderAdminPanel(); }
-  if(sub === 'admin-ads') { ST.adminTab='ads'; return renderAdminPanel(); }
+  if(sub === 'markets') return setAdminTab('markets');
+  if(sub === 'explore') return setAdminTab('vendors');
+  if(sub === 'following') return setAdminTab('claims');
+  if(sub === 'me') return setAdminTab('messages');
+  if(sub === 'admin-ads') return setAdminTab('ads');
   if(sub === 'admin-settings') return renderAdminSettings();
-  ST.adminTab = 'vendors'; renderAdminPanel(); // home = vendors tab
+  setAdminTab('dashboard'); // home = dashboard overview
 }
 
 /* ── SIDEBAR ── */
@@ -2796,13 +2862,34 @@ function renderSidebar() {
     customer:[{id:'home',e:'🏠',l:'Home'},{id:'explore',e:'🔍',l:'Explore'},{id:'markets',e:'📍',l:'Markets'},{id:'following',e:'❤️',l:'Following'},{id:'me',e:'👤',l:'My Account'}],
     vendor:[{id:'home',e:'📊',l:'Dashboard'},{id:'explore',e:'👤',l:'My Profile'},{id:'markets',e:'📅',l:'Schedule'},{id:'following',e:'📦',l:'Products'},{id:'me',e:'⚙️',l:'Settings'}],
     operator:[{id:'home',e:'📊',l:'Dashboard'},{id:'markets',e:'🏪',l:'My Markets'},{id:'explore',e:'👥',l:'Vendor Roster'},{id:'following',e:'📅',l:'Schedule'},{id:'me',e:'⚙️',l:'Settings'}],
-    admin:[{id:'home',e:'📊',l:'Dashboard'},{id:'markets',e:'🏪',l:'Markets'},{id:'explore',e:'👥',l:'Vendors'},{id:'following',e:'📋',l:'Claim Requests'},{id:'me',e:'🗺️',l:'Expansion'},{id:'admin-ads',e:'📢',l:'Ads'},{id:'admin-settings',e:'⚙️',l:'Settings'}]
+    admin:[
+      {id:'dashboard',e:'📊',l:'Dashboard'},
+      {id:'areas',e:'🗺️',l:'Areas'},
+      {id:'markets',e:'🏪',l:'Markets'},
+      {id:'vendors',e:'👥',l:'Vendors'},
+      {id:'claims',e:'📋',l:'Claims'},
+      {id:'messages',e:'💬',l:'Messages'},
+      {id:'users',e:'👤',l:'Users'},
+      {id:'follows',e:'❤️',l:'Follows'},
+      {id:'ads',e:'📢',l:'Ads'},
+      {id:'views',e:'👁️',l:'Views'},
+      {id:'settings',e:'⚙️',l:'Settings'}
+    ]
   };
   const navRole = ST.viewSiteMode ? 'customer' : ST.role;
-  nav.innerHTML = (maps[navRole]||maps.customer).map(item=>`
-    <div class="sidebar-nav-item ${ST.tab===item.id?'active':''}" onclick="navigate('${item.id}')">
+  const isAdminPanel = navRole === 'admin';
+  nav.innerHTML = (maps[navRole]||maps.customer).map(item=>{
+    if(isAdminPanel) {
+      const active = ST.adminTab === item.id;
+      const onclick = item.id === 'settings' ? `renderAdminSettings();renderSidebar()` : `setAdminTab('${item.id}')`;
+      return `<div class="sidebar-nav-item ${active?'active':''}" onclick="${onclick}">
+        <span>${item.e}</span><span>${item.l}</span>
+      </div>`;
+    }
+    return `<div class="sidebar-nav-item ${ST.tab===item.id?'active':''}" onclick="navigate('${item.id}')">
       <span>${item.e}</span><span>${item.l}</span>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   // Show lang pill for vendor/operator only
   const isVendorOrOp = ST.user && (ST.role === 'vendor' || ST.role === 'operator');
   const mobileLang = document.getElementById('mobileLangBtn');
@@ -3212,11 +3299,12 @@ function renderBottom() {
   const ME_I='<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>';
   const DASH_I='<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>';
   const SETT_I='<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>';
+  const MSG_I='<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>';
   const maps = {
     customer:[{id:'home',l:t('nav_home'),i:HOME_I},{id:'explore',l:t('nav_explore'),i:EXPL_I},{id:'markets',l:t('nav_markets'),i:MARK_I},{id:'following',l:t('nav_following'),i:FOLL_I},{id:'me',l:t('nav_me'),i:ME_I}],
     vendor:[{id:'home',l:t('dashboard'),i:DASH_I},{id:'explore',l:t('my_profile'),i:ME_I},{id:'markets',l:t('my_schedule'),i:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>'},{id:'following',l:t('my_products'),i:'<path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>'},{id:'me',l:t('settings'),i:SETT_I}],
     operator:[{id:'home',l:t('dashboard'),i:DASH_I},{id:'markets',l:t('your_markets'),i:MARK_I},{id:'explore',l:t('vendor_roster'),i:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'},{id:'following',l:t('announcements'),i:'<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.58 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 8a16 16 0 0 0 6 6l.81-.81a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>'},{id:'me',l:t('settings'),i:SETT_I}],
-    admin:[{id:'home',l:'Dashboard',i:DASH_I},{id:'markets',l:'Markets',i:MARK_I},{id:'explore',l:'Vendors',i:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>'},{id:'following',l:'Claims',i:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>'},{id:'me',l:'Expand',i:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>'}]
+    admin:[{id:'home',l:'Dashboard',i:DASH_I},{id:'explore',l:'Vendors',i:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>'},{id:'markets',l:'Markets',i:MARK_I},{id:'following',l:'Claims',i:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>'},{id:'me',l:'Messages',i:MSG_I}]
   };
   el.innerHTML = (maps[ST.role]||maps.customer).map(item=>`
     <button class="nav-item ${ST.tab===item.id?'active':''}" onclick="navigate('${item.id}')">
@@ -5212,21 +5300,10 @@ async function renderVendorProfile(id) {
 
   if(!v) { document.getElementById('scrollBody').innerHTML='<div style="padding:24px;text-align:center;color:var(--text2)">Vendor not found.</div>'; return; }
 
-  // Track profile view — skip if viewer is the vendor themselves
-  if(supabaseClient && ST.vendorId !== v.id) {
-    try {
-      await supabaseClient.from('profile_views').insert({
-        vendor_id: v.id,
-        viewer_id: ST.user?.id || null,
-        viewer_email: ST.user?.email || null,
-        referrer: document.referrer || null
-      });
-    } catch(e) { /* non-fatal — table may not exist yet */ }
-  }
   const slug = v.slug || v.id;
   const marketNames = v.markets ? v.markets.map(mid => { const m = getMarket(mid); return m ? m.name : null; }).filter(Boolean) : [];
   const metaDesc = `${v.name} — ${v.category}${marketNames.length ? ' at ' + marketNames.join(', ') : ''} in Southwest Florida. Find them on Windmill.${v.tagline ? ' ' + v.tagline : ''}`;
-  updatePageMeta(`${v.name} — ${v.category} | Windmill`, metaDesc, `/vendors/${slug}`);
+  updatePageMeta(`${v.name} — ${v.category} | Windmill`, metaDesc, `/vendors/${slug}`, 'vendor', v.id);
   const c = vc(DATA.vendors.indexOf(v));
   const mCount = v.markets ? v.markets.filter(mid => getMarket(mid)).length : 0;
 
@@ -5667,7 +5744,7 @@ function renderMarketDetail(id) {
   if(!m){ document.getElementById('scrollBody').innerHTML='<div style="padding:24px;text-align:center;color:var(--text2)">Market not found.</div>'; return; }
   const slug = m.slug || m.id;
   const metaDesc = `${m.name} — ${getMarketScheduleLabel(m)} ${formatTimeRange(m.start_time, m.end_time)} in ${m.city}, FL. Fresh produce, artisan goods and local vendors at Windmill.`;
-  updatePageMeta(`${m.name} — ${m.city}, FL | Windmill`, metaDesc, `/markets/${slug}`);
+  updatePageMeta(`${m.name} — ${m.city}, FL | Windmill`, metaDesc, `/markets/${slug}`, 'market', m.id);
   const op = getOperator(m.operator_id);
   const mvs = DATA.vendors.filter(v=>v.markets.includes(m.id)&&v.published);
   const photo = DATA.market_photos[m.id];
@@ -6276,6 +6353,7 @@ function renderVendorsJoin() {
       <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">${c.footer_q}</div>
       <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
       <div style="margin-top:12px;font-size:12px;color:var(--text3)">${c.footer_signin} <span style="color:var(--terra);cursor:pointer" onclick="navigate('vendors-login')">${c.footer_signin_link}</span></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--text3)"><span style="color:var(--terra);cursor:pointer" onclick="navigate('privacy-policy')">Privacy Policy</span></div>
     </div>
 
   </div>`;
@@ -7390,6 +7468,7 @@ function renderMarketsJoin() {
       <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">${c.footer_q}</div>
       <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
       <div style="margin-top:12px;font-size:12px;color:var(--text3)">${c.footer_signin} <span style="color:var(--terra);cursor:pointer" onclick="navigate('markets-login')">${c.footer_signin_link}</span></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--text3)"><span style="color:var(--terra);cursor:pointer" onclick="navigate('privacy-policy')">Privacy Policy</span></div>
     </div>
 
   </div>`;
@@ -7829,6 +7908,29 @@ function renderAreaRequest() {
       <div class="form-field"><label class="form-label">${t('your_email')}</label><input class="form-input" id="reqEmail" type="email" placeholder="${t('notify_ph')}"></div>
       <button class="btn-primary" onclick="submitAreaReq()">${t('submit_request')}</button>
       <button class="btn-secondary" onclick="ST.location='Fort Myers, FL';ST.currentPage=null;renderFilterStrip();resetScroll();renderHome()">${t('back_to_lee')}</button>
+    </div>
+  </div>`;
+}
+
+/* ── PRIVACY POLICY ── */
+function renderPrivacyPolicy() {
+  hideFilterUI();
+  const section = (title, body) => `<div style="margin-bottom:18px"><div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;font-family:var(--font-serif)">${title}</div><p style="font-size:12px;color:var(--text2);line-height:1.7;margin:0">${body}</p></div>`;
+  document.getElementById('scrollBody').innerHTML = `<div style="padding:0 16px 32px">
+    <div class="profile-back" onclick="goBack()" style="padding-top:14px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> ${t('back')}</div>
+    <div style="font-family:var(--font-serif);font-size:20px;font-weight:600;color:var(--text);margin:16px 0 2px">Privacy Policy</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:20px">Last updated: June 2026</div>
+    <p style="font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:18px">Windmill Marketplace ("Windmill," "we," "us") operates shopwindmill.com, connecting shoppers with local farmers market vendors and market operators in Southwest Florida. This policy explains what information we collect and how we use it.</p>
+    ${section('Information you provide directly', `If you create an account as a shopper, vendor, or market operator, we collect what you give us — your name, email address, and for vendors and operators, business details like your listing description, photos, and contact information. If you message us or another user through the platform, we store that message content to deliver it and provide support.`)}
+    ${section('Information collected automatically', `When you browse Windmill, we automatically collect basic usage information: which pages you visit, how many times pages are viewed, and an approximate location (city/region level, derived from your IP address — never your precise location, and we never ask for or store your exact GPS coordinates). To tell returning visitors apart from new ones, we assign your browser an anonymous identifier stored locally on your device. This identifier does not contain your name, email, or any personal details — it simply helps us understand usage patterns, like how many different people visited a vendor's page.`)}
+    ${section('Third-party services we use', `We work with a small number of service providers to run Windmill: Supabase (our database and account system), Google Analytics (site usage statistics), a free IP-geolocation lookup service (to estimate visitor city/region), Resend (to deliver account and notification emails), and Netlify (website hosting). These providers process data on our behalf to operate the platform — we do not sell your information to anyone, and we do not use third-party advertising networks that track you across other websites.`)}
+    ${section('How we use this information', `We use it to operate and improve Windmill, to show vendors and market operators how their pages are performing, to communicate with you about your account, and to keep the platform secure and working properly.`)}
+    ${section('Your choices', `You can request access to, correction of, or deletion of your account information at any time by emailing hello@shopwindmill.com. If you'd prefer not to be tracked even anonymously, you can use your browser's private/incognito mode, which won't retain the anonymous identifier between visits.`)}
+    ${section('Children\u2019s privacy', `Windmill is not directed at children, and we do not knowingly collect information from anyone under 13.`)}
+    ${section('Changes to this policy', `We may update this policy as Windmill grows. We'll update the date above when we do.`)}
+    <div style="margin-top:24px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px">
+      <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">✉️ Questions about this policy?</div>
+      <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
     </div>
   </div>`;
 }
@@ -8296,6 +8398,10 @@ async function renderMeSection(section) {
             Shopwindmill
           </a>
         </div>
+      </div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-top:12px">
+        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">🔒 Privacy</div>
+        <span onclick="navigate('privacy-policy')" style="font-size:12px;color:var(--terra);cursor:pointer">Privacy Policy</span>
       </div>
     </div></div>`;
   }
@@ -9061,7 +9167,7 @@ async function renderVendorDash() {
   if(supabaseClient && vendorId) {
     const [followRes, viewRes] = await Promise.all([
       supabaseClient.from('follows').select('*', {count:'exact',head:true}).eq('vendor_id', vendorId),
-      supabaseClient.from('profile_views').select('*', {count:'exact',head:true}).eq('vendor_id', vendorId)
+      supabaseClient.from('page_views').select('*', {count:'exact',head:true}).eq('page_type','vendor').eq('entity_id', vendorId)
     ]);
     followerCount = followRes.count || 0;
     profileViews = viewRes.count || 0;
@@ -9166,12 +9272,17 @@ async function renderOperatorDash() {
   // Load follower counts per market from Supabase
   let marketFollowers = {};
   let totalFollowers = 0;
+  let totalPageViews = 0;
   if(supabaseClient && myMarkets.length > 0) {
-    const { data: follows } = await supabaseClient.from('follows').select('market_id').in('market_id', myMarkets.map(m=>m.id));
-    (follows || []).forEach(f => {
+    const [followRes, viewRes] = await Promise.all([
+      supabaseClient.from('follows').select('market_id').in('market_id', myMarkets.map(m=>m.id)),
+      supabaseClient.from('page_views').select('*', {count:'exact',head:true}).eq('page_type','market').in('entity_id', myMarkets.map(m=>m.id))
+    ]);
+    (followRes.data || []).forEach(f => {
       marketFollowers[f.market_id] = (marketFollowers[f.market_id] || 0) + 1;
       totalFollowers++;
     });
+    totalPageViews = viewRes.count || 0;
   }
 
   // Trial badge
@@ -9213,7 +9324,7 @@ async function renderOperatorDash() {
     <div class="dash-grid">
       <div class="dash-card"><div class="dash-card-num">${myMarkets.length}</div><div class="dash-card-label">${t('your_markets')}</div></div>
       <div class="dash-card"><div class="dash-card-num">${totalFollowers}</div><div class="dash-card-label">${t('total_followers')}</div></div>
-      <div class="dash-card"><div class="dash-card-num">0</div><div class="dash-card-label">${t('page_views')}</div></div>
+      <div class="dash-card"><div class="dash-card-num">${totalPageViews}</div><div class="dash-card-label">${t('page_views')}</div></div>
       <div class="dash-card"><div class="dash-card-num">${DATA.vendors.filter(v=>v.claimed&&myMarkets.some(m=>v.markets&&v.markets.includes(m.id))).length}</div><div class="dash-card-label">${t('claimed_vendors')}</div></div>
     </div>
 
@@ -9262,31 +9373,15 @@ function renderAdminPanel() {
     views:'Views'
   };
 
-  let h = `<div class="admin-panel">
+  const isDashboard = !tabs.includes(ST.adminTab);
+  const tabStripHtml = `<div class="admin-tabs" id="adminTabStrip">${tabs.map(tab=>`<div class="admin-tab ${ST.adminTab===tab?'active':''}" onclick="setAdminTab('${tab}')">${tabLabels[tab]}</div>`).join('')}</div>`;
+
+  let h = `<div class="admin-panel">`;
+
+  if(isDashboard) {
+    h += `
     <div class="admin-title">Windmill Admin</div>
     <div class="admin-sub">Platform management dashboard</div>
-
-    <!-- DEMO PROFILES QUICK ACCESS -->
-    <div style="background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-md);padding:14px;margin-bottom:12px">
-      <div style="font-size:12px;font-weight:500;color:var(--green-dk);margin-bottom:8px">🎯 Demo Profiles — Sales Tool</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-        <button onclick="navigate('demo-vendor-free')" style="padding:8px;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left"><div style="font-weight:500">👤 Vendor Free</div><div style="color:var(--text2);font-size:10px">Suncoast Honey Co.</div></button>
-        <button onclick="navigate('demo-vendor-pro')" style="padding:8px;background:var(--green);border:none;border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left;color:#fff"><div style="font-weight:500">⭐ Vendor Pro</div><div style="opacity:.8;font-size:10px">The Empanada Queen</div></button>
-        <button onclick="navigate('demo-operator-free')" style="padding:8px;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left"><div style="font-weight:500">🏪 Operator Free</div><div style="color:var(--text2);font-size:10px">Gulf Coast Markets</div></button>
-        <button onclick="navigate('demo-operator-pro')" style="padding:8px;background:var(--green);border:none;border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left;color:#fff"><div style="font-weight:500">⭐ Operator Pro</div><div style="opacity:.8;font-size:10px">Suncoast Collective</div></button>
-      </div>
-    </div>
-
-    <!-- TEST AREA QUICK LINKS -->
-    <div style="background:var(--amber-lt);border:0.5px solid #F0D090;border-radius:var(--r-md);padding:14px;margin-bottom:16px">
-      <div style="font-size:12px;font-weight:500;color:#7A4E08;margin-bottom:8px">🧪 Test Area — Internal Testing</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-        <button onclick="navigate('market','windmill-test-market')" style="padding:8px;background:var(--surface);border:0.5px solid #F0D090;border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left;grid-column:1/-1"><div style="font-weight:500">🏪 Windmill Test Market</div><div style="color:var(--text2);font-size:10px">Test City, FL · Saturday 9am–1pm</div></button>
-        <button onclick="navigate('vendor','test-vendor-free')" style="padding:8px;background:var(--surface);border:0.5px solid #F0D090;border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left"><div style="font-weight:500">👤 Test Vendor 1</div><div style="color:var(--text2);font-size:10px">Unclaimed · Produce</div></button>
-        <button onclick="navigate('vendor','test-vendor-trial')" style="padding:8px;background:var(--surface);border:0.5px solid #F0D090;border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left"><div style="font-weight:500">👤 Test Vendor 2</div><div style="color:var(--text2);font-size:10px">Unclaimed · Baked Goods</div></button>
-        <button onclick="navigate('vendor','test-vendor-pro')" style="padding:8px;background:var(--surface);border:0.5px solid #F0D090;border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left;grid-column:1/-1"><div style="font-weight:500">👤 Test Vendor 3</div><div style="color:var(--text2);font-size:10px">Unclaimed · Honey & Preserves</div></button>
-      </div>
-    </div>
 
     <!-- STATS -->
     <div class="admin-stats">
@@ -9314,8 +9409,32 @@ function renderAdminPanel() {
       </div>
     </div>` : ''}
 
-    <!-- TABS -->
-    <div class="admin-tabs" id="adminTabStrip">${tabs.map(tab=>`<div class="admin-tab ${ST.adminTab===tab?'active':''}" onclick="setAdminTab('${tab}')">${tabLabels[tab]}</div>`).join('')}</div>`;
+    <!-- DEMO PROFILES QUICK ACCESS -->
+    <div style="background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-md);padding:14px;margin-bottom:12px">
+      <div style="font-size:12px;font-weight:500;color:var(--green-dk);margin-bottom:8px">🎯 Demo Profiles — Sales Tool</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <button onclick="navigate('demo-vendor-free')" style="padding:8px;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left"><div style="font-weight:500">👤 Vendor Free</div><div style="color:var(--text2);font-size:10px">Suncoast Honey Co.</div></button>
+        <button onclick="navigate('demo-vendor-pro')" style="padding:8px;background:var(--green);border:none;border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left;color:#fff"><div style="font-weight:500">⭐ Vendor Pro</div><div style="opacity:.8;font-size:10px">The Empanada Queen</div></button>
+        <button onclick="navigate('demo-operator-free')" style="padding:8px;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left"><div style="font-weight:500">🏪 Operator Free</div><div style="color:var(--text2);font-size:10px">Gulf Coast Markets</div></button>
+        <button onclick="navigate('demo-operator-pro')" style="padding:8px;background:var(--green);border:none;border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left;color:#fff"><div style="font-weight:500">⭐ Operator Pro</div><div style="opacity:.8;font-size:10px">Suncoast Collective</div></button>
+      </div>
+    </div>
+
+    <!-- TEST AREA QUICK LINKS -->
+    <div style="background:var(--amber-lt);border:0.5px solid #F0D090;border-radius:var(--r-md);padding:14px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:500;color:#7A4E08;margin-bottom:8px">🧪 Test Area — Internal Testing</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <button onclick="navigate('market','windmill-test-market')" style="padding:8px;background:var(--surface);border:0.5px solid #F0D090;border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left;grid-column:1/-1"><div style="font-weight:500">🏪 Windmill Test Market</div><div style="color:var(--text2);font-size:10px">Test City, FL · Saturday 9am–1pm</div></button>
+        <button onclick="navigate('vendor','test-vendor-free')" style="padding:8px;background:var(--surface);border:0.5px solid #F0D090;border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left"><div style="font-weight:500">👤 Test Vendor 1</div><div style="color:var(--text2);font-size:10px">Unclaimed · Produce</div></button>
+        <button onclick="navigate('vendor','test-vendor-trial')" style="padding:8px;background:var(--surface);border:0.5px solid #F0D090;border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left"><div style="font-weight:500">👤 Test Vendor 2</div><div style="color:var(--text2);font-size:10px">Unclaimed · Baked Goods</div></button>
+        <button onclick="navigate('vendor','test-vendor-pro')" style="padding:8px;background:var(--surface);border:0.5px solid #F0D090;border-radius:var(--r-md);font-size:11px;cursor:pointer;font-family:var(--font-sans);text-align:left;grid-column:1/-1"><div style="font-weight:500">👤 Test Vendor 3</div><div style="color:var(--text2);font-size:10px">Unclaimed · Honey & Preserves</div></button>
+      </div>
+    </div>
+
+    ${tabStripHtml}`;
+  } else {
+    h += `<div class="admin-title" style="margin-bottom:14px">Windmill Admin</div>${tabStripHtml}`;
+  }
 
   /* ── VENDORS TAB ── */
   if(ST.adminTab==='vendors') {
@@ -9925,7 +10044,26 @@ function renderAdminPanel() {
   }
 
   if(ST.adminTab==='views') {
-    h += `<div style="font-size:12px;color:var(--text2);margin-bottom:12px">Recent vendor profile views — who's been snooping 👀</div>
+    const viewsPageTypes = [['all','All'],['home','Home'],['explore','Explore'],['markets_list','Markets List'],['vendors_list','Vendors List'],['vendor','Vendor Pages'],['market','Market Pages'],['category','Categories']];
+    h += `<div style="font-size:12px;color:var(--text2);margin-bottom:12px">Page views across the site</div>
+
+    <div style="background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);padding:10px 12px;margin-bottom:14px">
+      <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:6px">View as a specific vendor or operator (see exactly what their dashboard shows)</label>
+      <select onchange="setAdminViewsAs(this.value)" style="width:100%;padding:7px 8px;border:0.5px solid var(--border-med);border-radius:var(--r-sm);font-size:12px;font-family:var(--font-sans);background:var(--surface)">
+        <option value="">— Everyone (admin overview) —</option>
+        <optgroup label="Vendors">
+          ${[...DATA.vendors].sort((a,b)=>a.name.localeCompare(b.name)).map(v=>`<option value="vendor:${v.id}" ${ST.adminViewsAsType==='vendor'&&ST.adminViewsAsId===v.id?'selected':''}>${v.name}</option>`).join('')}
+        </optgroup>
+        <optgroup label="Operators">
+          ${[...DATA.operators].sort((a,b)=>a.name.localeCompare(b.name)).map(o=>`<option value="operator:${o.id}" ${ST.adminViewsAsType==='operator'&&ST.adminViewsAsId===o.id?'selected':''}>${o.name}</option>`).join('')}
+        </optgroup>
+      </select>
+    </div>
+
+    ${!ST.adminViewsAsType ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+      ${viewsPageTypes.map(([key,label])=>`<div onclick="setAdminViewsFilter('${key}')" style="padding:6px 12px;border-radius:var(--r-pill);font-size:11px;cursor:pointer;border:0.5px solid ${ST.adminViewsFilter===key?'var(--green)':'var(--border-med)'};background:${ST.adminViewsFilter===key?'var(--green-lt)':'var(--surface)'};color:${ST.adminViewsFilter===key?'var(--green-dk)':'var(--text2)'};font-weight:${ST.adminViewsFilter===key?'600':'400'}">${label}</div>`).join('')}
+    </div>` : ''}
+
     <div id="adminViewsTable"><div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Loading views...</div></div>`;
   }
 
@@ -9940,40 +10078,106 @@ async function loadAdminViews() {
     if(el) el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Supabase not connected.</div>`;
     return;
   }
-  try {
-    const { data: views } = await supabaseClient
-      .from('profile_views')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(100);
 
-    if(!views || views.length === 0) {
-      el.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text3);font-size:13px">No profile views recorded yet.<br><span style="font-size:11px">Views will appear here once the profile_views table is created in Supabase.</span></div>`;
+  const pageTypeLabels = {home:'Home',explore:'Explore',markets_list:'Markets List',vendors_list:'Vendors List',vendor:'Vendor Page',market:'Market Page',category:'Category',category_hub:'Categories'};
+
+  // ── VIEW AS A SPECIFIC VENDOR/OPERATOR ──
+  if(ST.adminViewsAsType === 'vendor' && ST.adminViewsAsId) {
+    const vd = DATA.vendors.find(v=>v.id===ST.adminViewsAsId);
+    try {
+      const { count } = await supabaseClient.from('page_views').select('*', {count:'exact',head:true}).eq('page_type','vendor').eq('entity_id', ST.adminViewsAsId);
+      el.innerHTML = `<div style="background:var(--green-lt);border-radius:var(--r-md);padding:20px;text-align:center;margin-bottom:8px">
+        <div style="font-size:32px;font-weight:700;color:var(--green-dk)">${count||0}</div>
+        <div style="font-size:12px;color:var(--green-dk);margin-top:4px">Page views — ${vd?.name||ST.adminViewsAsId}</div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);text-align:center">This is exactly what shows on this vendor's own dashboard.</div>`;
+    } catch(e) {
+      el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Could not load views — create the page_views table in Supabase first.</div>`;
+    }
+    return;
+  }
+  if(ST.adminViewsAsType === 'operator' && ST.adminViewsAsId) {
+    const op = DATA.operators.find(o=>o.id===ST.adminViewsAsId);
+    const opMarkets = DATA.markets.filter(m=>m.operator_id===ST.adminViewsAsId);
+    try {
+      const { count } = opMarkets.length
+        ? await supabaseClient.from('page_views').select('*', {count:'exact',head:true}).eq('page_type','market').in('entity_id', opMarkets.map(m=>m.id))
+        : { count: 0 };
+      el.innerHTML = `<div style="background:var(--green-lt);border-radius:var(--r-md);padding:20px;text-align:center;margin-bottom:8px">
+        <div style="font-size:32px;font-weight:700;color:var(--green-dk)">${count||0}</div>
+        <div style="font-size:12px;color:var(--green-dk);margin-top:4px">Page views — ${op?.name||ST.adminViewsAsId} (${opMarkets.length} market${opMarkets.length===1?'':'s'})</div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);text-align:center">This is exactly what shows on this operator's own dashboard.</div>`;
+    } catch(e) {
+      el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Could not load views — create the page_views table in Supabase first.</div>`;
+    }
+    return;
+  }
+
+  // ── ADMIN OVERVIEW (with optional page-type filter) ──
+  const filter = ST.adminViewsFilter || 'all';
+  const PAGE_SIZE = 20;
+  const pageStart = (ST.adminViewsPage || 0) * PAGE_SIZE;
+  const pageEnd = pageStart + PAGE_SIZE - 1;
+  try {
+    let countQuery = supabaseClient.from('page_views').select('*', {count:'exact',head:true});
+    let rowsQuery = supabaseClient.from('page_views').select('*').order('created_at', {ascending:false}).range(pageStart, pageEnd);
+    let uniqueQuery = supabaseClient.from('page_views').select('visitor_id').not('visitor_id','is',null).order('created_at',{ascending:false}).limit(2000);
+    if(filter !== 'all') {
+      countQuery = countQuery.eq('page_type', filter);
+      rowsQuery = rowsQuery.eq('page_type', filter);
+      uniqueQuery = uniqueQuery.eq('page_type', filter);
+    }
+
+    const [{count: totalCount}, {data: rows}, breakdownCounts, {data: uniqueRows}] = await Promise.all([
+      countQuery,
+      rowsQuery,
+      filter === 'all'
+        ? Promise.all(Object.keys(pageTypeLabels).map(pt =>
+            supabaseClient.from('page_views').select('*', {count:'exact',head:true}).eq('page_type', pt).then(r=>[pt, r.count||0])
+          ))
+        : Promise.resolve([]),
+      uniqueQuery
+    ]);
+    const uniqueVisitors = new Set((uniqueRows||[]).map(r=>r.visitor_id)).size;
+
+    if(!totalCount) {
+      el.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text3);font-size:13px">No page views recorded yet.<br><span style="font-size:11px">Views will appear here once the page_views table is created in Supabase.</span></div>`;
       return;
     }
 
-    // Group by vendor for summary
-    const byVendor = {};
-    views.forEach(v => {
-      if(!byVendor[v.vendor_id]) byVendor[v.vendor_id] = 0;
-      byVendor[v.vendor_id]++;
-    });
-    const topVendors = Object.entries(byVendor).sort((a,b) => b[1]-a[1]).slice(0,5);
+    let html = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+      <div style="background:var(--green-lt);border-radius:var(--r-md);padding:16px;text-align:center">
+        <div style="font-size:24px;font-weight:700;color:var(--green-dk)">${totalCount}</div>
+        <div style="font-size:11px;color:var(--green-dk);margin-top:2px">Page views${filter!=='all'?' — '+pageTypeLabels[filter]:''}</div>
+      </div>
+      <div style="background:var(--green-lt);border-radius:var(--r-md);padding:16px;text-align:center">
+        <div style="font-size:24px;font-weight:700;color:var(--green-dk)">${uniqueVisitors}${uniqueRows && uniqueRows.length>=2000?'+':''}</div>
+        <div style="font-size:11px;color:var(--green-dk);margin-top:2px">Unique visitors</div>
+      </div>
+    </div>`;
 
-    let html = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:16px">
-      ${topVendors.map(([id, count]) => {
-        const vd = DATA.vendors.find(x=>x.id===id);
-        return `<div style="background:var(--green-lt);border-radius:var(--r-md);padding:10px 12px;text-align:center">
-          <div style="font-size:20px;font-weight:700;color:var(--green-dk)">${count}</div>
-          <div style="font-size:11px;color:var(--green-dk);margin-top:2px">${vd?.name||id}</div>
-        </div>`;
-      }).join('')}
-    </div>
-    <div style="font-size:11px;font-weight:500;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Recent views</div>
+    if(filter === 'all' && breakdownCounts.length) {
+      html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-bottom:16px">
+        ${breakdownCounts.filter(([,c])=>c>0).sort((a,b)=>b[1]-a[1]).map(([pt,c])=>`<div style="background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);padding:10px;text-align:center">
+          <div style="font-size:18px;font-weight:700;color:var(--text)">${c}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">${pageTypeLabels[pt]}</div>
+        </div>`).join('')}
+      </div>`;
+    }
+
+    html += `<div style="font-size:11px;font-weight:500;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Recent views</div>
     <div class="admin-table">`;
 
-    views.forEach(view => {
-      const vd = DATA.vendors.find(x=>x.id===view.vendor_id);
+    if(!rows || rows.length === 0) {
+      html += `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">No views on this page.</div>`;
+    }
+
+    (rows||[]).forEach(view => {
+      let entityName = pageTypeLabels[view.page_type] || view.page_type;
+      if(view.page_type === 'vendor') { const vd = DATA.vendors.find(x=>x.id===view.entity_id); entityName = vd?.name || view.entity_id; }
+      if(view.page_type === 'market') { const md = DATA.markets.find(x=>x.id===view.entity_id); entityName = md?.name || view.entity_id; }
+      if(view.page_type === 'category') { entityName = 'Category: ' + view.entity_id; }
       const date = new Date(view.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
       let source = '📱 Direct';
       if(view.referrer) {
@@ -9985,10 +10189,12 @@ async function loadAdminViews() {
             : '🔗 ' + host;
         } catch(e) { source = '🔗 ' + view.referrer; }
       }
+      const who = view.viewer_email || (view.visitor_id ? `Guest #${view.visitor_id.slice(-4)}` : 'Guest (not signed in)');
+      const where = (view.city || view.region) ? ` · ${[view.city, view.region].filter(Boolean).join(', ')}` : '';
       html += `<div class="admin-row">
         <div class="admin-row-info">
-          <div class="admin-row-name">${vd?.name || view.vendor_id}</div>
-          <div class="admin-row-meta">${view.viewer_email || 'Guest (not signed in)'} · ${source}</div>
+          <div class="admin-row-name">${entityName}</div>
+          <div class="admin-row-meta">${pageTypeLabels[view.page_type]||view.page_type} · ${who} · ${source}${where}</div>
           <div style="font-size:10px;color:var(--text3);margin-top:2px">${date}</div>
         </div>
         <span class="status-pill ${view.viewer_email?'claimed':'draft'}">${view.viewer_email?'Member':'Guest'}</span>
@@ -9996,9 +10202,19 @@ async function loadAdminViews() {
     });
 
     html += `</div>`;
+
+    // Pagination controls
+    const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+    const curPage = (ST.adminViewsPage || 0) + 1;
+    html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border)">
+      <button onclick="setAdminViewsPage('prev')" ${curPage<=1?'disabled':''} style="padding:7px 14px;border-radius:var(--r-pill);border:0.5px solid var(--border-med);background:${curPage<=1?'var(--surface2)':'var(--surface)'};color:${curPage<=1?'var(--text3)':'var(--text)'};font-size:12px;cursor:${curPage<=1?'default':'pointer'};font-family:var(--font-sans)">‹ Previous</button>
+      <span style="font-size:11px;color:var(--text3)">Page ${curPage} of ${totalPages}</span>
+      <button onclick="setAdminViewsPage('next')" ${curPage>=totalPages?'disabled':''} style="padding:7px 14px;border-radius:var(--r-pill);border:0.5px solid var(--border-med);background:${curPage>=totalPages?'var(--surface2)':'var(--surface)'};color:${curPage>=totalPages?'var(--text3)':'var(--text)'};font-size:12px;cursor:${curPage>=totalPages?'default':'pointer'};font-family:var(--font-sans)">Next ›</button>
+    </div>`;
+
     el.innerHTML = html;
   } catch(e) {
-    el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Could not load views — create the profile_views table in Supabase first.</div>`;
+    el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Could not load views — create the page_views table in Supabase first.</div>`;
   }
 }
 
@@ -10740,6 +10956,30 @@ async function dbSaveReply(messageId, reply) {
 }
 
 /* ── ADMIN ACTIONS ── */
+function setAdminViewsFilter(filter) {
+  ST.adminViewsFilter = filter;
+  ST.adminViewsPage = 0;
+  renderAdminPanel();
+}
+
+function setAdminViewsAs(value) {
+  ST.adminViewsPage = 0;
+  if(!value) {
+    ST.adminViewsAsType = '';
+    ST.adminViewsAsId = '';
+  } else {
+    const idx = value.indexOf(':');
+    ST.adminViewsAsType = value.slice(0, idx);
+    ST.adminViewsAsId = value.slice(idx + 1);
+  }
+  renderAdminPanel();
+}
+
+function setAdminViewsPage(direction) {
+  ST.adminViewsPage = Math.max(0, ST.adminViewsPage + (direction === 'next' ? 1 : -1));
+  loadAdminViews();
+}
+
 function setAdminTab(tab) {
   ST.adminTab = tab;
   ST.adminMsgThread = null;
@@ -10775,6 +11015,11 @@ function setAdminTab(tab) {
     });
   }
   renderAdminPanel();
+  renderSidebar();
+  // Reset page scroll so the new section starts at the top, not wherever the last one left off
+  window.scrollTo(0, 0);
+  const sb = document.getElementById('scrollBody');
+  if(sb) sb.scrollTop = 0;
   // Scroll active tab into view on mobile
   setTimeout(() => {
     const strip = document.getElementById('adminTabStrip');
@@ -12870,6 +13115,10 @@ function renderVendorSettingsSection(section) {
           </a>
         </div>
       </div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-top:12px">
+        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">🔒 Privacy</div>
+        <span onclick="navigate('privacy-policy')" style="font-size:12px;color:var(--terra);cursor:pointer">Privacy Policy</span>
+      </div>
     </div>`;
   } else if(section === 'support') {
     sb.innerHTML = backBtn + `<div style="padding:16px">
@@ -13700,6 +13949,10 @@ function renderOperatorSettingsSection(section) {
             Shopwindmill
           </a>
         </div>
+      </div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-top:12px">
+        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">🔒 Privacy</div>
+        <span onclick="navigate('privacy-policy')" style="font-size:12px;color:var(--terra);cursor:pointer">Privacy Policy</span>
       </div>
     </div>`;
   } else if(section === 'support') {
