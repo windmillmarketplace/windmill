@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
+<!-- v1.70.5 -->
+<!-- v1.70.4 -->
+<!-- v1.70.3 -->
+<!-- v1.70.2 -->
+<!-- v1.70.1 -->
 <!-- v1.70 -->
 <!-- v1.69.12 -->
 <!-- v1.69.11 -->
@@ -526,6 +531,17 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .admin-tabs::-webkit-scrollbar{display:none}
 .admin-tab{padding:10px 16px;font-size:13px;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
 .admin-tab.active{color:var(--green-dk);border-bottom-color:var(--green);font-weight:500}
+.views-controls{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.views-controls-bottom{display:flex;gap:8px}
+.views-controls-bottom select{flex:1;min-width:0}
+.views-controls-bottom .views-mode-toggle{flex:1}
+@media(min-width:768px){
+  .views-controls{flex-direction:row;align-items:flex-end}
+  .views-asbox{flex:0 1 280px;max-width:300px}
+  .views-controls-bottom{flex:0 0 auto}
+  .views-controls-bottom select{flex:0 0 auto;min-width:120px}
+  .views-controls-bottom .views-mode-toggle{flex:0 0 auto}
+}
 .admin-table{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-bottom:16px}
 .admin-row{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:0.5px solid var(--border)}
 .admin-row:last-child{border-bottom:none}
@@ -1584,7 +1600,10 @@ let ST = {
   adminViewsFilter: 'all',
   adminViewsAsType: '',
   adminViewsAsId: '',
-  adminViewsPage: 0
+  adminViewsPage: 0,
+  adminViewsMode: 'all',
+  adminViewsAsMode: 'vendor',
+  adminViewsRange: 'alltime'
 };
 
 /* ── VISITOR IDENTITY + APPROX LOCATION (anonymous, for analytics) ── */
@@ -9161,6 +9180,9 @@ async function renderVendorDash() {
   const isPro = v?.pro || ST.isProTrial;
   const isFreeTrial = ST.isProTrial && !v?.pro;
 
+  // Track that the vendor checked their own dashboard (admin-only metric, never shown to the vendor)
+  if(vendorId) trackPageView('vendor_dashboard', vendorId, '/vendors/dashboard');
+
   // Load real follower count from Supabase
   let followerCount = 0;
   let profileViews = 0;
@@ -9217,7 +9239,7 @@ async function renderVendorDash() {
 
     <!-- STATS -->
     <div class="dash-grid">
-      <div class="dash-card"><div class="dash-card-num">${profileViews}</div><div class="dash-card-label">${t('profile_views')}</div></div>
+      <div class="dash-card" ${!isPro?`onclick="navigate('vendors-join')" style="cursor:pointer"`:''}><div class="dash-card-num">${isPro ? profileViews : '🔒'}</div><div class="dash-card-label">${t('profile_views')}${isPro?'':' · Pro'}</div></div>
       <div class="dash-card"><div class="dash-card-num">${followerCount}</div><div class="dash-card-label">${t('followers')}</div></div>
       <div class="dash-card"><div class="dash-card-num">${marketCount}</div><div class="dash-card-label">${t('markets_label')}</div></div>
       <div class="dash-card"><div class="dash-card-num">${productCount}</div><div class="dash-card-label">${t('my_products')}</div></div>
@@ -9264,6 +9286,9 @@ async function renderOperatorDash() {
   hideFilterUI();
   const opId = ST.operatorId || 'local-roots';
   const myMarkets = DATA.markets.filter(m => m.operator_id === opId);
+
+  // Track that the operator checked their own dashboard (admin-only metric, never shown to the operator)
+  trackPageView('operator_dashboard', opId, '/markets/dashboard');
 
   const isPro = ST.opIsPro;
   const isFreeTrial = ST.opIsProTrial && !isPro;
@@ -9324,7 +9349,7 @@ async function renderOperatorDash() {
     <div class="dash-grid">
       <div class="dash-card"><div class="dash-card-num">${myMarkets.length}</div><div class="dash-card-label">${t('your_markets')}</div></div>
       <div class="dash-card"><div class="dash-card-num">${totalFollowers}</div><div class="dash-card-label">${t('total_followers')}</div></div>
-      <div class="dash-card"><div class="dash-card-num">${totalPageViews}</div><div class="dash-card-label">${t('page_views')}</div></div>
+      <div class="dash-card" ${isFree?`onclick="ST.sub='me';renderCurrentPage()" style="cursor:pointer"`:''}><div class="dash-card-num">${!isFree ? totalPageViews : '🔒'}</div><div class="dash-card-label">${t('page_views')}${isFree?' · Pro':''}</div></div>
       <div class="dash-card"><div class="dash-card-num">${DATA.vendors.filter(v=>v.claimed&&myMarkets.some(m=>v.markets&&v.markets.includes(m.id))).length}</div><div class="dash-card-label">${t('claimed_vendors')}</div></div>
     </div>
 
@@ -10044,27 +10069,46 @@ function renderAdminPanel() {
   }
 
   if(ST.adminTab==='views') {
-    const viewsPageTypes = [['all','All'],['home','Home'],['explore','Explore'],['markets_list','Markets List'],['vendors_list','Vendors List'],['vendor','Vendor Pages'],['market','Market Pages'],['category','Categories']];
+    const viewsPageTypes = [['all','All'],['home','Home'],['explore','Explore'],['markets_list','Markets List'],['vendors_list','Vendors List'],['vendor','Vendor Pages'],['market','Market Pages'],['category','Categories'],['vendor_dashboard','Vendor Dash'],['operator_dashboard','Market Dash']];
+    const viewsRanges = [['today','Today'],['week','This Week'],['month','This Month'],['year','This Year'],['alltime','All Time']];
     h += `<div style="font-size:12px;color:var(--text2);margin-bottom:12px">Page views across the site</div>
 
-    <div style="background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);padding:10px 12px;margin-bottom:14px">
-      <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:6px">View as a specific vendor or operator (see exactly what their dashboard shows)</label>
-      <select onchange="setAdminViewsAs(this.value)" style="width:100%;padding:7px 8px;border:0.5px solid var(--border-med);border-radius:var(--r-sm);font-size:12px;font-family:var(--font-sans);background:var(--surface)">
-        <option value="">— Everyone (admin overview) —</option>
-        <optgroup label="Vendors">
-          ${[...DATA.vendors].sort((a,b)=>a.name.localeCompare(b.name)).map(v=>`<option value="vendor:${v.id}" ${ST.adminViewsAsType==='vendor'&&ST.adminViewsAsId===v.id?'selected':''}>${v.name}</option>`).join('')}
-        </optgroup>
-        <optgroup label="Operators">
-          ${[...DATA.operators].sort((a,b)=>a.name.localeCompare(b.name)).map(o=>`<option value="operator:${o.id}" ${ST.adminViewsAsType==='operator'&&ST.adminViewsAsId===o.id?'selected':''}>${o.name}</option>`).join('')}
-        </optgroup>
-      </select>
+    <div id="adminViewsStats"><div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Loading...</div></div>
+
+    <div style="height:6px"></div>
+
+    <div class="views-controls">
+      <div class="views-asbox" style="background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);padding:8px 10px">
+        <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:5px">View as vendor/operator</label>
+        <select onchange="setAdminViewsAs(this.value)" style="width:100%;padding:6px 6px;border:0.5px solid var(--border-med);border-radius:var(--r-sm);font-size:11px;font-family:var(--font-sans);background:var(--surface)">
+          <option value="">— Everyone (admin overview) —</option>
+          <optgroup label="Vendors">
+            ${[...DATA.vendors].sort((a,b)=>a.name.localeCompare(b.name)).map(v=>`<option value="vendor:${v.id}" ${ST.adminViewsAsType==='vendor'&&ST.adminViewsAsId===v.id?'selected':''}>${v.name}</option>`).join('')}
+          </optgroup>
+          <optgroup label="Operators">
+            ${[...DATA.operators].sort((a,b)=>a.name.localeCompare(b.name)).map(o=>`<option value="operator:${o.id}" ${ST.adminViewsAsType==='operator'&&ST.adminViewsAsId===o.id?'selected':''}>${o.name}</option>`).join('')}
+          </optgroup>
+        </select>
+      </div>
+      <div class="views-controls-bottom">
+        <select onchange="setAdminViewsRange(this.value)" style="padding:9px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:12px;font-family:var(--font-sans);background:var(--surface);color:var(--text)">
+          ${viewsRanges.map(([key,label])=>`<option value="${key}" ${ST.adminViewsRange===key?'selected':''}>${label}</option>`).join('')}
+        </select>
+        ${!ST.adminViewsAsType ? `<div class="views-mode-toggle" style="display:flex;border:0.5px solid var(--border-med);border-radius:var(--r-md);overflow:hidden">
+          <div onclick="setAdminViewsMode('all')" style="flex:1;text-align:center;padding:9px 10px;font-size:11px;cursor:pointer;white-space:nowrap;background:${ST.adminViewsMode==='all'?'var(--green-lt)':'var(--surface)'};color:${ST.adminViewsMode==='all'?'var(--green-dk)':'var(--text2)'};font-weight:${ST.adminViewsMode==='all'?'600':'400'}">All Views</div>
+          <div onclick="setAdminViewsMode('unique')" style="flex:1;text-align:center;padding:9px 10px;font-size:11px;cursor:pointer;white-space:nowrap;border-left:0.5px solid var(--border-med);background:${ST.adminViewsMode==='unique'?'var(--green-lt)':'var(--surface)'};color:${ST.adminViewsMode==='unique'?'var(--green-dk)':'var(--text2)'};font-weight:${ST.adminViewsMode==='unique'?'600':'400'}">👤 Unique</div>
+        </div>` : `<div class="views-mode-toggle" style="display:flex;border:0.5px solid var(--border-med);border-radius:var(--r-md);overflow:hidden">
+          <div onclick="setAdminViewsAsMode('vendor')" style="flex:1;text-align:center;padding:9px 10px;font-size:11px;cursor:pointer;white-space:nowrap;background:${ST.adminViewsAsMode==='vendor'?'var(--green-lt)':'var(--surface)'};color:${ST.adminViewsAsMode==='vendor'?'var(--green-dk)':'var(--text2)'};font-weight:${ST.adminViewsAsMode==='vendor'?'600':'400'}">Vendor</div>
+          <div onclick="setAdminViewsAsMode('admin')" style="flex:1;text-align:center;padding:9px 10px;font-size:11px;cursor:pointer;white-space:nowrap;border-left:0.5px solid var(--border-med);background:${ST.adminViewsAsMode==='admin'?'var(--terra)':'var(--surface)'};color:${ST.adminViewsAsMode==='admin'?'#fff':'var(--text2)'};font-weight:${ST.adminViewsAsMode==='admin'?'600':'400'}">🔒 Admin</div>
+        </div>`}
+      </div>
     </div>
 
     ${!ST.adminViewsAsType ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
       ${viewsPageTypes.map(([key,label])=>`<div onclick="setAdminViewsFilter('${key}')" style="padding:6px 12px;border-radius:var(--r-pill);font-size:11px;cursor:pointer;border:0.5px solid ${ST.adminViewsFilter===key?'var(--green)':'var(--border-med)'};background:${ST.adminViewsFilter===key?'var(--green-lt)':'var(--surface)'};color:${ST.adminViewsFilter===key?'var(--green-dk)':'var(--text2)'};font-weight:${ST.adminViewsFilter===key?'600':'400'}">${label}</div>`).join('')}
     </div>` : ''}
 
-    <div id="adminViewsTable"><div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Loading views...</div></div>`;
+    <div id="adminViewsList"><div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Loading views...</div></div>`;
   }
 
   h += `</div>`;
@@ -10073,125 +10117,226 @@ function renderAdminPanel() {
 }
 
 async function loadAdminViews() {
-  const el = document.getElementById('adminViewsTable');
-  if(!el || !supabaseClient) {
-    if(el) el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Supabase not connected.</div>`;
+  const statsEl = document.getElementById('adminViewsStats');
+  const listEl = document.getElementById('adminViewsList');
+  if(!statsEl) return;
+  if(!supabaseClient) {
+    statsEl.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Supabase not connected.</div>`;
+    if(listEl) listEl.innerHTML = '';
     return;
   }
 
-  const pageTypeLabels = {home:'Home',explore:'Explore',markets_list:'Markets List',vendors_list:'Vendors List',vendor:'Vendor Page',market:'Market Page',category:'Category',category_hub:'Categories'};
+  const pageTypeLabels = {home:'Home',explore:'Explore',markets_list:'Markets List',vendors_list:'Vendors List',vendor:'Vendor Page',market:'Market Page',category:'Category',category_hub:'Categories',vendor_dashboard:'Vendor Dash',operator_dashboard:'Market Dash'};
+  const rangeLabels = {today:'today',week:'this week',month:'this month',year:'this year',alltime:'all time'};
+  const rangeCutoff = getAdminViewsRangeCutoff();
+  const rangeNote = (ST.adminViewsRange && ST.adminViewsRange !== 'alltime') ? ` (${rangeLabels[ST.adminViewsRange]})` : '';
 
-  // ── VIEW AS A SPECIFIC VENDOR/OPERATOR ──
+  // ── VIEW AS A SPECIFIC VENDOR/OPERATOR (respects date range; Vendor/Admin toggle picks which metric) ──
+  const asMode = ST.adminViewsAsMode || 'vendor';
   if(ST.adminViewsAsType === 'vendor' && ST.adminViewsAsId) {
     const vd = DATA.vendors.find(v=>v.id===ST.adminViewsAsId);
+    if(listEl) listEl.innerHTML = '';
     try {
-      const { count } = await supabaseClient.from('page_views').select('*', {count:'exact',head:true}).eq('page_type','vendor').eq('entity_id', ST.adminViewsAsId);
-      el.innerHTML = `<div style="background:var(--green-lt);border-radius:var(--r-md);padding:20px;text-align:center;margin-bottom:8px">
-        <div style="font-size:32px;font-weight:700;color:var(--green-dk)">${count||0}</div>
-        <div style="font-size:12px;color:var(--green-dk);margin-top:4px">Page views — ${vd?.name||ST.adminViewsAsId}</div>
-      </div>
-      <div style="font-size:11px;color:var(--text3);text-align:center">This is exactly what shows on this vendor's own dashboard.</div>`;
+      const queryType = asMode === 'admin' ? 'vendor_dashboard' : 'vendor';
+      let q = supabaseClient.from('page_views').select('*', {count:'exact',head:true}).eq('page_type',queryType).eq('entity_id', ST.adminViewsAsId);
+      if(rangeCutoff) q = q.gte('created_at', rangeCutoff);
+      const { count } = await q;
+      if(asMode === 'admin') {
+        statsEl.innerHTML = `<div style="background:#FBEAE3;border:0.5px solid var(--terra);border-radius:var(--r-md);padding:20px;text-align:center;margin-bottom:8px">
+          <div style="font-size:32px;font-weight:700;color:var(--terra)">${count||0}</div>
+          <div style="font-size:12px;color:var(--terra);margin-top:4px">Dashboard check-ins — ${vd?.name||ST.adminViewsAsId}${rangeNote}</div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);text-align:center">🔒 Admin only — ${vd?.name||'this vendor'} never sees this number.</div>`;
+      } else {
+        statsEl.innerHTML = `<div style="background:var(--green-lt);border-radius:var(--r-md);padding:20px;text-align:center;margin-bottom:8px">
+          <div style="font-size:32px;font-weight:700;color:var(--green-dk)">${count||0}</div>
+          <div style="font-size:12px;color:var(--green-dk);margin-top:4px">Page views — ${vd?.name||ST.adminViewsAsId}${rangeNote}</div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);text-align:center">Their own dashboard always shows an all-time total — this time range is for your eyes only.</div>`;
+      }
     } catch(e) {
-      el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Could not load views — create the page_views table in Supabase first.</div>`;
+      statsEl.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Could not load views — create the page_views table in Supabase first.</div>`;
     }
     return;
   }
   if(ST.adminViewsAsType === 'operator' && ST.adminViewsAsId) {
     const op = DATA.operators.find(o=>o.id===ST.adminViewsAsId);
     const opMarkets = DATA.markets.filter(m=>m.operator_id===ST.adminViewsAsId);
+    if(listEl) listEl.innerHTML = '';
     try {
-      const { count } = opMarkets.length
-        ? await supabaseClient.from('page_views').select('*', {count:'exact',head:true}).eq('page_type','market').in('entity_id', opMarkets.map(m=>m.id))
-        : { count: 0 };
-      el.innerHTML = `<div style="background:var(--green-lt);border-radius:var(--r-md);padding:20px;text-align:center;margin-bottom:8px">
-        <div style="font-size:32px;font-weight:700;color:var(--green-dk)">${count||0}</div>
-        <div style="font-size:12px;color:var(--green-dk);margin-top:4px">Page views — ${op?.name||ST.adminViewsAsId} (${opMarkets.length} market${opMarkets.length===1?'':'s'})</div>
-      </div>
-      <div style="font-size:11px;color:var(--text3);text-align:center">This is exactly what shows on this operator's own dashboard.</div>`;
+      let q;
+      if(asMode === 'admin') {
+        q = supabaseClient.from('page_views').select('*', {count:'exact',head:true}).eq('page_type','operator_dashboard').eq('entity_id', ST.adminViewsAsId);
+      } else {
+        q = opMarkets.length ? supabaseClient.from('page_views').select('*', {count:'exact',head:true}).eq('page_type','market').in('entity_id', opMarkets.map(m=>m.id)) : null;
+      }
+      if(q && rangeCutoff) q = q.gte('created_at', rangeCutoff);
+      const { count } = q ? await q : { count: 0 };
+      if(asMode === 'admin') {
+        statsEl.innerHTML = `<div style="background:#FBEAE3;border:0.5px solid var(--terra);border-radius:var(--r-md);padding:20px;text-align:center;margin-bottom:8px">
+          <div style="font-size:32px;font-weight:700;color:var(--terra)">${count||0}</div>
+          <div style="font-size:12px;color:var(--terra);margin-top:4px">Dashboard check-ins — ${op?.name||ST.adminViewsAsId}${rangeNote}</div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);text-align:center">🔒 Admin only — ${op?.name||'this operator'} never sees this number.</div>`;
+      } else {
+        statsEl.innerHTML = `<div style="background:var(--green-lt);border-radius:var(--r-md);padding:20px;text-align:center;margin-bottom:8px">
+          <div style="font-size:32px;font-weight:700;color:var(--green-dk)">${count||0}</div>
+          <div style="font-size:12px;color:var(--green-dk);margin-top:4px">Page views — ${op?.name||ST.adminViewsAsId} (${opMarkets.length} market${opMarkets.length===1?'':'s'})${rangeNote}</div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);text-align:center">Their own dashboard always shows an all-time total — this time range is for your eyes only.</div>`;
+      }
     } catch(e) {
-      el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Could not load views — create the page_views table in Supabase first.</div>`;
+      statsEl.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Could not load views — create the page_views table in Supabase first.</div>`;
     }
     return;
   }
 
-  // ── ADMIN OVERVIEW (with optional page-type filter) ──
+  // ── ADMIN OVERVIEW (page-type filter + date range + mode) ──
   const filter = ST.adminViewsFilter || 'all';
+  const mode = ST.adminViewsMode || 'all';
   const PAGE_SIZE = 20;
   const pageStart = (ST.adminViewsPage || 0) * PAGE_SIZE;
   const pageEnd = pageStart + PAGE_SIZE - 1;
-  try {
-    let countQuery = supabaseClient.from('page_views').select('*', {count:'exact',head:true});
-    let rowsQuery = supabaseClient.from('page_views').select('*').order('created_at', {ascending:false}).range(pageStart, pageEnd);
-    let uniqueQuery = supabaseClient.from('page_views').select('visitor_id').not('visitor_id','is',null).order('created_at',{ascending:false}).limit(2000);
-    if(filter !== 'all') {
-      countQuery = countQuery.eq('page_type', filter);
-      rowsQuery = rowsQuery.eq('page_type', filter);
-      uniqueQuery = uniqueQuery.eq('page_type', filter);
-    }
 
-    const [{count: totalCount}, {data: rows}, breakdownCounts, {data: uniqueRows}] = await Promise.all([
+  const withCommon = q => { if(filter !== 'all') q = q.eq('page_type', filter); if(rangeCutoff) q = q.gte('created_at', rangeCutoff); return q; };
+
+  try {
+    let countQuery = withCommon(supabaseClient.from('page_views').select('*', {count:'exact',head:true}));
+    let uniqueQuery = withCommon(supabaseClient.from('page_views').select('visitor_id,viewer_email,city,region,page_type,entity_id,created_at').not('visitor_id','is',null).order('created_at',{ascending:false}).limit(3000));
+
+    const [{count: totalCount}, breakdownCounts, {data: sampleRows}] = await Promise.all([
       countQuery,
-      rowsQuery,
       filter === 'all'
-        ? Promise.all(Object.keys(pageTypeLabels).map(pt =>
-            supabaseClient.from('page_views').select('*', {count:'exact',head:true}).eq('page_type', pt).then(r=>[pt, r.count||0])
-          ))
+        ? Promise.all(Object.keys(pageTypeLabels).map(pt => {
+            let q = supabaseClient.from('page_views').select('*', {count:'exact',head:true}).eq('page_type', pt);
+            if(rangeCutoff) q = q.gte('created_at', rangeCutoff);
+            return q.then(r=>[pt, r.count||0]);
+          }))
         : Promise.resolve([]),
       uniqueQuery
     ]);
-    const uniqueVisitors = new Set((uniqueRows||[]).map(r=>r.visitor_id)).size;
+    const uniqueVisitors = new Set((sampleRows||[]).map(r=>r.visitor_id)).size;
+    const sampleCapped = sampleRows && sampleRows.length >= 3000;
 
     if(!totalCount) {
-      el.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text3);font-size:13px">No page views recorded yet.<br><span style="font-size:11px">Views will appear here once the page_views table is created in Supabase.</span></div>`;
+      statsEl.innerHTML = `<div style="text-align:center;padding:32px;color:var(--text3);font-size:13px">No page views recorded${rangeNote || ' yet'}.<br><span style="font-size:11px">Views will appear here once the page_views table is created in Supabase.</span></div>`;
+      if(listEl) listEl.innerHTML = '';
       return;
     }
 
-    let html = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+    // ── STATS ZONE ──
+    let statsHtml = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
       <div style="background:var(--green-lt);border-radius:var(--r-md);padding:16px;text-align:center">
         <div style="font-size:24px;font-weight:700;color:var(--green-dk)">${totalCount}</div>
         <div style="font-size:11px;color:var(--green-dk);margin-top:2px">Page views${filter!=='all'?' — '+pageTypeLabels[filter]:''}</div>
       </div>
       <div style="background:var(--green-lt);border-radius:var(--r-md);padding:16px;text-align:center">
-        <div style="font-size:24px;font-weight:700;color:var(--green-dk)">${uniqueVisitors}${uniqueRows && uniqueRows.length>=2000?'+':''}</div>
+        <div style="font-size:24px;font-weight:700;color:var(--green-dk)">${uniqueVisitors}${sampleCapped?'+':''}</div>
         <div style="font-size:11px;color:var(--green-dk);margin-top:2px">Unique visitors</div>
       </div>
     </div>`;
 
     if(filter === 'all' && breakdownCounts.length) {
-      html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-bottom:16px">
+      statsHtml += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px">
         ${breakdownCounts.filter(([,c])=>c>0).sort((a,b)=>b[1]-a[1]).map(([pt,c])=>`<div style="background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);padding:10px;text-align:center">
           <div style="font-size:18px;font-weight:700;color:var(--text)">${c}</div>
           <div style="font-size:10px;color:var(--text3);margin-top:2px">${pageTypeLabels[pt]}</div>
         </div>`).join('')}
       </div>`;
     }
+    statsEl.innerHTML = statsHtml;
 
-    html += `<div style="font-size:11px;font-weight:500;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Recent views</div>
+    const fmtWho = (email, visitorId) => email || (visitorId ? `Guest #${visitorId.slice(-4)}` : 'Guest (not signed in)');
+    const fmtSource = referrer => {
+      if(!referrer) return '📱 Direct';
+      try {
+        const host = new URL(referrer).hostname;
+        return host.includes('google') ? '🔍 Google' : host.includes('facebook') ? '📘 Facebook' : host.includes('instagram') ? '📸 Instagram' : '🔗 ' + host;
+      } catch(e) { return '🔗 ' + referrer; }
+    };
+    const fmtEntity = view => {
+      if(view.page_type === 'vendor') { const vd = DATA.vendors.find(x=>x.id===view.entity_id); return vd?.name || view.entity_id; }
+      if(view.page_type === 'market') { const md = DATA.markets.find(x=>x.id===view.entity_id); return md?.name || view.entity_id; }
+      if(view.page_type === 'category') return 'Category: ' + view.entity_id;
+      if(view.page_type === 'vendor_dashboard') { const vd = DATA.vendors.find(x=>x.id===view.entity_id); return `${vd?.name || view.entity_id} (dashboard)`; }
+      if(view.page_type === 'operator_dashboard') { const op = DATA.operators.find(x=>x.id===view.entity_id); return `${op?.name || view.entity_id} (dashboard)`; }
+      return pageTypeLabels[view.page_type] || view.page_type;
+    };
+
+    if(!listEl) return;
+
+    if(mode === 'unique') {
+      /* ── CONSOLIDATED: ONE ROW PER VISITOR ── */
+      const byVisitor = {};
+      (sampleRows||[]).forEach(r => {
+        if(!byVisitor[r.visitor_id]) byVisitor[r.visitor_id] = { visitorId:r.visitor_id, count:0, email:null, city:null, region:null, lastSeen:r.created_at, rows:[] };
+        const v = byVisitor[r.visitor_id];
+        v.count++;
+        if(r.viewer_email) v.email = r.viewer_email;
+        if(!v.city && r.city) v.city = r.city;
+        if(!v.region && r.region) v.region = r.region;
+        if(r.created_at > v.lastSeen) v.lastSeen = r.created_at;
+        v.rows.push(r);
+      });
+      const visitorList = Object.values(byVisitor).sort((a,b)=>b.count-a.count);
+      const totalPages = Math.max(1, Math.ceil(visitorList.length / PAGE_SIZE));
+      const pageItems = visitorList.slice(pageStart, pageStart + PAGE_SIZE);
+
+      let listHtml = `<div style="font-size:11px;font-weight:500;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Unique visitors${sampleCapped?' (top 3,000 most recent views sampled)':''}</div>
+      <div class="admin-table">`;
+
+      if(pageItems.length === 0) {
+        listHtml += `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">No visitors on this page.</div>`;
+      }
+
+      pageItems.forEach(v => {
+        const who = fmtWho(v.email, v.visitorId);
+        const where = (v.city || v.region) ? ` · ${[v.city, v.region].filter(Boolean).join(', ')}` : '';
+        const lastSeenStr = new Date(v.lastSeen).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+        const safeId = v.visitorId.replace(/[^a-zA-Z0-9-]/g,'');
+        const detailRows = [...v.rows].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(r => {
+          const d = new Date(r.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+          return `<div style="font-size:11px;color:var(--text2);padding:5px 0;border-bottom:0.5px solid var(--border)">${fmtEntity(r)} <span style="color:var(--text3)">· ${pageTypeLabels[r.page_type]||r.page_type} · ${d}</span></div>`;
+        }).join('');
+        listHtml += `<div class="admin-row" onclick="toggleAdminVisitorDetail('${safeId}')" style="cursor:pointer">
+          <div class="admin-row-info">
+            <div class="admin-row-name">${who}</div>
+            <div class="admin-row-meta">${v.count} page view${v.count===1?'':'s'}${where} · Last seen ${lastSeenStr}</div>
+          </div>
+          <span class="status-pill ${v.email?'claimed':'draft'}">${v.email?'Member':'Guest'}</span>
+        </div>
+        <div id="vdetail-${safeId}" style="display:none;padding:6px 12px 10px 12px;background:var(--surface2);border-radius:0 0 var(--r-md) var(--r-md);margin-bottom:6px">${detailRows}</div>`;
+      });
+
+      listHtml += `</div>`;
+      const curPage = (ST.adminViewsPage || 0) + 1;
+      listHtml += `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border)">
+        <button onclick="setAdminViewsPage('prev')" ${curPage<=1?'disabled':''} style="padding:7px 14px;border-radius:var(--r-pill);border:0.5px solid var(--border-med);background:${curPage<=1?'var(--surface2)':'var(--surface)'};color:${curPage<=1?'var(--text3)':'var(--text)'};font-size:12px;cursor:${curPage<=1?'default':'pointer'};font-family:var(--font-sans)">‹ Previous</button>
+        <span style="font-size:11px;color:var(--text3)">Page ${curPage} of ${totalPages}</span>
+        <button onclick="setAdminViewsPage('next')" ${curPage>=totalPages?'disabled':''} style="padding:7px 14px;border-radius:var(--r-pill);border:0.5px solid var(--border-med);background:${curPage>=totalPages?'var(--surface2)':'var(--surface)'};color:${curPage>=totalPages?'var(--text3)':'var(--text)'};font-size:12px;cursor:${curPage>=totalPages?'default':'pointer'};font-family:var(--font-sans)">Next ›</button>
+      </div>`;
+      listEl.innerHTML = listHtml;
+      return;
+    }
+
+    /* ── ALL VIEWS: ONE ROW PER PAGE LOAD (existing behavior) ── */
+    let rowsQuery = withCommon(supabaseClient.from('page_views').select('*').order('created_at', {ascending:false}).range(pageStart, pageEnd));
+    const { data: rows } = await rowsQuery;
+
+    let listHtml = `<div style="font-size:11px;font-weight:500;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Recent views</div>
     <div class="admin-table">`;
 
     if(!rows || rows.length === 0) {
-      html += `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">No views on this page.</div>`;
+      listHtml += `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">No views on this page.</div>`;
     }
 
     (rows||[]).forEach(view => {
-      let entityName = pageTypeLabels[view.page_type] || view.page_type;
-      if(view.page_type === 'vendor') { const vd = DATA.vendors.find(x=>x.id===view.entity_id); entityName = vd?.name || view.entity_id; }
-      if(view.page_type === 'market') { const md = DATA.markets.find(x=>x.id===view.entity_id); entityName = md?.name || view.entity_id; }
-      if(view.page_type === 'category') { entityName = 'Category: ' + view.entity_id; }
+      const entityName = fmtEntity(view);
       const date = new Date(view.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
-      let source = '📱 Direct';
-      if(view.referrer) {
-        try {
-          const host = new URL(view.referrer).hostname;
-          source = host.includes('google') ? '🔍 Google'
-            : host.includes('facebook') ? '📘 Facebook'
-            : host.includes('instagram') ? '📸 Instagram'
-            : '🔗 ' + host;
-        } catch(e) { source = '🔗 ' + view.referrer; }
-      }
-      const who = view.viewer_email || (view.visitor_id ? `Guest #${view.visitor_id.slice(-4)}` : 'Guest (not signed in)');
+      const source = fmtSource(view.referrer);
+      const who = fmtWho(view.viewer_email, view.visitor_id);
       const where = (view.city || view.region) ? ` · ${[view.city, view.region].filter(Boolean).join(', ')}` : '';
-      html += `<div class="admin-row">
+      listHtml += `<div class="admin-row">
         <div class="admin-row-info">
           <div class="admin-row-name">${entityName}</div>
           <div class="admin-row-meta">${pageTypeLabels[view.page_type]||view.page_type} · ${who} · ${source}${where}</div>
@@ -10201,20 +10346,20 @@ async function loadAdminViews() {
       </div>`;
     });
 
-    html += `</div>`;
+    listHtml += `</div>`;
 
-    // Pagination controls
     const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
     const curPage = (ST.adminViewsPage || 0) + 1;
-    html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border)">
+    listHtml += `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border)">
       <button onclick="setAdminViewsPage('prev')" ${curPage<=1?'disabled':''} style="padding:7px 14px;border-radius:var(--r-pill);border:0.5px solid var(--border-med);background:${curPage<=1?'var(--surface2)':'var(--surface)'};color:${curPage<=1?'var(--text3)':'var(--text)'};font-size:12px;cursor:${curPage<=1?'default':'pointer'};font-family:var(--font-sans)">‹ Previous</button>
       <span style="font-size:11px;color:var(--text3)">Page ${curPage} of ${totalPages}</span>
       <button onclick="setAdminViewsPage('next')" ${curPage>=totalPages?'disabled':''} style="padding:7px 14px;border-radius:var(--r-pill);border:0.5px solid var(--border-med);background:${curPage>=totalPages?'var(--surface2)':'var(--surface)'};color:${curPage>=totalPages?'var(--text3)':'var(--text)'};font-size:12px;cursor:${curPage>=totalPages?'default':'pointer'};font-family:var(--font-sans)">Next ›</button>
     </div>`;
 
-    el.innerHTML = html;
+    listEl.innerHTML = listHtml;
   } catch(e) {
-    el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Could not load views — create the page_views table in Supabase first.</div>`;
+    statsEl.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Could not load views — create the page_views table in Supabase first.</div>`;
+    if(listEl) listEl.innerHTML = '';
   }
 }
 
@@ -10638,8 +10783,9 @@ async function onAuthSuccess(user) {
     } catch(e) { console.warn('Could not create user profile:', e); }
   }
 
-  // Set role
-  if(!ST.devMode) ST.role = role;
+  // Set role — always reflect the real, database-confirmed role from an actual login,
+  // even if dev mode happens to be on in this browser (a genuine sign-in should never be ignored)
+  ST.role = role;
 
   // If vendor, also fetch fresh trial_start from vendors table to ensure tier is accurate
   // Skip for test/demo vendors — their pro state is managed by setTestVendorTier
@@ -10964,6 +11110,7 @@ function setAdminViewsFilter(filter) {
 
 function setAdminViewsAs(value) {
   ST.adminViewsPage = 0;
+  ST.adminViewsAsMode = 'vendor'; // always reset to the safe view when switching who you're looking at
   if(!value) {
     ST.adminViewsAsType = '';
     ST.adminViewsAsId = '';
@@ -10975,9 +11122,51 @@ function setAdminViewsAs(value) {
   renderAdminPanel();
 }
 
+function setAdminViewsAsMode(mode) {
+  ST.adminViewsAsMode = mode;
+  renderAdminPanel();
+}
+
 function setAdminViewsPage(direction) {
   ST.adminViewsPage = Math.max(0, ST.adminViewsPage + (direction === 'next' ? 1 : -1));
   loadAdminViews();
+}
+
+function setAdminViewsMode(mode) {
+  ST.adminViewsMode = mode;
+  ST.adminViewsPage = 0;
+  renderAdminPanel();
+}
+
+function setAdminViewsRange(range) {
+  ST.adminViewsRange = range;
+  ST.adminViewsPage = 0;
+  renderAdminPanel();
+}
+
+function getAdminViewsRangeCutoff() {
+  const range = ST.adminViewsRange || 'alltime';
+  if(range === 'alltime') return null;
+  const now = new Date();
+  let cutoff;
+  if(range === 'today') {
+    cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  } else if(range === 'week') {
+    const day = now.getDay();
+    const diff = (day === 0 ? 6 : day - 1); // days since Monday
+    cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff);
+  } else if(range === 'month') {
+    cutoff = new Date(now.getFullYear(), now.getMonth(), 1);
+  } else if(range === 'year') {
+    cutoff = new Date(now.getFullYear(), 0, 1);
+  }
+  return cutoff ? cutoff.toISOString() : null;
+}
+
+function toggleAdminVisitorDetail(vid) {
+  const el = document.getElementById('vdetail-' + vid);
+  if(!el) return;
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 
 function setAdminTab(tab) {
