@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
+<!-- v1.70.8 -->
+<!-- v1.70.7 -->
+<!-- v1.70.6 -->
 <!-- v1.70.5 -->
 <!-- v1.70.4 -->
 <!-- v1.70.3 -->
@@ -6396,6 +6399,7 @@ function renderVendorPending() {
 
 function renderVendorsLogin() {
   hideFilterUI();
+  const prefillEmail = new URLSearchParams(window.location.search).get('email') || '';
   document.getElementById('scrollBody').innerHTML = `<div style="max-width:420px;margin:0 auto;padding:32px 20px 60px">
     <div style="text-align:center;margin-bottom:28px">
       <div style="font-size:32px;margin-bottom:8px">🌾</div>
@@ -6431,6 +6435,11 @@ function renderVendorsLogin() {
       </div>
     </div>
   </div>`;
+  if(prefillEmail) {
+    showVendorSignup();
+    const emailInput = document.getElementById('vendorSignupEmail');
+    if(emailInput) emailInput.value = prefillEmail;
+  }
 }
 
 function showVendorSignup() {
@@ -6713,6 +6722,22 @@ async function submitVendorSignup() {
     if(error) throw error;
     if(data.user) {
       await onVendorLoginSuccess(data.user);
+      // Notify admin that someone actually completed signup, not just got approved
+      if(ST.vendorId) {
+        const vd = DATA.vendors.find(x => x.id === ST.vendorId);
+        sendWindmillEmail(
+          '✅ Vendor account activated — ' + (vd?.name || email),
+          '<h2>Account activated</h2><p><strong>' + (vd?.name || email) + '</strong> just finished creating their account and signed in for the first time.</p><p>Email: ' + email + '</p>'
+        );
+        ST.adminMessages.unshift({
+          id:'auto_'+Date.now(),
+          from: vd?.name || email, role:'Vendor',
+          subject: 'Account activated: ' + (vd?.name || email),
+          body: 'They finished signing up and reached their dashboard for the first time.',
+          date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
+          read:false, resolved:true, replies:[], isSystem:true
+        });
+      }
     } else {
       // Email confirmation required
       document.getElementById('vendorLoginForm').innerHTML = `<div style="text-align:center;padding:20px 0">
@@ -7646,6 +7671,7 @@ async function submitMarketJoinRequest() {
 /* ── MARKETS LOGIN PAGE ── */
 function renderMarketsLogin() {
   hideFilterUI();
+  const prefillEmail = new URLSearchParams(window.location.search).get('email') || '';
   document.getElementById('scrollBody').innerHTML = `<div style="max-width:420px;margin:0 auto;padding:32px 20px 60px">
     <div style="text-align:center;margin-bottom:28px">
       <div style="font-size:32px;margin-bottom:8px">🏪</div>
@@ -7686,6 +7712,11 @@ function renderMarketsLogin() {
       <span style="font-size:12px;color:var(--terra);cursor:pointer" onclick="navigate('vendors-login')">Vendor sign in →</span>
     </div>
   </div>`;
+  if(prefillEmail) {
+    showMarketSignup();
+    const emailInput = document.getElementById('marketSignupEmail');
+    if(emailInput) emailInput.value = prefillEmail;
+  }
 }
 
 async function submitMarketLogin() {
@@ -7751,6 +7782,22 @@ async function submitMarketSignup() {
     if(error) throw error;
     if(!data.user) throw new Error('Account creation failed — please try again.');
     await onOperatorLoginSuccess(data.user, email);
+    // Notify admin that someone actually completed signup, not just got approved
+    if(ST.operatorId) {
+      const op = DATA.operators.find(x => x.id === ST.operatorId);
+      sendWindmillEmail(
+        '✅ Operator account activated — ' + (op?.name || email),
+        '<h2>Account activated</h2><p><strong>' + (op?.name || email) + '</strong> just finished creating their account and signed in for the first time.</p><p>Email: ' + email + '</p>'
+      );
+      ST.adminMessages.unshift({
+        id:'auto_'+Date.now(),
+        from: op?.name || email, role:'Market Operator',
+        subject: 'Account activated: ' + (op?.name || email),
+        body: 'They finished signing up and reached their dashboard for the first time.',
+        date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
+        read:false, resolved:true, replies:[], isSystem:true
+      });
+    }
   } catch(e) {
     if(btn) { btn.disabled=false; btn.textContent='Create account'; }
     alert('Account creation failed: ' + (e.message||'Please try again.'));
@@ -7769,8 +7816,28 @@ async function onOperatorLoginSuccess(user, email, opRecord) {
 
   if(!opRecord) { renderMarketPending(); return; }
 
+  // Figure out the operator's own personal name (private, never shown publicly) — prefer
+  // an existing saved name, then their approved claim, then fall back to their email.
+  // This is intentionally separate from opRecord.name, which is the organization name.
+  let personalName = null;
+  if(supabaseClient) {
+    try {
+      const { data: existingProfile } = await supabaseClient.from('users').select('name').eq('id', user.id).maybeSingle();
+      if(existingProfile?.name) personalName = existingProfile.name;
+    } catch(e) { /* non-fatal */ }
+    if(!personalName) {
+      try {
+        const { data: claimRecord } = await supabaseClient.from('claims')
+          .select('claimant_name').eq('email', email || user.email).eq('status', 'approved')
+          .order('created_at', {ascending: false}).limit(1).maybeSingle();
+        if(claimRecord?.claimant_name) personalName = claimRecord.claimant_name;
+      } catch(e) { /* non-fatal */ }
+    }
+  }
+  personalName = personalName || (user.email || email).split('@')[0];
+
   // Set state
-  ST.user = { id: user.id, email: user.email || email, name: opRecord.name || (user.email||email).split('@')[0], role: 'operator' };
+  ST.user = { id: user.id, email: user.email || email, name: personalName, role: 'operator' };
   ST.role = 'operator';
   ST.operatorId = opRecord.id;
   ST.opIsPro = opRecord.pro === true;
@@ -7783,6 +7850,9 @@ async function onOperatorLoginSuccess(user, email, opRecord) {
     ST.opIsProTrial = false;
   }
   ST.opProfileSetupComplete = opRecord.profile_setup_complete || false;
+  ST.opOrgName = opRecord.name || '';
+  ST.opPhone = opRecord.phone || '';
+  ST.opAddress = opRecord.address || '';
 
   // Upsert users table with operator role
   if(supabaseClient) {
@@ -8612,15 +8682,28 @@ function showVendorOnboarding(step) {
         <div style="background:var(--green-lt);border-radius:var(--r-md);padding:14px;margin-bottom:16px">
           <div style="font-size:12px;font-weight:600;color:var(--green-dk);margin-bottom:8px">Here's what we'll set up:</div>
           <div style="font-size:12px;color:var(--green-dk);line-height:2">
-            ① Your cover photo<br>
-            ② Your story<br>
-            ③ Your ${isPro ? 'links (website, Instagram, Facebook)' : 'link (website, Instagram, or Facebook)'}
+            ① Confirm your contact info<br>
+            ② Your cover photo<br>
+            ③ Your story<br>
+            ④ Your ${isPro ? 'links (website, Instagram, Facebook)' : 'link (website, Instagram, or Facebook)'}
           </div>
         </div>
         ${isPro ? `<div style="background:var(--green);border-radius:var(--r-md);padding:12px;text-align:center">
           <div style="font-size:12px;font-weight:600;color:#fff">🌟 You're on Pro — all features unlocked</div>
         </div>` : ''}`,
       nextLabel: "Let's go →"
+    },
+    {
+      icon: '📋',
+      title: 'Confirm your contact info',
+      sub: "Quick check — we'll use this to set up your account and your public page.",
+      content: `
+        <div class="form-field"><label class="form-label">Your name <span style="color:var(--text3);font-weight:400">(private — never shown publicly)</span></label><input class="form-input" id="onboardPersonalName" value="${ST.user?.name||''}" placeholder="Your full name"></div>
+        <div class="form-field"><label class="form-label">Business name</label><input class="form-input" id="onboardBusinessName" value="${v?.name||''}" placeholder="Your business name"></div>
+        <div class="form-field"><label class="form-label">Contact email <span style="color:var(--text3);font-weight:400">(shown publicly)</span></label><input class="form-input" id="onboardContactEmail" value="${v?.email||''}" placeholder="you@example.com" type="email"></div>
+        <div class="form-field"><label class="form-label">Phone <span style="color:var(--text3);font-weight:400">(shown publicly, optional)</span></label><input class="form-input" id="onboardContactPhone" value="${v?.phone||''}" placeholder="+1 (239) 000-0000" type="tel"></div>`,
+      nextLabel: 'Next →',
+      skipLabel: 'Skip for now'
     },
     {
       icon: '📷',
@@ -8821,7 +8904,23 @@ async function vendorOnboardingNext(step) {
   const isPro = v?.pro || ST.isProTrial;
 
   // Save data from current step — works with or without local vendor object
-  if(step === 2 && ST.pendingCoverPhotoFile && vendorId && supabaseClient) {
+  if(step === 2) {
+    const personalName = document.getElementById('onboardPersonalName')?.value?.trim();
+    const businessName = document.getElementById('onboardBusinessName')?.value?.trim();
+    const email = document.getElementById('onboardContactEmail')?.value?.trim();
+    const phone = document.getElementById('onboardContactPhone')?.value?.trim();
+    // Personal name is account-level (private) — saved to the users table, not the vendor's public record
+    if(personalName) {
+      if(ST.user) ST.user.name = personalName;
+      if(supabaseClient && ST.user?.id) {
+        try { await supabaseClient.from('users').update({ name: personalName }).eq('id', ST.user.id); } catch(e) { console.warn('Name save failed:', e); }
+      }
+    }
+    if(v) { if(businessName) v.name = businessName; if(email) v.email = email; v.phone = phone || v.phone; }
+    ST.pendingOnboardContact = { name: businessName, email, phone };
+  }
+
+  if(step === 3 && ST.pendingCoverPhotoFile && vendorId && supabaseClient) {
     try {
       const compressed = await compressImage(ST.pendingCoverPhotoFile, 1200, 0.80);
       const path = `profile/${vendorId}/photo.jpg`;
@@ -8831,19 +8930,19 @@ async function vendorOnboardingNext(step) {
       ST.pendingCoverPhotoFile = null;
       ST.pendingCoverPhoto = null;
     } catch(e) { console.warn('Photo upload failed during onboarding:', e); }
-  } else if(step === 2 && ST.pendingCoverPhoto) {
+  } else if(step === 3 && ST.pendingCoverPhoto) {
     if(v) v.photo = ST.pendingCoverPhoto;
     ST.pendingOnboardPhoto = ST.pendingCoverPhoto;
     ST.pendingCoverPhoto = null;
   }
 
-  if(step === 3) {
+  if(step === 4) {
     const desc = document.getElementById('onboardDescription')?.value?.trim();
     if(v && desc) v.description = desc;
     ST.pendingOnboardDescription = desc || '';
   }
 
-  if(step === 4) {
+  if(step === 5) {
     if(isPro) {
       const website = document.getElementById('onboardWebsite')?.value?.trim() || '';
       const instagram = document.getElementById('onboardInstagram')?.value?.trim() || '';
@@ -8865,7 +8964,7 @@ async function vendorOnboardingNext(step) {
 }
 
 function vendorOnboardingSkipStep(step) {
-  if(step >= 4) { completeVendorOnboarding(); return; }
+  if(step >= 5) { completeVendorOnboarding(); return; }
   showVendorOnboarding(step + 1);
 }
 
@@ -9215,7 +9314,13 @@ async function renderVendorDash() {
     : `Free tier · <span style="color:var(--terra);cursor:pointer" onclick="navigate('vendors-join')">${t('upgrade_pro')} — $9/mo</span>`;
 
   const marketCount = v?.markets?.length || 0;
-  const productCount = v?.products?.length || 0;
+  let productCount = 0;
+  if(vendorId) {
+    try {
+      const productsForDash = await loadVendorProductsDash(vendorId);
+      productCount = (productsForDash || []).length;
+    } catch(e) { productCount = 0; }
+  }
 
   // Quick action cards
   const actions = [
@@ -9553,6 +9658,7 @@ function renderAdminPanel() {
           ${onTrial ? `<button class="action-btn edit" onclick="openExtendTrial('${v.id}','${v.name}')">Extend</button>` : ''}
           <button class="action-btn edit" onclick="openAdminEditVendor('${v.id}')">Edit</button>
           <button class="action-btn preview" onclick="navigate('vendor','${v.id}')">View</button>
+          ${v.id.startsWith('test-vendor') ? `<button class="action-btn" style="color:var(--terra);border-color:var(--terra)" onclick="adminResetVendorToUnclaimed('${v.id}','${v.name.replace(/'/g,"\\'")}')">Reset</button>` : ''}
         </div>
       </div>`;
     });
@@ -10704,7 +10810,18 @@ async function onAuthSuccess(user) {
   // Load user profile from database
   const { data: profile } = await supabaseClient.from('users').select('*').eq('id', user.id).single();
 
-  const name = profile?.name || user.user_metadata?.full_name || user.user_metadata?.name || user.email.split('@')[0];
+  // Figure out their real name — prefer an existing saved name, then their approved claim
+  // (where they typed their real name when claiming their listing), then fall back to their email
+  let name = profile?.name || user.user_metadata?.full_name || user.user_metadata?.name || null;
+  if(!name) {
+    try {
+      const { data: claimRecord } = await supabaseClient.from('claims')
+        .select('claimant_name').eq('email', user.email).eq('status', 'approved')
+        .order('created_at', {ascending: false}).limit(1).maybeSingle();
+      if(claimRecord?.claimant_name) name = claimRecord.claimant_name;
+    } catch(e) { /* non-fatal — falls back below */ }
+  }
+  name = name || user.email.split('@')[0];
   let role = profile?.role || user.user_metadata?.role || 'customer';
   let vendorId = profile?.vendor_id || null;
 
@@ -11249,6 +11366,29 @@ function adminToggleVendorPro(id, el) {
   renderAdminPanel();
 }
 
+async function adminResetVendorToUnclaimed(vendorId, vendorName) {
+  if(!confirm(`Reset "${vendorName}" back to unclaimed for testing?\n\nThis clears its claimed status, Pro/trial state, any linked account connection, and old claim records for this listing — so you can run through claim → approve → signup again from scratch.\n\nThis is restricted to designated test vendors only.`)) return;
+  const v = DATA.vendors.find(x => x.id === vendorId);
+  if(v) { v.claimed = false; v.pro = false; v.trial_start = null; }
+  if(supabaseClient) {
+    try {
+      await supabaseClient.from('vendors').update({ claimed: false, pro: false, trial_start: null }).eq('id', vendorId);
+      // Disconnect any user account currently linked to this test vendor
+      await supabaseClient.from('users').update({ role: 'customer', vendor_id: null, trial_start: null }).eq('vendor_id', vendorId);
+      // Clear old claim records so a fresh claim can be submitted without being blocked
+      await supabaseClient.from('claims').delete().eq('vendor_id', vendorId);
+    } catch(e) { console.warn('Reset failed:', e); }
+  }
+  // Clear matching claims from the local admin list too
+  ST.adminClaims = ST.adminClaims.filter(c => c.vendorId !== vendorId);
+  const toast = document.createElement('div');
+  toast.textContent = `"${vendorName}" reset to unclaimed ✓`;
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+  renderAdminPanel();
+}
+
 function openExtendTrial(vendorId, vendorName) {
   const modal = document.createElement('div');
   modal.id = 'extendTrialModal';
@@ -11399,12 +11539,12 @@ async function adminApproveClaim(claimId) {
       try {
         // Find operator record by market id or create one
         const { data: opRecord } = await supabaseClient
-          .from('operators').select('id').eq('id', c.vendorId).maybeSingle();
+          .from('operators').select('id,phone').eq('id', c.vendorId).maybeSingle();
         if(opRecord) {
-          await supabaseClient.from('operators').update({
-            trial_start: trialStart,
-            claimed: true
-          }).eq('id', c.vendorId);
+          const opUpdate = { trial_start: trialStart, claimed: true };
+          // Use their claim-time phone as a starting default — never overwrite a real existing number
+          if(c.phone && !opRecord.phone) opUpdate.phone = c.phone;
+          await supabaseClient.from('operators').update(opUpdate).eq('id', c.vendorId);
         }
         await supabaseClient.from('claims').update({status:'approved'}).eq('id', claimId);
         // Update user record if exists
@@ -11430,7 +11570,7 @@ async function adminApproveClaim(claimId) {
       '✓ Your market pages go live on Windmill<br>' +
       '✓ Followers, vendor roster & analytics</div>' +
       '<p style="text-align:center;margin:24px 0">' +
-      '<a href="https://shopwindmill.com/markets/login" style="background:#5C7A4E;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:15px;font-weight:600;display:inline-block">Set up your operator dashboard →</a></p>' +
+      '<a href="https://shopwindmill.com/markets/login?email=' + encodeURIComponent(c.email) + '" style="background:#5C7A4E;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:15px;font-weight:600;display:inline-block">Set up your operator dashboard →</a></p>' +
       '<p style="color:#666;font-size:12px">Go to shopwindmill.com/markets/login · Sign in or create your account with <strong>' + c.email + '</strong></p>' +
       '<p style="color:#666;font-size:12px">— The Windmill Team</p>',
       c.email
@@ -11449,10 +11589,10 @@ async function adminApproveClaim(claimId) {
     if(v) { v.claimed = true; v.trial_start = trialStart; }
     if(supabaseClient) {
       try {
-        await supabaseClient.from('vendors').update({
-          claimed: true,
-          trial_start: trialStart
-        }).eq('id', c.vendorId);
+        const vendorUpdate = { claimed: true, trial_start: trialStart };
+        // Use their claim-time phone as a starting default — never overwrite a real existing number
+        if(c.phone && !v?.phone) vendorUpdate.phone = c.phone;
+        await supabaseClient.from('vendors').update(vendorUpdate).eq('id', c.vendorId);
         await supabaseClient.from('claims').update({status:'approved'}).eq('id', claimId);
         const { data: userRecord } = await supabaseClient
           .from('users').select('id').eq('email', c.email).maybeSingle();
@@ -11476,7 +11616,7 @@ async function adminApproveClaim(claimId) {
       '✓ Confirm your market schedule<br>' +
       '✓ Post weekly updates to your followers</div>' +
       '<p style="text-align:center;margin:24px 0">' +
-      '<a href="https://shopwindmill.com/vendors/login" style="background:#5C7A4E;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:15px;font-weight:600;display:inline-block">Set up your profile →</a></p>' +
+      '<a href="https://shopwindmill.com/vendors/login?email=' + encodeURIComponent(c.email) + '" style="background:#5C7A4E;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:15px;font-weight:600;display:inline-block">Set up your profile →</a></p>' +
       '<p style="color:#666;font-size:12px">Go to shopwindmill.com/vendors/login and sign in with <strong>' + c.email + '</strong></p>' +
       '<p style="color:#666;font-size:12px">— The Windmill Team</p>',
       c.email
@@ -13227,6 +13367,7 @@ function renderVendorSettingsSection(section) {
     sb.innerHTML = backBtn + `<div style="padding:16px">
       <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:4px">Your Profile</div>
       <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Contact info shown on your public profile</div>
+      <div class="form-field"><label class="form-label">Your name <span style="color:var(--text3);font-weight:400">(private — never shown publicly)</span></label><input class="form-input" id="vsp_personal_name" value="${ST.user?.name||''}" placeholder="Your full name"></div>
       <div class="form-field"><label class="form-label">Business name</label><input class="form-input" id="vsp_name" value="${v?.name||''}" placeholder="Your business name"></div>
       <div class="form-field"><label class="form-label">Contact email</label><input class="form-input" id="vsp_email" value="${v?.email||''}" placeholder="shown on your public profile" type="email"></div>
       <div class="form-field"><label class="form-label">Phone</label><input class="form-input" id="vsp_phone" value="${v?.phone||''}" placeholder="+1 (239) 000-0000" type="tel"></div>
@@ -13329,6 +13470,14 @@ async function saveVendorSettingsProfile() {
   v.phone = document.getElementById('vsp_phone')?.value?.trim() || '';
   v.address = document.getElementById('vsp_address')?.value?.trim() || '';
   if(supabaseClient) { try { await dbSaveVendor(v); } catch(e) { console.warn('Save failed:', e); } }
+  // Personal name is account-level (private), saved to the users table, not the vendor's public record
+  const personalName = document.getElementById('vsp_personal_name')?.value?.trim();
+  if(personalName) {
+    if(ST.user) ST.user.name = personalName;
+    if(supabaseClient && ST.user?.id) {
+      try { await supabaseClient.from('users').update({ name: personalName }).eq('id', ST.user.id); } catch(e) { console.warn('Name save failed:', e); }
+    }
+  }
   const toast = document.createElement('div');
   toast.textContent = 'Profile updated ✓';
   toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
@@ -14063,7 +14212,8 @@ function renderOperatorSettingsSection(section) {
     sb.innerHTML = backBtn + `<div style="padding:16px">
       <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:4px">Your Profile</div>
       <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Your operator contact information</div>
-      <div class="form-field"><label class="form-label">Name</label><input class="form-input" id="osp_name" value="${ST.user?.name||''}" placeholder="Your name or organization"></div>
+      <div class="form-field"><label class="form-label">Your name <span style="color:var(--text3);font-weight:400">(private — never shown publicly)</span></label><input class="form-input" id="osp_personal_name" value="${ST.user?.name||''}" placeholder="Your full name"></div>
+      <div class="form-field"><label class="form-label">Organization name</label><input class="form-input" id="osp_name" value="${ST.opOrgName||ST.user?.name||''}" placeholder="Your business or organization name"></div>
       <div class="form-field"><label class="form-label">Contact email</label><input class="form-input" id="osp_email" value="${ST.user?.email||''}" placeholder="shown publicly" type="email"></div>
       <div class="form-field"><label class="form-label">Phone</label><input class="form-input" id="osp_phone" value="${ST.opPhone||''}" placeholder="+1 (239) 000-0000" type="tel"></div>
       <div class="form-field"><label class="form-label">Address</label><input class="form-input" id="osp_address" value="${ST.opAddress||''}" placeholder="Organization address (optional)"></div>
@@ -14160,10 +14310,19 @@ async function saveOperatorSettingsProfile() {
     phone: document.getElementById('osp_phone')?.value?.trim(),
     address: document.getElementById('osp_address')?.value?.trim()
   };
+  if(updates.name) ST.opOrgName = updates.name;
   if(updates.phone) ST.opPhone = updates.phone;
   if(updates.address) ST.opAddress = updates.address;
   if(supabaseClient && ST.operatorId) {
     try { await supabaseClient.from('operators').update(updates).eq('id', ST.operatorId); } catch(e) { console.warn('Save failed:', e); }
+  }
+  // Personal name is account-level (private), saved to the users table, not the organization's public record
+  const personalName = document.getElementById('osp_personal_name')?.value?.trim();
+  if(personalName) {
+    if(ST.user) ST.user.name = personalName;
+    if(supabaseClient && ST.user?.id) {
+      try { await supabaseClient.from('users').update({ name: personalName }).eq('id', ST.user.id); } catch(e) { console.warn('Name save failed:', e); }
+    }
   }
   const toast = document.createElement('div');
   toast.textContent = 'Profile updated ✓';
