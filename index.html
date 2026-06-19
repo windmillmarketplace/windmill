@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.70.8 -->
+<!-- v1.71.1 -->
 <!-- v1.70.7 -->
 <!-- v1.70.6 -->
 <!-- v1.70.5 -->
@@ -948,6 +948,27 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
   </div>
 </div>
 
+<!-- EMAIL CONFLICT MODAL (admin claim approval) -->
+<div class="modal-overlay hidden" id="emailConflictModal" onclick="closeModalOnOverlay(event,'emailConflictModal')">
+  <div class="modal" style="max-height:80vh;overflow-y:auto">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('emailConflictModal')">×</button>
+    <div class="modal-title">Email conflict — choose which to use</div>
+    <div class="modal-sub" id="emailConflictSub" style="margin-bottom:16px"></div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+      <label style="font-size:13px;color:var(--text);display:flex;align-items:flex-start;gap:8px;cursor:pointer">
+        <input type="radio" name="emailConflictChoice" value="original" checked style="margin-top:3px">
+        <span><strong>Keep listing email:</strong> <span id="emailConflictOriginal"></span></span>
+      </label>
+      <label style="font-size:13px;color:var(--text);display:flex;align-items:flex-start;gap:8px;cursor:pointer">
+        <input type="radio" name="emailConflictChoice" value="new" style="margin-top:3px">
+        <span><strong>Use requestor's email:</strong> <span id="emailConflictNew"></span></span>
+      </label>
+    </div>
+    <button class="action-btn publish" style="width:100%;padding:12px" onclick="confirmEmailConflictApproval()">✓ Approve with selected email</button>
+  </div>
+</div>
+
 <!-- AUTH MODAL (sign in / sign up / magic link) -->
 <div class="modal-overlay hidden" id="signinModal" onclick="closeModalOnOverlay(event,'signinModal')">
   <div class="modal" style="max-height:92vh;overflow-y:auto">
@@ -958,6 +979,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 </div>
 
 <!-- CLAIM MODAL -->
+
 <div class="modal-overlay hidden" id="claimModal" onclick="closeModalOnOverlay(event,'claimModal')">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -6781,6 +6803,25 @@ async function onVendorLoginSuccess(user) {
         .eq('claimed', true)
         .single();
       vendorRecord = data;
+    } catch(e) { /* fall through to next lookup */ }
+  }
+
+  // Fallback: match via users.vendor_id — catches cases where vendors.email
+  // wasn't (or couldn't be) synced to the login email, so a real claimed vendor
+  // never silently lands on the pending screen
+  if(!vendorRecord && supabaseClient) {
+    try {
+      const { data: userRow } = await supabaseClient
+        .from('users').select('vendor_id').eq('id', user.id).maybeSingle();
+      if(userRow?.vendor_id) {
+        const { data: vendorByIdData } = await supabaseClient
+          .from('vendors')
+          .select('id, name, pro, trial_start, claimed, email')
+          .eq('id', userRow.vendor_id)
+          .eq('claimed', true)
+          .maybeSingle();
+        if(vendorByIdData) vendorRecord = vendorByIdData;
+      }
     } catch(e) { /* fall through to local lookup */ }
   }
 
@@ -6841,24 +6882,38 @@ async function onVendorLoginSuccess(user) {
 }
 
 
+let _vendorJoinSearchTimer = null;
 function renderVendorJoinSuggestions(q) {
   const box = document.getElementById('joinVendorSuggestions');
   const input = document.getElementById('joinVendorSearch');
   if(!box || !input) return;
   if(!q || q.length < 2) { box.style.display = 'none'; return; }
-  const matches = DATA.vendors.filter(v => v.name.toLowerCase().includes(q.toLowerCase())).slice(0, 6);
-  if(!matches.length) { box.style.display = 'none'; return; }
-  box.style.display = 'block';
-  box.innerHTML = matches.map(v => `
-    <div onclick="selectVendorJoinClaim('${v.id}','${v.name.replace(/'/g,"\'").replace(/"/g,'\"')}')"
-      style="padding:10px 12px;font-size:13px;color:var(--text);cursor:pointer;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:8px"
-      onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
-      <span style="font-size:16px">🌾</span>
-      <div>
-        <div style="font-weight:500">${v.name}</div>
-        <div style="font-size:11px;color:var(--text3)">${v.category} · ${v.claimed ? 'Claimed' : 'Unclaimed'}</div>
-      </div>
-    </div>`).join('');
+  clearTimeout(_vendorJoinSearchTimer);
+  _vendorJoinSearchTimer = setTimeout(async () => {
+    let matches = [];
+    if(supabaseClient) {
+      try {
+        const { data } = await supabaseClient
+          .from('vendors')
+          .select('id, name, category, claimed')
+          .ilike('name', `%${q}%`)
+          .limit(6);
+        if(data) matches = data;
+      } catch(e) { console.warn('Vendor search failed:', e); }
+    }
+    if(!matches.length) { box.style.display = 'none'; return; }
+    box.style.display = 'block';
+    box.innerHTML = matches.map(v => `
+      <div onclick="selectVendorJoinClaim('${v.id}','${(v.name||'').replace(/'/g,"\'").replace(/"/g,'\"')}')"
+        style="padding:10px 12px;font-size:13px;color:var(--text);cursor:pointer;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:8px"
+        onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+        <span style="font-size:16px">🌾</span>
+        <div>
+          <div style="font-weight:500">${v.name}</div>
+          <div style="font-size:11px;color:var(--text3)">${v.category} · ${v.claimed ? 'Claimed' : 'Unclaimed'}</div>
+        </div>
+      </div>`).join('');
+  }, 300);
 }
 
 async function selectVendorJoinClaim(vendorId, vendorName) {
@@ -6990,6 +7045,20 @@ async function submitVendorJoinRequest() {
     }
   }
 
+  // Determine email match status against existing listing email (case-insensitive, trimmed)
+  let emailStatus = 'new';
+  let listingEmailAtSubmission = null;
+  if(ST.claimVendorId && supabaseClient) {
+    try {
+      const { data: existingVendor } = await supabaseClient
+        .from('vendors').select('email').eq('id', ST.claimVendorId).maybeSingle();
+      if(existingVendor?.email) {
+        listingEmailAtSubmission = existingVendor.email;
+        emailStatus = existingVendor.email.toLowerCase().trim() === email.toLowerCase().trim() ? 'matching' : 'conflict';
+      }
+    } catch(e) { console.warn('Email status check failed:', e); }
+  }
+
   const newClaim = {
     id: 'c' + Date.now(),
     vendorId: ST.claimVendorId || businessName.toLowerCase().replace(/\s+/g,'-'),
@@ -7001,7 +7070,9 @@ async function submitVendorJoinRequest() {
     date: new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}),
     status: 'pending',
     proRequested: true,
-    upgradeRequest: false
+    upgradeRequest: false,
+    emailStatus: emailStatus,
+    listingEmailAtSubmission: listingEmailAtSubmission
   };
   ST.adminClaims.unshift(newClaim);
 
@@ -7017,7 +7088,9 @@ async function submitVendorJoinRequest() {
         message: newClaim.message,
         status: 'pending',
         pro_requested: true,
-        upgrade_request: false
+        upgrade_request: false,
+        email_status: emailStatus,
+        listing_email_at_submission: listingEmailAtSubmission
       });
     } catch(e) { console.warn('Claim save failed:', e); }
   }
@@ -7035,6 +7108,13 @@ async function submitVendorJoinRequest() {
   );
 
   // Send confirmation email to vendor
+  const needsVerification = emailStatus === 'new' || emailStatus === 'conflict';
+  const verificationBlock = needsVerification ?
+    '<div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;padding:16px;margin:16px 0;font-size:13px;line-height:1.8;color:#7C2D12">' +
+    '<strong>One more thing — help us verify it\'s really you</strong><br>' +
+    'Since this is a new connection for us, please reply to this email with any <strong>one</strong> of the following: ' +
+    'a photo of your market booth or signage, your business license or registration, or the name and contact info of the market operator who can vouch for you.' +
+    '</div>' : '';
   sendWindmillEmail(
     '🌾 We received your Windmill request!',
     '<h2>You\'re on your way, ' + yourName + '!</h2>' +
@@ -7042,6 +7122,7 @@ async function submitVendorJoinRequest() {
     '<p>We\'ll verify your listing and get back to you within 24 hours.</p>' +
     '<div style="background:#f0f7ee;border-radius:8px;padding:16px;margin:16px 0;font-size:14px;line-height:2">' +
     '✓ Free profile listing<br>✓ 6 months Pro free — no credit card needed<br>✓ Your page at shopwindmill.com</div>' +
+    verificationBlock +
     '<p style="color:#666;font-size:13px">Questions? Reply to this email and we\'ll get right back to you.</p>' +
     '<p style="color:#666;font-size:13px">— The Windmill Team</p>',
     email
@@ -7455,7 +7536,7 @@ function renderMarketsJoin() {
           style="width:100%;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none">
       </div>
       <div style="margin-bottom:14px">
-        <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px">${c.claim_phone}</div>
+        <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px">${c.claim_phone} <span style="color:var(--terra)">*</span></div>
         <input id="joinMarketPhone" type="tel" placeholder="239-555-0100"
           style="width:100%;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none">
       </div>
@@ -7518,21 +7599,44 @@ function renderMarketsJoin() {
   </div>`;
 }
 
+let _marketJoinSearchTimer = null;
 function renderMarketJoinSuggestions(q) {
   const box = document.getElementById('joinMarketSuggestions');
   if(!box) return;
   if(!q || q.length < 2) { box.style.display='none'; return; }
-  const matches = DATA.markets.filter(m => m.name.toLowerCase().includes(q.toLowerCase())).slice(0,6);
-  if(!matches.length) { box.style.display='none'; return; }
-  box.style.display = 'block';
-  box.innerHTML = matches.map(m => `
-    <div onclick="selectMarketJoinClaim('${m.id}','${m.name.replace(/'/g,"\'").replace(/"/g,'\"')}')"
-      style="padding:10px 14px;cursor:pointer;border-bottom:0.5px solid var(--border);font-size:13px;color:var(--text)"
-      onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
-      <span style="font-weight:500">${m.name}</span>
-      <span style="font-size:11px;color:var(--text3);margin-left:6px">${m.city||''}</span>
-      ${m.claimed ? '<span style="font-size:10px;color:var(--green);margin-left:6px">✓ Claimed</span>' : ''}
-    </div>`).join('');
+  clearTimeout(_marketJoinSearchTimer);
+  _marketJoinSearchTimer = setTimeout(async () => {
+    let matches = [];
+    if(supabaseClient) {
+      try {
+        const { data } = await supabaseClient
+          .from('markets')
+          .select('id, name, city, operator_id')
+          .ilike('name', `%${q}%`)
+          .limit(6);
+        if(data) {
+          // Determine claimed status via the linked operator's claimed flag
+          const operatorIds = [...new Set(data.map(m => m.operator_id).filter(Boolean))];
+          let claimedOpIds = new Set();
+          if(operatorIds.length) {
+            const { data: ops } = await supabaseClient.from('operators').select('id,claimed').in('id', operatorIds);
+            (ops||[]).forEach(o => { if(o.claimed) claimedOpIds.add(o.id); });
+          }
+          matches = data.map(m => ({ ...m, claimed: claimedOpIds.has(m.operator_id) }));
+        }
+      } catch(e) { console.warn('Market search failed:', e); }
+    }
+    if(!matches.length) { box.style.display='none'; return; }
+    box.style.display = 'block';
+    box.innerHTML = matches.map(m => `
+      <div onclick="selectMarketJoinClaim('${m.id}','${(m.name||'').replace(/'/g,"\'").replace(/"/g,'\"')}')"
+        style="padding:10px 14px;cursor:pointer;border-bottom:0.5px solid var(--border);font-size:13px;color:var(--text)"
+        onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+        <span style="font-weight:500">${m.name}</span>
+        <span style="font-size:11px;color:var(--text3);margin-left:6px">${m.city||''}</span>
+        ${m.claimed ? '<span style="font-size:10px;color:var(--green);margin-left:6px">✓ Claimed</span>' : ''}
+      </div>`).join('');
+  }, 300);
 }
 
 async function selectMarketJoinClaim(marketId, marketName) {
@@ -7573,8 +7677,8 @@ async function submitMarketJoinRequest() {
   const multiMarket = document.getElementById('joinMultiMarket')?.checked;
   const message = document.getElementById('joinMarketMessage')?.value?.trim();
 
-  if(!marketName || !yourName || !email) {
-    alert('Please fill in the market name, your name, and email address.');
+  if(!marketName || !yourName || !email || !phone) {
+    alert('Please fill in the market name, your name, email address, and phone number.');
     return;
   }
 
@@ -7591,6 +7695,24 @@ async function submitMarketJoinRequest() {
   const marketId = ST.claimMarketId || marketName.toLowerCase().replace(/\s+/g,'-');
   const multiNote = multiMarket ? ' [Manages additional markets]' : '';
 
+  // Determine email match status against the linked operator's existing email (case-insensitive, trimmed)
+  let marketEmailStatus = 'new';
+  let marketListingEmailAtSubmission = null;
+  if(ST.claimMarketId && supabaseClient) {
+    try {
+      const { data: marketRec } = await supabaseClient
+        .from('markets').select('operator_id').eq('id', ST.claimMarketId).maybeSingle();
+      if(marketRec?.operator_id) {
+        const { data: existingOp } = await supabaseClient
+          .from('operators').select('email').eq('id', marketRec.operator_id).maybeSingle();
+        if(existingOp?.email) {
+          marketListingEmailAtSubmission = existingOp.email;
+          marketEmailStatus = existingOp.email.toLowerCase().trim() === email.toLowerCase().trim() ? 'matching' : 'conflict';
+        }
+      }
+    } catch(e) { console.warn('Operator email status check failed:', e); }
+  }
+
   // Save to Supabase claims table with claim_type = 'market'
   if(supabaseClient) {
     try {
@@ -7604,7 +7726,10 @@ async function submitMarketJoinRequest() {
         status: 'pending',
         pro_requested: false,
         upgrade_request: false,
-        claim_type: 'market'
+        claim_type: 'market',
+        role: role || '',
+        email_status: marketEmailStatus,
+        listing_email_at_submission: marketListingEmailAtSubmission
       });
     } catch(e) { console.warn('Market claim save failed:', e); }
   }
@@ -7621,7 +7746,9 @@ async function submitMarketJoinRequest() {
     role: role || '',
     date: new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}),
     status: 'pending',
-    claim_type: 'market'
+    claim_type: 'market',
+    emailStatus: marketEmailStatus,
+    listingEmailAtSubmission: marketListingEmailAtSubmission
   });
 
   // Email to admin
@@ -7639,6 +7766,13 @@ async function submitMarketJoinRequest() {
   );
 
   // Confirmation email to operator
+  const needsOperatorVerification = marketEmailStatus === 'new' || marketEmailStatus === 'conflict';
+  const operatorVerificationBlock = needsOperatorVerification ?
+    '<div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;padding:16px;margin:16px 0;font-size:13px;line-height:1.8;color:#7C2D12">' +
+    '<strong>One more thing — help us verify it\'s really you</strong><br>' +
+    'Since this is a new connection for us, please reply to this email with any <strong>one</strong> of the following: ' +
+    'a photo of you at the market, your business license or registration, or the name and contact info of another market staff member or board member who can vouch for you.' +
+    '</div>' : '';
   sendWindmillEmail(
     '🏪 We received your Windmill market request!',
     '<h2>Thanks, ' + yourName + '!</h2>' +
@@ -7646,6 +7780,7 @@ async function submitMarketJoinRequest() {
     '<p>We\'ll verify your listing and get back to you within 24 hours with next steps.</p>' +
     '<div style="background:#f0f7ee;border-radius:8px;padding:16px;margin:16px 0;font-size:14px;line-height:2">' +
     '✓ Free market listing<br>✓ Tag all your markets in one account<br>✓ Your page at shopwindmill.com</div>' +
+    operatorVerificationBlock +
     '<p style="color:#666;font-size:13px">Questions? Reply to this email and we\'ll get right back to you.</p>' +
     '<p style="color:#666;font-size:13px">— The Windmill Team</p>',
     email
@@ -7814,6 +7949,21 @@ async function onOperatorLoginSuccess(user, email, opRecord) {
     } catch(e) { console.warn('Operator lookup failed:', e); }
   }
 
+  // Fallback: match via users.operator_id — catches cases where operators.email
+  // wasn't (or couldn't be) synced to the login email, so a real claimed operator
+  // never silently lands on the pending screen
+  if(!opRecord && supabaseClient) {
+    try {
+      const { data: userRow } = await supabaseClient
+        .from('users').select('operator_id').eq('id', user.id).maybeSingle();
+      if(userRow?.operator_id) {
+        const { data: opByIdData } = await supabaseClient
+          .from('operators').select('*').eq('id', userRow.operator_id).maybeSingle();
+        if(opByIdData) opRecord = opByIdData;
+      }
+    } catch(e) { console.warn('Operator fallback lookup failed:', e); }
+  }
+
   if(!opRecord) { renderMarketPending(); return; }
 
   // Figure out the operator's own personal name (private, never shown publicly) — prefer
@@ -7853,6 +8003,7 @@ async function onOperatorLoginSuccess(user, email, opRecord) {
   ST.opOrgName = opRecord.name || '';
   ST.opPhone = opRecord.phone || '';
   ST.opAddress = opRecord.address || '';
+  ST.opContactRole = opRecord.contact_role || '';
 
   // Upsert users table with operator role
   if(supabaseClient) {
@@ -9754,6 +9905,7 @@ function renderAdminPanel() {
         <div class="admin-row-actions">
           <button class="action-btn edit" onclick="openAdminEditMarket('${m.id}')">Edit</button>
           <button class="action-btn preview" onclick="navigate('market','${m.id}')">View</button>
+          ${m.id === 'windmill-test-market' ? `<button class="action-btn" style="color:var(--terra);border-color:var(--terra)" onclick="adminResetOperatorToUnclaimed('${op?.id||'windmill-test-operator'}','${(op?.name||'Windmill Test Operator').replace(/'/g,"\\'")}')">Reset</button>` : ''}
         </div>
       </div>`;
     });
@@ -9807,8 +9959,12 @@ function renderAdminPanel() {
               ${isMarketClaim ? `<span style="font-size:10px;padding:1px 6px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill);border:0.5px solid var(--green-mid)">Market</span>` : ''}
               ${c.message&&c.message.includes('Manages additional markets') ? `<span style="font-size:10px;padding:1px 6px;background:var(--amber-lt);color:#7A4E08;border-radius:var(--r-pill);border:0.5px solid #F0D090">Multi-market</span>` : ''}
               ${c.isDuplicate ? `<span style="font-size:10px;padding:1px 6px;background:#FEE2E2;color:#B91C1C;border-radius:var(--r-pill);border:0.5px solid #FECACA">⚠ Duplicate</span>` : ''}
+              ${c.emailStatus==='matching' ? `<span style="font-size:10px;padding:1px 6px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill);border:0.5px solid var(--green-mid)">🟢 Requestor email matches listing</span>` : ''}
+              ${c.emailStatus==='new' ? `<span style="font-size:10px;padding:1px 6px;background:#E0F2FE;color:#075985;border-radius:var(--r-pill);border:0.5px solid #BAE6FD">🆕 Requestor email — none on file</span>` : ''}
+              ${c.emailStatus==='conflict' ? `<span style="font-size:10px;padding:1px 6px;background:#FEE2E2;color:#B91C1C;border-radius:var(--r-pill);border:0.5px solid #FECACA">🔴 Requestor email differs from listing</span>` : ''}
             </div>
             <div class="request-markets">Claimed by: ${c.claimant} · ${c.email}</div>
+            ${c.emailStatus==='conflict' ? `<div style="font-size:11px;color:#B91C1C;margin-top:2px">Listing email on file: ${c.listingEmailAtSubmission||c.listing_email_at_submission||'—'}</div>` : ''}
             <div class="request-contact">${c.phone||''}${c.phone&&c.role?' · ':''}${c.role||''} · ${c.date}</div>
             ${c.message?`<div style="font-size:11px;color:var(--text);margin-top:4px;font-style:italic">"${c.message}"</div>`:''}
             ${c.status==='denied'&&c.denyReason?`<div style="font-size:11px;color:var(--terra);margin-top:2px">Denied: ${c.denyReason}</div>`:''}
@@ -9818,6 +9974,7 @@ function renderAdminPanel() {
               <button class="action-btn publish" onclick="adminApproveClaim('${c.id}')">✓ Approve</button>
               <button class="action-btn edit" style="color:var(--terra);border-color:var(--terra)" onclick="adminDenyClaim('${c.id}')">✗ Deny</button>
               <button class="action-btn preview" onclick="navigate('${isMarketClaim?'market':'vendor'}','${c.vendorId}')">View</button>
+              <a class="action-btn" style="text-align:center;text-decoration:none;display:block" href="mailto:${c.email}?subject=${encodeURIComponent('Windmill — verifying your claim request for '+c.vendorName)}">✉️ Contact</a>
             ` : `<span class="status-pill ${c.status==='approved'?'claimed':'draft'}">${c.status==='approved'?'Approved':'Denied'}</span>`}
           </div>
         </div>`;
@@ -11389,6 +11546,31 @@ async function adminResetVendorToUnclaimed(vendorId, vendorName) {
   renderAdminPanel();
 }
 
+async function adminResetOperatorToUnclaimed(operatorId, operatorName) {
+  if(!confirm(`Reset "${operatorName}" back to unclaimed for testing?\n\nThis clears its claimed status, Pro/trial state, any linked account connection, and old claim records for this listing — so you can run through claim → approve → signup again from scratch.\n\nThis is restricted to designated test operators only.`)) return;
+  if(supabaseClient) {
+    try {
+      await supabaseClient.from('operators').update({ claimed: false, pro: false, trial_start: null, email: null, contact_role: null }).eq('id', operatorId);
+      // Disconnect any user account currently linked to this test operator
+      await supabaseClient.from('users').update({ role: 'customer', operator_id: null, trial_start: null }).eq('operator_id', operatorId);
+      // Clear old claim records tied to any market run by this test operator so a fresh claim can be submitted without being blocked
+      const { data: testMarkets } = await supabaseClient.from('markets').select('id').eq('operator_id', operatorId);
+      const testMarketIds = (testMarkets||[]).map(m => m.id);
+      if(testMarketIds.length) {
+        await supabaseClient.from('claims').delete().in('vendor_id', testMarketIds);
+      }
+    } catch(e) { console.warn('Operator reset failed:', e); }
+  }
+  // Clear matching claims from the local admin list too
+  ST.adminClaims = ST.adminClaims.filter(c => !(c.claim_type === 'market' && c.vendorId && DATA.markets.find(m => m.id === c.vendorId && m.operator_id === operatorId)));
+  const toast = document.createElement('div');
+  toast.textContent = `"${operatorName}" reset to unclaimed ✓`;
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+  renderAdminPanel();
+}
+
 function openExtendTrial(vendorId, vendorName) {
   const modal = document.createElement('div');
   modal.id = 'extendTrialModal';
@@ -11525,7 +11707,36 @@ async function adminToggleMarketPublished(id, el) {
 }
 
 /* Claims */
-async function adminApproveClaim(claimId) {
+function adminApproveClaim(claimId) {
+  const c = ST.adminClaims.find(x=>x.id===claimId);
+  if(!c) return;
+  const isMarketClaim = c.claim_type === 'market';
+  // Claims (vendor or market) with an email conflict need explicit resolution before approving
+  if(c.emailStatus === 'conflict') {
+    ST._pendingEmailConflictClaimId = claimId;
+    const noun = isMarketClaim ? 'market operator' : 'vendor';
+    document.getElementById('emailConflictSub').textContent = `This ${noun} listing already has an email on file that differs from what the requestor submitted. Choose which email should be used going forward.`;
+    document.getElementById('emailConflictOriginal').textContent = c.listingEmailAtSubmission || c.listing_email_at_submission || '—';
+    document.getElementById('emailConflictNew').textContent = c.email;
+    openModal('emailConflictModal');
+    return;
+  }
+  adminApproveClaimFinalize(claimId, c.email);
+}
+
+function confirmEmailConflictApproval() {
+  const claimId = ST._pendingEmailConflictClaimId;
+  if(!claimId) return;
+  const c = ST.adminClaims.find(x=>x.id===claimId);
+  if(!c) return;
+  const choice = document.querySelector('input[name="emailConflictChoice"]:checked')?.value || 'original';
+  const finalEmail = choice === 'new' ? c.email : (c.listingEmailAtSubmission || c.listing_email_at_submission || c.email);
+  closeModal('emailConflictModal');
+  ST._pendingEmailConflictClaimId = null;
+  adminApproveClaimFinalize(claimId, finalEmail);
+}
+
+async function adminApproveClaimFinalize(claimId, resolvedEmail) {
   const c = ST.adminClaims.find(x=>x.id===claimId);
   if(!c) return;
   c.status = 'approved';
@@ -11534,27 +11745,35 @@ async function adminApproveClaim(claimId) {
 
   if(isMarketClaim) {
     // --- MARKET OPERATOR APPROVAL ---
-    // Update operators table with trial_start
+    // c.vendorId holds the MARKET's id, not the operator's id — must resolve via markets.operator_id
+    const finalOperatorEmail = resolvedEmail || c.email;
     if(supabaseClient) {
       try {
-        // Find operator record by market id or create one
-        const { data: opRecord } = await supabaseClient
-          .from('operators').select('id,phone').eq('id', c.vendorId).maybeSingle();
-        if(opRecord) {
-          const opUpdate = { trial_start: trialStart, claimed: true };
-          // Use their claim-time phone as a starting default — never overwrite a real existing number
-          if(c.phone && !opRecord.phone) opUpdate.phone = c.phone;
-          await supabaseClient.from('operators').update(opUpdate).eq('id', c.vendorId);
-        }
-        await supabaseClient.from('claims').update({status:'approved'}).eq('id', claimId);
-        // Update user record if exists
-        const { data: userRecord } = await supabaseClient
-          .from('users').select('id').eq('email', c.email).maybeSingle();
-        if(userRecord) {
-          await supabaseClient.from('users').update({
-            role: 'operator',
-            operator_id: c.vendorId
-          }).eq('id', userRecord.id);
+        const { data: marketRecord } = await supabaseClient
+          .from('markets').select('operator_id').eq('id', c.vendorId).maybeSingle();
+        const operatorId = marketRecord?.operator_id;
+        if(operatorId) {
+          const { data: opRecord } = await supabaseClient
+            .from('operators').select('id,phone,email').eq('id', operatorId).maybeSingle();
+          if(opRecord) {
+            const opUpdate = { trial_start: trialStart, claimed: true, email: finalOperatorEmail, contact_role: c.role || '' };
+            // Use their claim-time phone as a starting default — never overwrite a real existing number
+            if(c.phone && !opRecord.phone) opUpdate.phone = c.phone;
+            await supabaseClient.from('operators').update(opUpdate).eq('id', operatorId);
+          }
+          await supabaseClient.from('claims').update({status:'approved'}).eq('id', claimId);
+          // Update user record if exists — sync personal name + link to operator
+          const { data: userRecord } = await supabaseClient
+            .from('users').select('id').eq('email', c.email).maybeSingle();
+          if(userRecord) {
+            await supabaseClient.from('users').update({
+              role: 'operator',
+              operator_id: operatorId,
+              name: c.claimant || null
+            }).eq('id', userRecord.id);
+          }
+        } else {
+          console.warn('Market approval: no operator_id found on market', c.vendorId, '— operator record was not updated.');
         }
       } catch(e) { console.warn('Market approval Supabase update failed:', e); }
     }
@@ -11570,26 +11789,27 @@ async function adminApproveClaim(claimId) {
       '✓ Your market pages go live on Windmill<br>' +
       '✓ Followers, vendor roster & analytics</div>' +
       '<p style="text-align:center;margin:24px 0">' +
-      '<a href="https://shopwindmill.com/markets/login?email=' + encodeURIComponent(c.email) + '" style="background:#5C7A4E;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:15px;font-weight:600;display:inline-block">Set up your operator dashboard →</a></p>' +
-      '<p style="color:#666;font-size:12px">Go to shopwindmill.com/markets/login · Sign in or create your account with <strong>' + c.email + '</strong></p>' +
+      '<a href="https://shopwindmill.com/markets/login?email=' + encodeURIComponent(finalOperatorEmail) + '" style="background:#5C7A4E;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:15px;font-weight:600;display:inline-block">Set up your operator dashboard →</a></p>' +
+      '<p style="color:#666;font-size:12px">Go to shopwindmill.com/markets/login · Sign in or create your account with <strong>' + finalOperatorEmail + '</strong></p>' +
       '<p style="color:#666;font-size:12px">— The Windmill Team</p>',
-      c.email
+      finalOperatorEmail
     );
     ST.adminMessages.unshift({
       id:'auto_'+Date.now(),
       from:c.claimant, role:'Market Operator',
       subject:'Market claim approved: '+c.vendorName,
-      body:'Approved. Approval email sent to ' + c.email + '. 6-month Pro trial started.',
+      body:'Approved. Approval email sent to ' + finalOperatorEmail + '. 6-month Pro trial started.',
       date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
       read:true, resolved:true, replies:[], isSystem:true
     });
   } else {
     // --- VENDOR APPROVAL ---
+    const finalEmail = resolvedEmail || c.email;
     const v = DATA.vendors.find(x=>x.id===c.vendorId);
-    if(v) { v.claimed = true; v.trial_start = trialStart; }
+    if(v) { v.claimed = true; v.trial_start = trialStart; v.email = finalEmail; }
     if(supabaseClient) {
       try {
-        const vendorUpdate = { claimed: true, trial_start: trialStart };
+        const vendorUpdate = { claimed: true, trial_start: trialStart, email: finalEmail };
         // Use their claim-time phone as a starting default — never overwrite a real existing number
         if(c.phone && !v?.phone) vendorUpdate.phone = c.phone;
         await supabaseClient.from('vendors').update(vendorUpdate).eq('id', c.vendorId);
@@ -11600,7 +11820,8 @@ async function adminApproveClaim(claimId) {
           await supabaseClient.from('users').update({
             role: 'vendor',
             vendor_id: c.vendorId,
-            trial_start: trialStart
+            trial_start: trialStart,
+            name: c.claimant || null
           }).eq('id', userRecord.id);
         }
       } catch(e) { console.warn('Vendor approval Supabase update failed:', e); }
@@ -11616,16 +11837,16 @@ async function adminApproveClaim(claimId) {
       '✓ Confirm your market schedule<br>' +
       '✓ Post weekly updates to your followers</div>' +
       '<p style="text-align:center;margin:24px 0">' +
-      '<a href="https://shopwindmill.com/vendors/login?email=' + encodeURIComponent(c.email) + '" style="background:#5C7A4E;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:15px;font-weight:600;display:inline-block">Set up your profile →</a></p>' +
-      '<p style="color:#666;font-size:12px">Go to shopwindmill.com/vendors/login and sign in with <strong>' + c.email + '</strong></p>' +
+      '<a href="https://shopwindmill.com/vendors/login?email=' + encodeURIComponent(finalEmail) + '" style="background:#5C7A4E;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:15px;font-weight:600;display:inline-block">Set up your profile →</a></p>' +
+      '<p style="color:#666;font-size:12px">Go to shopwindmill.com/vendors/login and sign in with <strong>' + finalEmail + '</strong></p>' +
       '<p style="color:#666;font-size:12px">— The Windmill Team</p>',
-      c.email
+      finalEmail
     );
     ST.adminMessages.unshift({
       id:'auto_'+Date.now(),
       from:c.claimant, role:'Vendor',
       subject:'Claim approved: '+c.vendorName,
-      body:'Approved. Approval email sent to ' + c.email + '. Trial started.',
+      body:'Approved. Approval email sent to ' + finalEmail + '. Trial started.',
       date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
       read:true, resolved:true, replies:[], isSystem:true
     });
@@ -14216,6 +14437,15 @@ function renderOperatorSettingsSection(section) {
       <div class="form-field"><label class="form-label">Organization name</label><input class="form-input" id="osp_name" value="${ST.opOrgName||ST.user?.name||''}" placeholder="Your business or organization name"></div>
       <div class="form-field"><label class="form-label">Contact email</label><input class="form-input" id="osp_email" value="${ST.user?.email||''}" placeholder="shown publicly" type="email"></div>
       <div class="form-field"><label class="form-label">Phone</label><input class="form-input" id="osp_phone" value="${ST.opPhone||''}" placeholder="+1 (239) 000-0000" type="tel"></div>
+      <div class="form-field"><label class="form-label">Your role <span style="color:var(--text3);font-weight:400">(private — never shown publicly)</span></label>
+        <select class="form-input" id="osp_contact_role">
+          <option value="">Select your role</option>
+          <option value="manager" ${ST.opContactRole==='manager'?'selected':''}>Market Manager</option>
+          <option value="director" ${ST.opContactRole==='director'?'selected':''}>Director</option>
+          <option value="owner" ${ST.opContactRole==='owner'?'selected':''}>Owner</option>
+          <option value="other" ${ST.opContactRole==='other'?'selected':''}>Other</option>
+        </select>
+      </div>
       <div class="form-field"><label class="form-label">Address</label><input class="form-input" id="osp_address" value="${ST.opAddress||''}" placeholder="Organization address (optional)"></div>
       <button onclick="saveOperatorSettingsProfile()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-top:8px">Save changes</button>
     </div>`;
@@ -14308,11 +14538,13 @@ async function saveOperatorSettingsProfile() {
   const updates = {
     name: document.getElementById('osp_name')?.value?.trim(),
     phone: document.getElementById('osp_phone')?.value?.trim(),
-    address: document.getElementById('osp_address')?.value?.trim()
+    address: document.getElementById('osp_address')?.value?.trim(),
+    contact_role: document.getElementById('osp_contact_role')?.value || ''
   };
   if(updates.name) ST.opOrgName = updates.name;
   if(updates.phone) ST.opPhone = updates.phone;
   if(updates.address) ST.opAddress = updates.address;
+  ST.opContactRole = updates.contact_role;
   if(supabaseClient && ST.operatorId) {
     try { await supabaseClient.from('operators').update(updates).eq('id', ST.operatorId); } catch(e) { console.warn('Save failed:', e); }
   }
