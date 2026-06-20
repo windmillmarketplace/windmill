@@ -4,7 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.71.1 -->
+<!-- v1.71.11 -->
+<!-- v1.71.10 -->
+<!-- v1.71.9 -->
+<!-- v1.71.8 -->
+<!-- v1.71.7 -->
+<!-- v1.71.6 -->
+<!-- v1.71.5 -->
+<!-- v1.71.4 -->
 <!-- v1.70.7 -->
 <!-- v1.70.6 -->
 <!-- v1.70.5 -->
@@ -1568,6 +1575,8 @@ let ST = {
   authMode:'signin',
   follows:[],
   vendorId:null, operatorId:null,
+  vendorInboxExpanded:null,
+  shopperInboxExpanded:null,
   isProTrial:false, trialStart:null, attendanceData:[], localProducts:[], notifFollower:true, notifWeekly:true,
   opNotifVendorClaim:true, opNotifFollower:true, opNotifWeekly:true,
   opIsPro:false, opIsProTrial:false, opTrialStart:null, opProfileSetupComplete:false, opPendingCoverPhotoFile:null, opPendingPhoto:null, opPendingDescription:null,
@@ -1680,7 +1689,7 @@ const T = {
     gallery_pro:"Gallery photos — Pro feature",gallery_pro_sub:"Vendor upgrades to Pro to add product gallery photos",
     no_photos:"No photos yet",market_schedule:"Market Schedule",
     market_label:"market",markets_label:"markets",
-    messaging:"Send a Message",msg_not_setup:"This vendor isn't set up for messages yet",
+    messaging:"Messages",msg_not_setup:"This vendor isn't set up for messages yet",
     msg_reach_via:"You can reach them via email or website above",
     reviews:"Reviews",no_reviews:"No reviews yet",write_review:"Write a review",
     unclaimed_text:"This profile hasn't been claimed yet. Information is from public market data.",
@@ -1769,7 +1778,7 @@ const T = {
     gallery_pro:"Fotos de galería — función Pro",gallery_pro_sub:"El vendedor actualiza a Pro para agregar fotos de productos",
     no_photos:"Sin fotos aún",market_schedule:"Horario de mercados",
     market_label:"mercado",markets_label:"mercados",
-    messaging:"Enviar un mensaje",msg_not_setup:"Este vendedor no está configurado para mensajes",
+    messaging:"Mensajes",msg_not_setup:"Este vendedor no está configurado para mensajes",
     msg_reach_via:"Puedes contactarlos por correo o sitio web",
     reviews:"Reseñas",no_reviews:"Sin reseñas aún",write_review:"Escribir reseña",
     unclaimed_text:"Este perfil no ha sido reclamado. La información proviene de datos públicos.",
@@ -1851,7 +1860,7 @@ const T = {
     gallery_pro:"Fotos da galeria — recurso Pro",gallery_pro_sub:"O vendedor atualiza para Pro para adicionar fotos de produtos",
     no_photos:"Sem fotos ainda",market_schedule:"Agenda de mercados",
     market_label:"mercado",markets_label:"mercados",
-    messaging:"Enviar mensagem",msg_not_setup:"Este vendedor não está configurado para mensagens",
+    messaging:"Mensagens",msg_not_setup:"Este vendedor não está configurado para mensagens",
     msg_reach_via:"Você pode contatá-los por e-mail ou site acima",
     reviews:"Avaliações",no_reviews:"Sem avaliações ainda",write_review:"Escrever avaliação",
     unclaimed_text:"Este perfil ainda não foi reivindicado. As informações são de dados públicos.",
@@ -3351,8 +3360,9 @@ function renderBottom() {
     admin:[{id:'home',l:'Dashboard',i:DASH_I},{id:'explore',l:'Vendors',i:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>'},{id:'markets',l:'Markets',i:MARK_I},{id:'following',l:'Claims',i:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>'},{id:'me',l:'Messages',i:MSG_I}]
   };
   el.innerHTML = (maps[ST.role]||maps.customer).map(item=>`
-    <button class="nav-item ${ST.tab===item.id?'active':''}" onclick="navigate('${item.id}')">
+    <button class="nav-item ${ST.tab===item.id?'active':''}" onclick="navigate('${item.id}')" style="position:relative">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${item.i}</svg>
+      ${item.id==='me' && ST.role==='customer' && ST._shopperUnreadCount>0 ? '<span style="position:absolute;top:2px;right:calc(50% - 16px);width:8px;height:8px;background:var(--terra);border-radius:50%;border:1.5px solid var(--surface)"></span>' : ''}
       <span class="nav-label">${item.l}</span>
     </button>`).join('');
 }
@@ -8647,7 +8657,215 @@ async function renderMeSection(section) {
   }
 }
 
-function renderMe() {
+async function renderShopperInbox() {
+  const sb = document.getElementById('scrollBody');
+  if(!sb) return;
+  const backBtn = `<div onclick="renderMe()" style="display:flex;align-items:center;gap:6px;padding:14px 16px;border-bottom:0.5px solid var(--border);cursor:pointer;background:var(--surface)">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--terra)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    <span style="font-size:13px;color:var(--terra);font-weight:500">My Account</span>
+  </div>`;
+
+  sb.innerHTML = `<div>${backBtn}<div style="padding:16px">
+    <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:4px">Messages</div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:16px">Your conversations with vendors and Windmill Support</div>
+    <div id="shopperInboxList">
+      <div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Loading messages...</div>
+    </div>
+  </div></div>`;
+
+  if(!ST.user?.id || !supabaseClient) {
+    const list = document.getElementById('shopperInboxList');
+    if(list) list.innerHTML = `<div style="text-align:center;padding:24px;color:var(--terra);font-size:13px">Could not load messages.</div>`;
+    return;
+  }
+
+  try {
+    const { data: conversations } = await supabaseClient.from('messages')
+      .select('*, message_replies(*)')
+      .eq('from_user_id', ST.user.id)
+      .order('created_at', { ascending: false });
+
+    ST._shopperInboxConversations = conversations || [];
+    renderShopperInboxList(ST._shopperInboxConversations);
+    recalcShopperUnreadBadge();
+  } catch(e) {
+    console.warn('Shopper inbox load failed:', e);
+    const list = document.getElementById('shopperInboxList');
+    if(list) list.innerHTML = `<div style="text-align:center;padding:24px;color:var(--terra);font-size:13px">Could not load messages. Please try again.</div>`;
+  }
+}
+
+function renderShopperInboxList(conversations) {
+  const list = document.getElementById('shopperInboxList');
+  if(!list) return;
+
+  if(!conversations || conversations.length === 0) {
+    list.innerHTML = `<div style="text-align:center;padding:40px 16px">
+      <div style="font-size:36px;margin-bottom:12px">📭</div>
+      <div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:6px">No messages yet</div>
+      <div style="font-size:12px;color:var(--text3)">Message a vendor from their page, or contact Windmill Support from My Account.</div>
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = conversations.map(convo => {
+    const replies = convo.message_replies || [];
+    const isSupportThread = convo.recipient_type === 'admin';
+    const latestReplyAt = replies.length > 0
+      ? replies.reduce((max,r) => new Date(r.created_at) > new Date(max) ? r.created_at : max, replies[0].created_at)
+      : null;
+    const isUnread = latestReplyAt && (!convo.sender_last_read_at || new Date(latestReplyAt) > new Date(convo.sender_last_read_at));
+    const totalMsgCount = 1 + replies.length;
+    const lastActivityAt = latestReplyAt || convo.created_at;
+    const date = new Date(lastActivityAt).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+    const isExpanded = ST.shopperInboxExpanded === convo.id;
+    const borderColor = isUnread ? 'var(--green-mid)' : 'var(--border-med)';
+    const vendorRecord = !isSupportThread ? DATA.vendors.find(v=>v.id===convo.recipient_id) : null;
+    const name = isSupportThread ? 'Windmill Support' : (convo.recipient_name || vendorRecord?.name || 'Vendor');
+    // A vendor that's since dropped to Free can't receive new messages, but
+    // the shopper should still be able to see the conversation history.
+    const vendorIsPro = isSupportThread || (vendorRecord && (vendorRecord.pro || (vendorRecord.trial_start && (() => { const exp = new Date(vendorRecord.trial_start); exp.setMonth(exp.getMonth()+6); return new Date() < exp; })())));
+    const lastSnippet = replies.length > 0 ? replies[replies.length-1].body : convo.body;
+
+    const header = `<div onclick="shopperInboxToggleConvo('${convo.id}')" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:13px 14px;background:${isUnread?'var(--green-lt)':(isExpanded?'var(--surface2)':'var(--surface)')};${isExpanded?'border-bottom:1px solid '+borderColor:''}">
+      <div style="min-width:0;flex:1">
+        <div style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px">
+          ${isSupportThread ? '🛟' : '🛍️'} ${name} ${isUnread?`<span style="font-size:10px;padding:1px 6px;background:var(--green);color:#fff;border-radius:var(--r-pill);font-weight:600">New</span>`:''}
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">${date} · ${totalMsgCount} message${totalMsgCount!==1?'s':''}</div>
+        ${!isExpanded ? `<div style="font-size:12px;color:var(--text2);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lastSnippet}</div>` : ''}
+      </div>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-left:8px;transform:rotate(${isExpanded?180:0}deg);transition:transform .15s"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>`;
+
+    if(!isExpanded) {
+      return `<div style="border:1px solid ${borderColor};border-radius:var(--r-md);margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.04);overflow:hidden">${header}</div>`;
+    }
+
+    const timeline = [
+      { from_name: convo.from_name, role: convo.role, body: convo.body, created_at: convo.created_at },
+      ...replies
+    ].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+
+    const timelineHtml = timeline.map(m => {
+      const isFromMe = m.role === 'Customer' || m.role === 'customer';
+      const isFromAdmin = m.role === 'admin';
+      const label = isFromMe ? 'You' : isFromAdmin ? 'Windmill Support' : name;
+      return `<div style="margin-bottom:8px;display:flex;flex-direction:column;align-items:${isFromMe?'flex-end':'flex-start'}">
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px">${label}</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.5;padding:8px 10px;border-radius:var(--r-sm);max-width:85%;background:${isFromMe?'var(--green-lt)':'var(--surface)'};${isFromMe?'border-right:3px solid var(--green-mid)':'border-left:3px solid var(--border-med)'}">${m.body}</div>
+      </div>`;
+    }).join('');
+
+    const replyArea = vendorIsPro
+      ? `<div style="display:flex;gap:8px;margin:10px 0 8px">
+          <input id="shopperReply_${convo.id}" type="text" placeholder="Write a reply..." style="flex:1;padding:8px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:12px;font-family:var(--font-sans);background:var(--surface);color:var(--text);outline:none">
+          <button onclick="sendShopperReply('${convo.id}','shopperReply_${convo.id}','${convo.recipient_type}','${convo.recipient_id}')" style="padding:8px 14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:12px;cursor:pointer;font-weight:500;font-family:var(--font-sans);white-space:nowrap">Send</button>
+        </div>`
+      : `<div style="margin:10px 0 8px;padding:10px;background:var(--surface2);border-radius:var(--r-sm);font-size:11px;color:var(--text3);text-align:center">${name} isn't accepting new messages right now.</div>`;
+
+    return `<div style="border:1px solid ${borderColor};border-radius:var(--r-md);margin-bottom:12px;box-shadow:0 2px 6px rgba(0,0,0,.06);overflow:hidden">
+      ${header}
+      <div style="padding:13px 14px;background:var(--bg)">
+        <div style="display:flex;flex-direction:column">${timelineHtml}</div>
+        ${replyArea}
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <button onclick="shopperToggleMsgRead('${convo.id}')" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--text3);font-family:var(--font-sans);text-decoration:underline;text-underline-offset:2px">${isUnread ? '● Mark as read' : '○ Mark as unread'}</button>
+          <button onclick="shopperDeleteMsg('${convo.id}')" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--terra);font-family:var(--font-sans);text-decoration:underline;text-underline-offset:2px">🗑 Delete conversation</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function shopperInboxToggleConvo(convoId) {
+  const wasExpanded = ST.shopperInboxExpanded === convoId;
+  ST.shopperInboxExpanded = wasExpanded ? null : convoId;
+
+  // Only mark read when the shopper actually opens this specific
+  // conversation — mirrors the vendor inbox's fix for the same issue.
+  if(!wasExpanded && supabaseClient) {
+    const convo = (ST._shopperInboxConversations||[]).find(c => c.id === convoId);
+    if(convo) {
+      const now = new Date().toISOString();
+      convo.sender_last_read_at = now;
+      await supabaseClient.from('messages').update({ sender_last_read_at: now }).eq('id', convoId);
+    }
+  }
+  if(ST._shopperInboxConversations) renderShopperInboxList(ST._shopperInboxConversations);
+  recalcShopperUnreadBadge();
+}
+
+async function shopperToggleMsgRead(convoId) {
+  if(!supabaseClient) return;
+  const convo = (ST._shopperInboxConversations||[]).find(c => c.id === convoId);
+  if(!convo) return;
+  // "Mark as unread" here means: clear sender_last_read_at so it shows as
+  // new again. "Mark as read" stamps it to now. Neither touches the
+  // recipient-side `read`/`last_read_at` fields used by the other inbox.
+  const replies = convo.message_replies || [];
+  const latestReplyAt = replies.length > 0
+    ? replies.reduce((max,r) => new Date(r.created_at) > new Date(max) ? r.created_at : max, replies[0].created_at)
+    : null;
+  const isCurrentlyUnread = latestReplyAt && (!convo.sender_last_read_at || new Date(latestReplyAt) > new Date(convo.sender_last_read_at));
+  const newValue = isCurrentlyUnread ? new Date().toISOString() : null;
+  convo.sender_last_read_at = newValue;
+  await supabaseClient.from('messages').update({ sender_last_read_at: newValue }).eq('id', convoId);
+  if(ST._shopperInboxConversations) renderShopperInboxList(ST._shopperInboxConversations);
+  recalcShopperUnreadBadge();
+}
+
+// Recomputes the unread badge from the already-loaded conversation list
+// (no extra round-trip to Supabase) and refreshes the bottom nav.
+function recalcShopperUnreadBadge() {
+  const convos = ST._shopperInboxConversations || [];
+  ST._shopperUnreadCount = convos.filter(c => {
+    const replies = c.message_replies || [];
+    if(replies.length === 0) return false;
+    const latestReplyAt = replies.reduce((max,r) => new Date(r.created_at) > new Date(max) ? r.created_at : max, replies[0].created_at);
+    return !c.sender_last_read_at || new Date(latestReplyAt) > new Date(c.sender_last_read_at);
+  }).length;
+  renderBottom();
+}
+
+async function shopperDeleteMsg(convoId) {
+  if(!confirm('Delete this conversation? This cannot be undone.')) return;
+  if(!supabaseClient) return;
+  await supabaseClient.from('message_replies').delete().eq('message_id', convoId);
+  await supabaseClient.from('messages').delete().eq('id', convoId);
+  renderShopperInbox();
+}
+
+async function sendShopperReply(messageId, inputId, recipientType, recipientId) {
+  const input = document.getElementById(inputId);
+  const text = input?.value?.trim();
+  if(!text) return;
+  if(!supabaseClient) return;
+
+  const btn = input?.nextElementSibling;
+  if(btn) { btn.textContent = 'Sending...'; btn.disabled = true; }
+
+  try {
+    await dbSaveReply(messageId, { from: ST.user?.name || 'Shopper', from_email: ST.user?.email || '', role: 'Customer', body: text });
+    if(input) input.value = '';
+    if(btn) { btn.textContent = 'Send'; btn.disabled = false; }
+
+    const { data: threadMsg } = await supabaseClient.from('messages').select('*').eq('id', messageId).single();
+    if(threadMsg) {
+      const recipientEmail = recipientType === 'admin' ? 'windmillmarketplace@gmail.com' : DATA.vendors.find(v=>v.id===recipientId)?.email;
+      if(recipientEmail) {
+        notifyOnReply(threadMsg, ST.user?.name || 'A shopper', text, recipientEmail, recipientType === 'admin' ? 'Admin' : 'there');
+      }
+    }
+
+    renderShopperInbox();
+  } catch(e) {
+    if(btn) { btn.textContent = 'Send'; btn.disabled = false; }
+    alert('Could not send reply. Please try again.');
+  }
+}
+
+async function renderMe() {
   hideFilterUI();
   if(ST.role !== 'customer' && ST.role !== 'friends-family') { renderCurrentPage(); return; }
 
@@ -8656,6 +8874,28 @@ function renderMe() {
     const initials = ST.user.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
     const sb = document.getElementById('scrollBody');
     const chevron = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+
+    // Unread count across all of this shopper's conversations (vendor
+    // threads they started + their own admin/support thread). "Unread" here
+    // means a reply has landed since they last opened that specific
+    // conversation — sender_last_read_at tracks that, separate from the
+    // recipient-side `read`/`last_read_at` fields used elsewhere.
+    let shopperUnreadCount = 0;
+    if(supabaseClient && ST.user?.id) {
+      try {
+        const { data: myConvos } = await supabaseClient.from('messages')
+          .select('id, sender_last_read_at, message_replies(created_at)')
+          .eq('from_user_id', ST.user.id);
+        shopperUnreadCount = (myConvos||[]).filter(c => {
+          const replies = c.message_replies || [];
+          if(replies.length === 0) return false;
+          const latestReply = replies.reduce((max,r) => new Date(r.created_at) > new Date(max.created_at) ? r : max, replies[0]);
+          return !c.sender_last_read_at || new Date(latestReply.created_at) > new Date(c.sender_last_read_at);
+        }).length;
+      } catch(e) { console.warn('Could not load shopper unread count:', e); }
+    }
+    ST._shopperUnreadCount = shopperUnreadCount;
+    renderBottom();
 
     sb.innerHTML = `<div style="padding:0 0 40px">
       <!-- Avatar header -->
@@ -8673,6 +8913,16 @@ function renderMe() {
             <div>
               <div style="font-size:14px;font-weight:500;color:var(--text)">Your Profile</div>
               <div style="font-size:11px;color:var(--text3)">Name, location, phone, birthday</div>
+            </div>
+          </div>
+          ${chevron}
+        </div>
+        <div onclick="renderShopperInbox()" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid var(--border);cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:18px">💬</span>
+            <div>
+              <div style="font-size:14px;font-weight:500;color:var(--text);display:flex;align-items:center;gap:6px">Messages ${shopperUnreadCount>0?`<span style="min-width:18px;height:18px;padding:0 5px;background:var(--terra);color:#fff;border-radius:var(--r-pill);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">${shopperUnreadCount}</span>`:''}</div>
+              <div style="font-size:11px;color:var(--text3)">Your conversations with vendors</div>
             </div>
           </div>
           ${chevron}
@@ -8828,19 +9078,20 @@ function showVendorOnboarding(step) {
     {
       icon: '🌾',
       title: `Welcome to Windmill, ${name}!`,
-      sub: "Let's get your profile set up. It takes about 5 minutes.",
+      sub: "Let's get your profile set up. It takes about 6 minutes.",
       content: `
         <div style="background:var(--green-lt);border-radius:var(--r-md);padding:14px;margin-bottom:16px">
           <div style="font-size:12px;font-weight:600;color:var(--green-dk);margin-bottom:8px">Here's what we'll set up:</div>
           <div style="font-size:12px;color:var(--green-dk);line-height:2">
             ① Confirm your contact info<br>
-            ② Your cover photo<br>
-            ③ Your story<br>
-            ④ Your ${isPro ? 'links (website, Instagram, Facebook)' : 'link (website, Instagram, or Facebook)'}
+            ② Confirm your markets<br>
+            ③ Your cover photo<br>
+            ④ Your story<br>
+            ⑤ Your ${isPro ? 'links (website, Instagram, Facebook)' : 'link (website, Instagram, or Facebook)'}
           </div>
         </div>
-        ${isPro ? `<div style="background:var(--green);border-radius:var(--r-md);padding:12px;text-align:center">
-          <div style="font-size:12px;font-weight:600;color:#fff">🌟 You're on Pro — all features unlocked</div>
+        ${isPro ? `<div style="display:flex;align-items:center;justify-content:center;gap:6px;border:1px dashed var(--green);border-radius:var(--r-pill);padding:8px 12px;background:transparent">
+          <span style="font-size:12px;font-weight:500;color:var(--green-dk)">${ST.isProTrial && !v?.pro ? "🌟 You're on a 6-month Pro trial — all features unlocked" : "🌟 You're on Pro — all features unlocked"}</span>
         </div>` : ''}`,
       nextLabel: "Let's go →"
     },
@@ -8853,6 +9104,38 @@ function showVendorOnboarding(step) {
         <div class="form-field"><label class="form-label">Business name</label><input class="form-input" id="onboardBusinessName" value="${v?.name||''}" placeholder="Your business name"></div>
         <div class="form-field"><label class="form-label">Contact email <span style="color:var(--text3);font-weight:400">(shown publicly)</span></label><input class="form-input" id="onboardContactEmail" value="${v?.email||''}" placeholder="you@example.com" type="email"></div>
         <div class="form-field"><label class="form-label">Phone <span style="color:var(--text3);font-weight:400">(shown publicly, optional)</span></label><input class="form-input" id="onboardContactPhone" value="${v?.phone||''}" placeholder="+1 (239) 000-0000" type="tel"></div>`,
+      nextLabel: 'Next →',
+      skipLabel: 'Skip for now'
+    },
+    {
+      icon: '📍',
+      title: 'Confirm your markets',
+      sub: "Where do you sell? Check all that apply — uncheck any that aren't right.",
+      content: (() => {
+        const vendorRegion = v?.region;
+        const currentMarketIds = new Set((v?.markets || []));
+        const showAllRegions = ST.onboardShowAllRegions || false;
+        let regionalMarkets = DATA.markets.filter(m => !vendorRegion || m.region === vendorRegion);
+        let pool = showAllRegions ? DATA.markets : regionalMarkets;
+        const sorted = [...pool].sort((a,b) => {
+          const aChecked = currentMarketIds.has(a.id), bChecked = currentMarketIds.has(b.id);
+          if(aChecked !== bChecked) return aChecked ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        });
+        const rows = sorted.map(m => `
+          <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:0.5px solid var(--border);cursor:pointer">
+            <input type="checkbox" class="onboardMarketCheckbox" value="${m.id}" ${currentMarketIds.has(m.id)?'checked':''} style="width:16px;height:16px;flex-shrink:0">
+            <div>
+              <div style="font-size:13px;font-weight:500;color:var(--text)">${m.name}</div>
+              <div style="font-size:11px;color:var(--text3)">${m.city||''}</div>
+            </div>
+          </label>`).join('');
+        return `
+        <div style="border:0.5px solid var(--border-med);border-radius:var(--r-md);max-height:280px;overflow-y:auto;margin-bottom:10px">
+          ${rows || '<div style="padding:16px;text-align:center;font-size:12px;color:var(--text3)">No markets found in this region.</div>'}
+        </div>
+        ${!showAllRegions ? `<button onclick="ST.onboardShowAllRegions=true;showVendorOnboarding(3)" style="width:100%;padding:10px;background:none;border:0.5px dashed var(--border-med);border-radius:var(--r-md);font-size:12px;color:var(--text2);cursor:pointer;font-family:var(--font-sans)">Still don't see your markets? Show all regions →</button>` : ''}`;
+      })(),
       nextLabel: 'Next →',
       skipLabel: 'Skip for now'
     },
@@ -8900,8 +9183,17 @@ function showVendorOnboarding(step) {
           <input class="form-input" id="onboardSocialValue" value="${v?.website||v?.instagram||v?.facebook||''}" placeholder="https://...">
         </div>
         <div style="font-size:11px;color:var(--text3);margin-top:4px">Upgrade to Pro to add all three links</div>`,
-      nextLabel: "Finish setup ✓",
+      nextLabel: "Next →",
       skipLabel: 'Skip for now'
+    },
+    {
+      icon: '🧭',
+      title: "You're all set, " + name + "!",
+      sub: "Your profile is saved. Want a quick tour of your dashboard, or head straight in?",
+      content: `
+        <button onclick="vendorOnboardingNext(7).then(()=>{renderVendorSettings();renderVendorSettingsSection('help')})" style="width:100%;padding:13px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:10px">📖 View tutorial</button>
+        <div style="font-size:11px;color:var(--text3);text-align:center">You can always find this later in Settings → Help & Guide</div>`,
+      nextLabel: "Finish ✓"
     }
   ];
 
@@ -9071,7 +9363,14 @@ async function vendorOnboardingNext(step) {
     ST.pendingOnboardContact = { name: businessName, email, phone };
   }
 
-  if(step === 3 && ST.pendingCoverPhotoFile && vendorId && supabaseClient) {
+  if(step === 3) {
+    const checked = Array.from(document.querySelectorAll('.onboardMarketCheckbox:checked')).map(el => el.value);
+    ST.pendingOnboardMarkets = checked;
+    if(v) v.markets = checked;
+    ST.onboardShowAllRegions = false;
+  }
+
+  if(step === 4 && ST.pendingCoverPhotoFile && vendorId && supabaseClient) {
     try {
       const compressed = await compressImage(ST.pendingCoverPhotoFile, 1200, 0.80);
       const path = `profile/${vendorId}/photo.jpg`;
@@ -9081,19 +9380,19 @@ async function vendorOnboardingNext(step) {
       ST.pendingCoverPhotoFile = null;
       ST.pendingCoverPhoto = null;
     } catch(e) { console.warn('Photo upload failed during onboarding:', e); }
-  } else if(step === 3 && ST.pendingCoverPhoto) {
+  } else if(step === 4 && ST.pendingCoverPhoto) {
     if(v) v.photo = ST.pendingCoverPhoto;
     ST.pendingOnboardPhoto = ST.pendingCoverPhoto;
     ST.pendingCoverPhoto = null;
   }
 
-  if(step === 4) {
+  if(step === 5) {
     const desc = document.getElementById('onboardDescription')?.value?.trim();
     if(v && desc) v.description = desc;
     ST.pendingOnboardDescription = desc || '';
   }
 
-  if(step === 5) {
+  if(step === 6) {
     if(isPro) {
       const website = document.getElementById('onboardWebsite')?.value?.trim() || '';
       const instagram = document.getElementById('onboardInstagram')?.value?.trim() || '';
@@ -9107,7 +9406,10 @@ async function vendorOnboardingNext(step) {
       if(v) { v.website = links.website; v.instagram = links.instagram; v.facebook = links.facebook; }
       ST.pendingOnboardLinks = links;
     }
-    // Final step — save to Supabase and mark complete
+  }
+
+  if(step === 7) {
+    // Final step — save everything collected so far to Supabase and mark complete
     await completeVendorOnboarding(v);
     return;
   }
@@ -9115,7 +9417,8 @@ async function vendorOnboardingNext(step) {
 }
 
 function vendorOnboardingSkipStep(step) {
-  if(step >= 5) { completeVendorOnboarding(); return; }
+  if(step === 3) ST.onboardShowAllRegions = false;
+  if(step >= 7) { completeVendorOnboarding(); return; }
   showVendorOnboarding(step + 1);
 }
 
@@ -9137,6 +9440,20 @@ async function completeVendorOnboarding(v) {
     } catch(e) { console.warn('Onboarding vendor save failed:', e); }
   } else if(v && supabaseClient) {
     try { await dbSaveVendor(v); } catch(e) { console.warn('Save failed:', e); }
+  }
+
+  // Save confirmed markets — full replace of vendor_markets rows for this vendor
+  if(vendorId && supabaseClient && ST.pendingOnboardMarkets) {
+    try {
+      await supabaseClient.from('vendor_markets').delete().eq('vendor_id', vendorId);
+      if(ST.pendingOnboardMarkets.length > 0) {
+        await supabaseClient.from('vendor_markets').insert(
+          ST.pendingOnboardMarkets.map(mid => ({ vendor_id: vendorId, market_id: mid }))
+        );
+      }
+      if(v) v.markets = ST.pendingOnboardMarkets;
+    } catch(e) { console.warn('Onboarding markets save failed:', e); }
+    ST.pendingOnboardMarkets = null;
   }
 
   // Mark setup complete on user record
@@ -9436,13 +9753,18 @@ async function renderVendorDash() {
   // Load real follower count from Supabase
   let followerCount = 0;
   let profileViews = 0;
+  let unreadMsgCount = 0;
   if(supabaseClient && vendorId) {
-    const [followRes, viewRes] = await Promise.all([
+    const [followRes, viewRes, msgRes] = await Promise.all([
       supabaseClient.from('follows').select('*', {count:'exact',head:true}).eq('vendor_id', vendorId),
-      supabaseClient.from('page_views').select('*', {count:'exact',head:true}).eq('page_type','vendor').eq('entity_id', vendorId)
+      supabaseClient.from('page_views').select('*', {count:'exact',head:true}).eq('page_type','vendor').eq('entity_id', vendorId),
+      isPro ? supabaseClient.from('messages').select('*', {count:'exact',head:true})
+        .or(`and(recipient_id.eq.${vendorId},recipient_type.eq.vendor),and(from_user_id.eq.${ST.user?.id||'00000000-0000-0000-0000-000000000000'},recipient_type.eq.admin)`)
+        .eq('read', false) : Promise.resolve({count:0})
     ]);
     followerCount = followRes.count || 0;
     profileViews = viewRes.count || 0;
+    unreadMsgCount = msgRes.count || 0;
   }
 
   // Trial badge
@@ -9479,7 +9801,7 @@ async function renderVendorDash() {
     { icon:'📅', label:t('my_schedule'), sub:`${marketCount} ${marketCount!==1?t('markets_label'):t('market_label')}`, tab:'markets' },
     { icon:'📦', label:t('my_products'), sub: isPro ? `${productCount} ${t('listed')}` : `🔒 ${t('pro_feature')}`, tab:'following', locked: !isPro },
     { icon:'📢', label:t('post_update'), sub: isPro ? t('reach_followers') : `🔒 ${t('pro_feature')}`, tab:null, locked: !isPro, action: isPro ? 'showWeeklyUpdateModal()' : "navigate('vendors-join')" },
-    { icon:'💬', label:t('messaging'), sub: isPro ? t('view_messages') : `🔒 ${t('pro_feature')}`, tab:null, locked: !isPro, action: isPro ? 'showVendorInbox()' : "navigate('vendors-join')" },
+    { icon:'💬', label:t('messaging'), sub: isPro ? t('view_messages') : `🔒 ${t('pro_feature')}`, tab:null, locked: !isPro, action: isPro ? 'showVendorInbox()' : "navigate('vendors-join')", badgeCount: isPro ? unreadMsgCount : 0 },
     { icon:'🛒', label:'Pre-Orders', sub:t('coming_soon_label'), tab:null, locked:true, action:'showPreOrderComingSoon()', comingSoon:true },
   ];
 
@@ -9508,6 +9830,7 @@ async function renderVendorDash() {
         ${actions.map(a=>`
           <div onclick="${a.action || `navigate('${a.tab}')`}" style="background:${a.locked?'var(--surface2)':'var(--surface)'};border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px;cursor:pointer;opacity:${a.locked&&!a.comingSoon?.7:1};position:relative">
             ${a.comingSoon?`<span style="position:absolute;top:8px;right:8px;font-size:9px;padding:2px 6px;background:var(--amber-lt);color:var(--amber);border-radius:var(--r-pill);font-weight:600;border:0.5px solid #F0D090">SOON</span>`:''}
+            ${a.badgeCount>0?`<span style="position:absolute;top:10px;right:10px;min-width:18px;height:18px;padding:0 5px;background:var(--terra);color:#fff;border-radius:var(--r-pill);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">${a.badgeCount}</span>`:''}
             <div style="font-size:22px;margin-bottom:6px">${a.icon}</div>
             <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px">${a.label}</div>
             <div style="font-size:11px;color:var(--text3)">${a.sub}</div>
@@ -10002,8 +10325,8 @@ function renderAdminPanel() {
             <button onclick="ST.adminMsgThread=null;renderAdminPanel()" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--terra);padding:0;font-family:var(--font-sans)">← Back to inbox</button>
           </div>
           <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px;margin-bottom:12px">
-            <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:2px">${msg.subject}</div>
-            <div style="font-size:11px;color:var(--text2)">${msg.from} · ${msg.role} · ${msg.date}</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px">${msg.from}</div>
+            <div style="font-size:11px;color:var(--text2)">${msg.role} · ${msg.date}</div>
           </div>
           <div class="msg-thread">
             <div class="msg-bubble sender">
@@ -10021,8 +10344,9 @@ function renderAdminPanel() {
               <button onclick="adminSendReply('${msg.id}')" style="flex:1;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500">Send Reply</button>
               <button onclick="adminResolveMsg('${msg.id}')" style="padding:10px 14px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:12px;cursor:pointer;color:var(--text2)">✓ Resolve</button>
             </div>
-            <div style="margin-top:8px;text-align:right">
+            <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
               <button onclick="adminToggleMsgRead('${msg.id}')" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--text3);font-family:var(--font-sans);text-decoration:underline;text-underline-offset:2px">${msg.read ? '○ Mark as unread' : '● Mark as read'}</button>
+              <button onclick="adminDeleteMsg('${msg.id}')" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--terra);font-family:var(--font-sans);text-decoration:underline;text-underline-offset:2px">🗑 Delete</button>
             </div>
           </div>`;
         }
@@ -10035,14 +10359,17 @@ function renderAdminPanel() {
           ST.adminMessages.forEach(msg => {
             const colors = [{bg:'#EEF2EB',c:'#3D6B35'},{bg:'#FDF3DC',c:'#7A4E08'},{bg:'#FAEDE6',c:'#7A2E10'}];
             const col = colors[msg.id.charCodeAt(1)%3];
+            const fullDateTime = msg.created_at
+              ? new Date(msg.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})
+              : (msg.date || '');
             h += `<div class="msg-row ${msg.read?'':'unread'}" onclick="adminOpenMsg('${msg.id}')">
               <div class="msg-avatar" style="background:${col.bg};color:${col.c}">${msg.from.charAt(0)}</div>
               <div class="msg-body-wrap">
-                <div class="msg-subject">${msg.subject}</div>
-                <div class="msg-preview">${msg.from} · ${msg.role} · ${msg.body.slice(0,60)}...</div>
+                <div class="msg-subject">${msg.from}</div>
+                <div class="msg-preview">${msg.role} · ${msg.body.slice(0,60)}${msg.body.length>60?'...':''}</div>
               </div>
               <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-                <div class="msg-meta">${msg.date.split(' ').slice(-1)[0]}</div>
+                <div class="msg-meta">${fullDateTime}</div>
                 ${!msg.read?'<div class="msg-unread-dot"></div>':''}
                 ${msg.resolved?'<span class="status-pill live" style="font-size:8px">Resolved</span>':''}
               </div>
@@ -10668,10 +10995,6 @@ function openMessageModal(type, recipientId, recipientName) {
     <div class="modal-title">Message ${isAdmin ? 'Windmill Support' : recipientName}</div>
     <div class="modal-sub">${isAdmin ? 'We typically respond within 24 hours.' : 'Your message will be forwarded to ' + recipientName + '.'}</div>
     <div class="form-field">
-      <label class="form-label">Subject</label>
-      <input class="form-input" id="msgSubject" placeholder="What's your message about?">
-    </div>
-    <div class="form-field">
       <label class="form-label">Message</label>
       <textarea class="form-textarea" id="msgBody" placeholder="Write your message here..." style="min-height:120px"></textarea>
     </div>
@@ -10682,55 +11005,140 @@ function openMessageModal(type, recipientId, recipientName) {
 }
 
 async function sendMessage(type, recipientId, recipientName) {
-  const subject = document.getElementById('msgSubject')?.value?.trim();
   const body = document.getElementById('msgBody')?.value?.trim();
   const errEl = document.getElementById('msgError');
 
-  if(!subject) { if(errEl){errEl.textContent='Please add a subject.';errEl.style.display='block';} return; }
   if(!body) { if(errEl){errEl.textContent='Please write a message.';errEl.style.display='block';} return; }
 
-  const msg = {
-    id: 'msg_'+Date.now(),
-    from: ST.user.name,
-    from_email: ST.user.email,
-    role: 'Customer',
-    subject,
-    body,
-    recipient_type: type,
-    recipient_id: recipientId,
-    recipient_name: recipientName,
-    date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}),
-    read: false,
-    resolved: false,
-    replies: []
-  };
+  if(!supabaseClient) { if(errEl){errEl.textContent='Could not send — please try again.';errEl.style.display='block';} return; }
 
-  // Save to Supabase messages table
-  if(supabaseClient) {
-    await supabaseClient.from('messages').insert({
-      from_name: msg.from,
-      from_email: msg.from_email,
-      from_user_id: ST.user?.id || null,
-      role: msg.role,
-      subject: msg.subject,
-      body: msg.body,
-      recipient_type: type,
-      recipient_id: recipientId,
-      recipient_name: recipientName
-    });
+  try {
+    // One ongoing conversation per (sender, recipient) pair — find the
+    // existing thread if there is one, otherwise this message becomes the
+    // anchor for a brand new conversation. This matches how the vendor
+    // inbox already groups by sender, so a shopper messaging the same
+    // vendor twice stays one conversation, not two.
+    const { data: existing } = await supabaseClient.from('messages')
+      .select('id, last_emailed_at, last_read_at, subject')
+      .eq('from_user_id', ST.user.id)
+      .eq('recipient_type', type)
+      .eq('recipient_id', recipientId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if(existing) {
+      // Append to the existing conversation as a reply
+      await dbSaveReply(existing.id, { from: ST.user.name, from_email: ST.user.email, role: 'Customer', body });
+      // Same suppression rules as any other reply: only emails if the
+      // recipient hasn't already been notified since they last read this thread
+      const recipientEmail = type === 'admin' ? 'windmillmarketplace@gmail.com' : DATA.vendors.find(v=>v.id===recipientId)?.email;
+      if(recipientEmail) {
+        notifyOnReply(existing, ST.user.name, body, recipientEmail, recipientName || 'there');
+      }
+    } else {
+      // First message — create the conversation
+      const { data: inserted } = await supabaseClient.from('messages').insert({
+        from_name: ST.user.name,
+        from_email: ST.user.email,
+        from_user_id: ST.user.id,
+        role: 'Customer',
+        body,
+        recipient_type: type,
+        recipient_id: recipientId,
+        recipient_name: recipientName,
+        last_emailed_at: new Date().toISOString()
+      }).select().single();
+
+      // Local admin-side cache, for the demo/admin inbox view
+      ST.adminMessages.unshift({
+        id: inserted?.id || ('msg_'+Date.now()),
+        from: ST.user.name,
+        from_email: ST.user.email,
+        from_user_id: ST.user.id,
+        role: 'Customer',
+        body,
+        recipient_type: type,
+        recipient_id: recipientId,
+        recipient_name: recipientName,
+        created_at: new Date().toISOString(),
+        date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}),
+        read: false, resolved: false, replies: [], fromDB: true
+      });
+
+      // Notify the recipient — this is a brand new conversation, always notify once
+      notifyMessageRecipient(type, recipientId, recipientName, null, body, ST.user.name);
+    }
+  } catch(e) {
+    if(errEl){errEl.textContent='Could not send — please try again.';errEl.style.display='block';}
+    console.warn('sendMessage failed:', e);
+    return;
   }
 
-  // Also add to local admin messages
-  ST.adminMessages.unshift(msg);
-
   closeModal('messageModal');
-  
+
   // Toast confirmation
   const toast = document.createElement('div');
   toast.textContent = 'Message sent! ✓';
   toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap';
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 2500);
+}
+
+// Sends a one-time "new message" email to whoever a thread is addressed to.
+// Admin always gets the operational inbox alert. Vendors only get an email if
+// they're not already getting it via dbSaveMessage's own notify path.
+function notifyMessageRecipient(type, recipientId, recipientName, _unusedSubject, body, fromName) {
+  if(type === 'admin' || recipientId === 'windmill-support') {
+    sendWindmillEmail(
+      '💬 New message from ' + (fromName || 'a user'),
+      '<h2>New Message</h2>' +
+      '<p><strong>From:</strong> ' + (fromName || 'A user') + '</p>' +
+      '<p><strong>Message:</strong></p><p style="background:#f6f3ee;border-radius:8px;padding:12px">' + (body||'').replace(/\n/g,'<br>') + '</p>' +
+      '<p><a href="https://shopwindmill.com" style="background:#5C7A4E;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:12px">Review in Admin Dashboard →</a></p>'
+    );
+  } else if(type === 'vendor') {
+    const v = DATA.vendors.find(x=>x.id===recipientId);
+    if(v?.email) {
+      sendWindmillEmail(
+        '💬 New message from a shopper' + (fromName ? ' — ' + fromName : ''),
+        '<h2>New Message</h2>' +
+        '<p><strong>From:</strong> ' + (fromName || 'A shopper') + '</p>' +
+        '<p><strong>Message:</strong></p><p style="background:#f6f3ee;border-radius:8px;padding:12px">' + (body||'').replace(/\n/g,'<br>') + '</p>' +
+        '<p><a href="https://shopwindmill.com" style="background:#5C7A4E;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:12px">Reply in your Windmill dashboard →</a></p>',
+        v.email
+      );
+    }
+  }
+}
+
+// Notifies a recipient that a reply landed on their thread. Sends right away
+// (the true 12hr-delay-if-unseen version is a fast-follow once we add a
+// scheduled Edge Function — see conversation notes). For now this still
+// avoids spamming: it only sends if no email has gone out since the
+// recipient last actually opened the thread, so a back-and-forth burst in
+// one sitting only emails once, and marking a message unread never
+// re-triggers it (that only touches the `read` flag, not last_read_at).
+async function notifyOnReply(threadMsg, replyFromName, replyBody, recipientEmail, recipientLabel) {
+  if(!threadMsg || !recipientEmail) return;
+  const lastEmailedAt = threadMsg.last_emailed_at ? new Date(threadMsg.last_emailed_at) : null;
+  const lastReadAt = threadMsg.last_read_at ? new Date(threadMsg.last_read_at) : null;
+  const alreadyEmailedSinceRead = lastEmailedAt && (!lastReadAt || lastEmailedAt > lastReadAt);
+  if(alreadyEmailedSinceRead) return; // already notified about this unseen reply, don't repeat
+
+  sendWindmillEmail(
+    '💬 New reply from ' + (replyFromName || recipientLabel || 'someone'),
+    '<h2>You have a reply</h2>' +
+    '<p><strong>From:</strong> ' + (replyFromName || recipientLabel) + '</p>' +
+    '<p><strong>Message:</strong></p><p style="background:#f6f3ee;border-radius:8px;padding:12px">' + (replyBody||'').replace(/\n/g,'<br>') + '</p>' +
+    '<p><a href="https://shopwindmill.com" style="background:#5C7A4E;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:12px">View and reply →</a></p>',
+    recipientEmail
+  );
+  const now = new Date().toISOString();
+  if(supabaseClient) {
+    await supabaseClient.from('messages').update({ last_emailed_at: now }).eq('id', threadMsg.id);
+  }
+  threadMsg.last_emailed_at = now;
 }
 
 /* ── AUTH SYSTEM ── */
@@ -11120,7 +11528,7 @@ async function onAuthSuccess(user) {
   // Show welcome toast on fresh login only
   if(isFreshLogin) {
     const toast = document.createElement('div');
-    toast.textContent = `Welcome back, ${name.split(' ')[0]}! 👋`;
+    toast.textContent = ST.profileSetupComplete ? `Welcome back, ${name.split(' ')[0]}! 👋` : `Welcome to Windmill, ${name.split(' ')[0]}! 👋`;
     toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
@@ -11343,21 +11751,28 @@ async function dbSaveClaim(claim) {
 }
 
 async function dbSaveMessage(msg) {
-  if(!supabaseClient) return;
+  if(!supabaseClient) return null;
   try {
-    const { error } = await supabaseClient.from('messages').upsert({
+    const { data, error } = await supabaseClient.from('messages').upsert({
       id: msg.id,
       from_name: msg.from,
-      from_email: msg.email || null,
+      from_email: msg.from_email || msg.email || null,
+      from_user_id: msg.from_user_id || null,
       role: msg.role,
       subject: msg.subject,
       body: msg.body,
+      recipient_type: msg.recipient_type || null,
+      recipient_id: msg.recipient_id || null,
+      recipient_name: msg.recipient_name || null,
       read: msg.read,
-      resolved: msg.resolved
-    });
+      resolved: msg.resolved,
+      last_emailed_at: msg.last_emailed_at || null
+    }).select().single();
     if(error) throw error;
+    return data;
   } catch(err) {
     console.warn('Failed to save message to Supabase:', err);
+    return null;
   }
 }
 
@@ -11367,6 +11782,8 @@ async function dbSaveReply(messageId, reply) {
     const { error } = await supabaseClient.from('message_replies').insert({
       message_id: messageId,
       from_name: reply.from,
+      from_email: reply.from_email || null,
+      role: reply.role || null,
       body: reply.body
     });
     if(error) throw error;
@@ -11449,30 +11866,50 @@ function setAdminTab(tab) {
   if(!ST.adminClaimsTab) ST.adminClaimsTab = 'pending';
   if(!ST.adminAnnouncements) ST.adminAnnouncements = [];
   if(tab === 'messages' && supabaseClient) {
-    // Load real messages from Supabase
-    supabaseClient.from('messages').select('*, message_replies(*)').order('created_at', {ascending:false}).then(({data, error}) => {
+    // Load real messages from Supabase. Admin only sees messages actually
+    // addressed to admin (support requests) — shopper<->vendor conversations
+    // are private between those two parties and must never surface here,
+    // regardless of who sent them.
+    supabaseClient.from('messages').select('*, message_replies(*)').eq('recipient_type', 'admin').order('created_at', {ascending:false}).then(({data, error}) => {
       if(!error && data && data.length > 0) {
         // Merge Supabase messages with local demo messages, deduplicate by id
         const supabaseMsgs = data.map(m => ({
           id: m.id,
           from: m.from_name,
           from_email: m.from_email,
+          from_user_id: m.from_user_id,
           role: m.role || 'Customer',
           subject: m.subject || '(no subject)',
           body: m.body,
+          recipient_type: m.recipient_type,
+          recipient_id: m.recipient_id,
+          recipient_name: m.recipient_name,
+          last_emailed_at: m.last_emailed_at,
+          last_read_at: m.last_read_at,
+          created_at: m.created_at,
           date: new Date(m.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}),
           read: m.read || false,
           resolved: m.resolved || false,
           replies: (m.message_replies || []).map(r => ({
             from: r.from_name,
+            from_email: r.from_email,
+            role: r.role,
             body: r.body,
+            created_at: r.created_at,
             date: new Date(r.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
           })),
           fromDB: true
         }));
-        // Keep demo messages that aren't from DB, add real ones
+        // Keep demo messages that aren't from DB, merge with real ones and
+        // sort everything together by date — concatenating two
+        // separately-ordered lists (as before) doesn't produce a single
+        // chronological order.
         const demoMsgs = ST.adminMessages.filter(m => !m.fromDB);
-        ST.adminMessages = [...supabaseMsgs, ...demoMsgs];
+        ST.adminMessages = [...supabaseMsgs, ...demoMsgs].sort((a,b) => {
+          const aDate = new Date(a.created_at || a.date || 0);
+          const bDate = new Date(b.created_at || b.date || 0);
+          return bDate - aDate;
+        });
         renderAdminPanel();
       }
     });
@@ -11904,11 +12341,13 @@ async function adminDenyClaim(claimId) {
 /* Messages */
 function adminOpenMsg(msgId) {
   const msg = ST.adminMessages.find(m=>m.id===msgId);
-  if(msg && !msg.read) {
+  if(msg) {
     msg.read = true;
+    msg.last_read_at = new Date().toISOString();
     // Persist to Supabase
     if(supabaseClient && msg.fromDB) {
-      supabaseClient.from('messages').update({ read: true }).eq('id', msgId).then(() => {});
+      const updates = { read: true, last_read_at: msg.last_read_at };
+      supabaseClient.from('messages').update(updates).eq('id', msgId).then(() => {});
     }
   }
   ST.adminMsgThread = msgId;
@@ -11919,6 +12358,8 @@ async function adminToggleMsgRead(msgId) {
   const msg = ST.adminMessages.find(m=>m.id===msgId);
   if(!msg) return;
   msg.read = !msg.read;
+  // Marking unread is a display preference only — it must never re-stamp
+  // last_read_at, or it would re-arm the 12hr reply-notification email.
   if(supabaseClient && msg.fromDB) {
     await supabaseClient.from('messages').update({ read: msg.read }).eq('id', msgId);
   }
@@ -11931,17 +12372,34 @@ function adminSendReply(msgId) {
   if(!msg) return;
   const reply = {
     from:'Windmill Admin',
+    from_email: 'hello@shopwindmill.com',
+    role: 'admin',
     body: text,
+    created_at: new Date().toISOString(),
     date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})
   };
   msg.replies.push(reply);
   dbSaveReply(msg.id, reply); // sync to Supabase
+  if(msg.from_email) {
+    notifyOnReply(msg, 'Windmill Admin', text, msg.from_email, msg.from || 'there');
+  }
   renderAdminPanel();
 }
 function adminResolveMsg(msgId) {
   const msg = ST.adminMessages.find(m=>m.id===msgId);
   if(msg) { msg.resolved = true; msg.read = true; }
   ST.adminMsgThread = null;
+  renderAdminPanel();
+}
+async function adminDeleteMsg(msgId) {
+  if(!confirm('Delete this conversation? This cannot be undone.')) return;
+  const msg = ST.adminMessages.find(m=>m.id===msgId);
+  ST.adminMessages = ST.adminMessages.filter(m=>m.id!==msgId);
+  ST.adminMsgThread = null;
+  if(supabaseClient && msg?.fromDB) {
+    await supabaseClient.from('message_replies').delete().eq('message_id', msgId);
+    await supabaseClient.from('messages').delete().eq('id', msgId);
+  }
   renderAdminPanel();
 }
 function adminSendAnnouncement() {
@@ -12408,22 +12866,83 @@ function adminCreateAd() {
 }
 
 /* Contact support → admin inbox */
-function submitContactSupport(role, senderName) {
+async function submitContactSupport(role, senderName) {
   const textarea = document.querySelector('.form-textarea');
   const text = textarea?.value?.trim();
   if(!text) { alert('Please write a message first.'); return; }
   if(!ST.adminMessages) ST.adminMessages = [];
-  const newMsg = {
-    id:'msg_'+Date.now(),
-    from: senderName || role+' User',
-    role: role.charAt(0).toUpperCase()+role.slice(1),
-    subject: 'Support request from '+role,
-    body: text,
-    date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}),
-    read:false, resolved:false, replies:[]
-  };
-  ST.adminMessages.unshift(newMsg);
-  dbSaveMessage(newMsg); // sync to Supabase
+  const senderEmail = ST.user?.email || 'unknown';
+  const roleLabel = role.charAt(0).toUpperCase()+role.slice(1);
+
+  if(!supabaseClient || !ST.user?.id) {
+    alert('Could not send message. Please make sure you\'re signed in and try again.');
+    return;
+  }
+
+  try {
+    // One ongoing support conversation per user — find it if it exists
+    const { data: existing } = await supabaseClient.from('messages')
+      .select('id, last_emailed_at, last_read_at, from_name')
+      .eq('from_user_id', ST.user.id)
+      .eq('recipient_type', 'admin')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if(existing) {
+      await dbSaveReply(existing.id, { from: senderName || roleLabel+' User', from_email: senderEmail, role, body: text });
+      notifyOnReply(existing, senderName || roleLabel+' User', text, 'windmillmarketplace@gmail.com', 'Admin');
+    } else {
+      // Real insert — let Postgres generate the uuid. The previous version
+      // upserted a locally-generated string id ('msg_'+Date.now()) into a
+      // uuid column, which Postgres rejects; the error was caught silently
+      // and the user saw "Message sent!" even though nothing was saved.
+      const { data: inserted, error } = await supabaseClient.from('messages').insert({
+        from_name: senderName || roleLabel+' User',
+        from_email: senderEmail,
+        from_user_id: ST.user.id,
+        role: roleLabel,
+        body: text,
+        recipient_type: 'admin',
+        recipient_id: 'windmill-support',
+        recipient_name: 'Windmill Support',
+        read: false,
+        resolved: false,
+        last_emailed_at: new Date().toISOString()
+      }).select().single();
+
+      if(error) throw error;
+
+      ST.adminMessages.unshift({
+        id: inserted.id,
+        from: senderName || roleLabel+' User',
+        from_email: senderEmail,
+        from_user_id: ST.user.id,
+        role: roleLabel,
+        body: text,
+        recipient_type: 'admin',
+        recipient_id: 'windmill-support',
+        recipient_name: 'Windmill Support',
+        created_at: inserted.created_at,
+        date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}),
+        read:false, resolved:false, replies:[], fromDB: true
+      });
+
+      // Notify admin by email so support requests aren't only visible by checking the dashboard
+      sendWindmillEmail(
+        '💬 New support request — ' + roleLabel,
+        '<h2>New Support Request</h2>' +
+        '<p><strong>From:</strong> ' + (senderName || roleLabel+' User') + ' (' + senderEmail + ')</p>' +
+        '<p><strong>Role:</strong> ' + roleLabel + '</p>' +
+        '<p><strong>Message:</strong></p><p style="background:#f6f3ee;border-radius:8px;padding:12px">' + text.replace(/\n/g,'<br>') + '</p>' +
+        '<p><a href="https://shopwindmill.com" style="background:#5C7A4E;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:12px">Review in Admin Dashboard →</a></p>'
+      );
+    }
+  } catch(e) {
+    console.warn('submitContactSupport failed:', e);
+    alert('Could not send message. Please try again.');
+    return;
+  }
   if(textarea) textarea.value = '';
   alert('Message sent! Our team will respond within 24 hours.');
 }
@@ -12446,6 +12965,7 @@ async function adminChangeUserRole(userId, newRole) {
 }
 
 async function adminSendIndividualMessage() {
+  const recipientType = document.getElementById('composeRecipientType')?.value || 'email';
   const recipient = document.getElementById('composeRecipient')?.value?.trim();
   const subject = document.getElementById('composeSubject')?.value?.trim();
   const body = document.getElementById('composeBody')?.value?.trim();
@@ -12458,6 +12978,9 @@ async function adminSendIndividualMessage() {
       from_email: 'hello@shopwindmill.com',
       role: 'Admin',
       subject: '[Admin → '+recipient+'] '+subject,
+      recipient_type: recipientType === 'email' ? 'email' : 'role',
+      recipient_id: recipient,
+      recipient_name: recipient,
       body
     });
   }
@@ -12473,7 +12996,18 @@ async function adminSendIndividualMessage() {
     read:true, resolved:false, replies:[], isOutbound:true
   });
 
-  alert('Message sent to '+recipient);
+  // Actually email the recipient (only supported today for a direct email address —
+  // "By role" sends are saved for record-keeping but not yet broadcast to a group)
+  if(recipientType === 'email') {
+    sendWindmillEmail(
+      subject,
+      '<p>' + body.replace(/\n/g,'<br>') + '</p>' +
+      '<p style="color:#999;font-size:11px;margin-top:20px">— Windmill Marketplace</p>',
+      recipient
+    );
+  }
+
+  alert(recipientType === 'email' ? 'Message sent to '+recipient : 'Saved — broadcast-by-role sending isn\'t built yet, this was only logged.');
   ST.adminMsgTab = 'inbox';
   renderAdminPanel();
 }
@@ -12649,6 +13183,16 @@ async function showVendorInbox() {
   const vendorId = ST.vendorId;
   if(!vendorId || !supabaseClient) { alert('Inbox unavailable.'); return; }
 
+  // Data-layer tier gate (the dashboard menu already hides this for free
+  // vendors, but this protects against state changes mid-session, e.g. a
+  // trial expiring while the dashboard is open)
+  const v = DATA.vendors.find(x=>x.id===vendorId);
+  const isPro = v?.pro || ST.isProTrial;
+  if(!isPro) {
+    showToast('Upgrade to Pro to use messaging', 'var(--terra)');
+    return;
+  }
+
   // Remove any existing inbox
   document.getElementById('vendorInboxOverlay')?.remove();
 
@@ -12667,53 +13211,23 @@ async function showVendorInbox() {
   document.body.appendChild(overlay);
   overlay.addEventListener('click', e => { if(e.target===overlay) overlay.remove(); });
 
-  // Load messages for this vendor
+  // Load conversations for this vendor: each shopper has at most one ongoing
+  // thread now (sendMessage appends to existing threads instead of creating
+  // new ones), plus the vendor's own admin/support thread (unified inbox).
   try {
-    const { data: messages } = await supabaseClient
-      .from('messages')
-      .select('*, message_replies(*)')
-      .eq('recipient_id', vendorId)
-      .eq('recipient_type', 'vendor')
-      .order('created_at', { ascending: false });
+    const [shopperRes, supportRes] = await Promise.all([
+      supabaseClient.from('messages').select('*, message_replies(*)')
+        .eq('recipient_id', vendorId).eq('recipient_type', 'vendor')
+        .order('created_at', { ascending: false }),
+      ST.user?.id ? supabaseClient.from('messages').select('*, message_replies(*)')
+        .eq('from_user_id', ST.user.id).eq('recipient_type', 'admin')
+        .order('created_at', { ascending: false }) : Promise.resolve({ data: [] })
+    ]);
+    const conversations = [...(shopperRes.data||[]), ...(supportRes.data||[])]
+      .sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
 
-    const list = document.getElementById('vendorInboxList');
-    if(!list) return;
-
-    if(!messages || messages.length === 0) {
-      list.innerHTML = `<div style="text-align:center;padding:40px 16px">
-        <div style="font-size:36px;margin-bottom:12px">📭</div>
-        <div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:6px">No messages yet</div>
-        <div style="font-size:12px;color:var(--text3)">When shoppers message you, they'll appear here.</div>
-      </div>`;
-      return;
-    }
-
-    list.innerHTML = messages.map(msg => {
-      const replies = msg.message_replies || [];
-      const isRead = msg.read || false;
-      const date = new Date(msg.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
-      return `<div style="border:0.5px solid ${isRead?'var(--border)':'var(--green-mid)'};border-radius:var(--r-md);padding:14px;margin-bottom:10px;background:${isRead?'var(--surface)':'var(--green-lt)'}">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">
-          <div>
-            <div style="font-size:13px;font-weight:600;color:var(--text)">${msg.from_name || 'Shopper'} ${!isRead?'<span style="font-size:10px;padding:1px 6px;background:var(--green);color:#fff;border-radius:var(--r-pill);margin-left:4px">New</span>':''}</div>
-            <div style="font-size:11px;color:var(--text3)">${date}</div>
-          </div>
-        </div>
-        <div style="font-size:12px;font-weight:500;color:var(--text);margin-bottom:4px">${msg.subject || '(no subject)'}</div>
-        <div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:10px">${msg.body}</div>
-        ${replies.length > 0 ? `<div style="border-top:0.5px solid var(--border);padding-top:8px;margin-bottom:8px">${replies.map(r=>`<div style="font-size:11px;color:var(--text2);padding:6px 10px;background:var(--surface2);border-radius:var(--r-sm);margin-bottom:4px"><span style="font-weight:500;color:var(--text)">${r.from_name}:</span> ${r.body}</div>`).join('')}</div>` : ''}
-        <div style="display:flex;gap:8px">
-          <input id="reply_${msg.id}" type="text" placeholder="Write a reply..." style="flex:1;padding:8px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:12px;font-family:var(--font-sans);background:var(--bg);color:var(--text);outline:none">
-          <button onclick="sendVendorReply('${msg.id}','reply_${msg.id}')" style="padding:8px 14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:12px;cursor:pointer;font-weight:500;font-family:var(--font-sans);white-space:nowrap">Send</button>
-        </div>
-      </div>`;
-    }).join('');
-
-    // Mark all as read
-    const unreadIds = messages.filter(m => !m.read).map(m => m.id);
-    if(unreadIds.length > 0) {
-      supabaseClient.from('messages').update({ read: true }).in('id', unreadIds).then(() => {});
-    }
+    ST._vendorInboxConversations = conversations;
+    renderVendorInboxList(conversations);
   } catch(e) {
     const list = document.getElementById('vendorInboxList');
     if(list) list.innerHTML = `<div style="text-align:center;padding:24px;color:var(--terra);font-size:13px">Could not load messages. Please try again.</div>`;
@@ -12721,7 +13235,121 @@ async function showVendorInbox() {
   }
 }
 
-async function sendVendorReply(messageId, inputId) {
+function renderVendorInboxList(conversations) {
+  const list = document.getElementById('vendorInboxList');
+  if(!list) return;
+
+  if(!conversations || conversations.length === 0) {
+    list.innerHTML = `<div style="text-align:center;padding:40px 16px">
+      <div style="font-size:36px;margin-bottom:12px">📭</div>
+      <div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:6px">No messages yet</div>
+      <div style="font-size:12px;color:var(--text3)">When shoppers message you, they'll appear here.</div>
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = conversations.map(convo => {
+    const replies = convo.message_replies || [];
+    const isSupportThread = convo.recipient_type === 'admin';
+    // Unread = the conversation itself unread (the only flag we track),
+    // not per-message — a conversation is read or unread as a whole.
+    const isUnread = !convo.read;
+    const totalMsgCount = 1 + replies.length;
+    const lastActivityAt = replies.length > 0 ? replies[replies.length-1].created_at : convo.created_at;
+    const date = new Date(lastActivityAt).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+    const isExpanded = ST.vendorInboxExpanded === convo.id;
+    const borderColor = isUnread ? 'var(--green-mid)' : 'var(--border-med)';
+    const name = isSupportThread ? 'Windmill Support' : (convo.from_name || 'Shopper');
+    const lastSnippet = replies.length > 0 ? replies[replies.length-1].body : convo.body;
+
+    const header = `<div onclick="vendorInboxToggleConvo('${convo.id}')" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:13px 14px;background:${isUnread?'var(--green-lt)':(isExpanded?'var(--surface2)':'var(--surface)')};${isExpanded?'border-bottom:1px solid '+borderColor:''}">
+      <div style="min-width:0;flex:1">
+        <div style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px">
+          ${isSupportThread ? '🛟' : '🛍️'} ${name} ${isUnread?`<span style="font-size:10px;padding:1px 6px;background:var(--green);color:#fff;border-radius:var(--r-pill);font-weight:600">New</span>`:''}
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">${date} · ${totalMsgCount} message${totalMsgCount!==1?'s':''}</div>
+        ${!isExpanded ? `<div style="font-size:12px;color:var(--text2);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lastSnippet}</div>` : ''}
+      </div>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-left:8px;transform:rotate(${isExpanded?180:0}deg);transition:transform .15s"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>`;
+
+    if(!isExpanded) {
+      return `<div style="border:1px solid ${borderColor};border-radius:var(--r-md);margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.04);overflow:hidden">${header}</div>`;
+    }
+
+    // Merge the original message and all replies into one chronological
+    // timeline — this is the whole conversation, like a text thread.
+    const timeline = [
+      { from_name: convo.from_name, role: convo.role, body: convo.body, created_at: convo.created_at, isOriginal: true },
+      ...replies
+    ].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+
+    const timelineHtml = timeline.map(m => {
+      const isFromVendor = m.role === 'vendor';
+      const isFromAdmin = m.role === 'admin';
+      const label = isFromVendor ? 'You' : isFromAdmin ? 'Windmill Support' : (m.from_name || name);
+      return `<div style="margin-bottom:8px;display:flex;flex-direction:column;align-items:${isFromVendor?'flex-end':'flex-start'}">
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px">${label}</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.5;padding:8px 10px;border-radius:var(--r-sm);max-width:85%;background:${isFromVendor?'var(--green-lt)':'var(--surface)'};${isFromVendor?'border-right:3px solid var(--green-mid)':'border-left:3px solid var(--border-med)'}">${m.body}</div>
+      </div>`;
+    }).join('');
+
+    return `<div style="border:1px solid ${borderColor};border-radius:var(--r-md);margin-bottom:12px;box-shadow:0 2px 6px rgba(0,0,0,.06);overflow:hidden">
+      ${header}
+      <div style="padding:13px 14px;background:var(--bg)">
+        <div style="display:flex;flex-direction:column">${timelineHtml}</div>
+        <div style="display:flex;gap:8px;margin:10px 0 8px">
+          <input id="reply_${convo.id}" type="text" placeholder="Write a reply..." style="flex:1;padding:8px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:12px;font-family:var(--font-sans);background:var(--surface);color:var(--text);outline:none">
+          <button onclick="sendVendorReply('${convo.id}','reply_${convo.id}','${convo.recipient_type}')" style="padding:8px 14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:12px;cursor:pointer;font-weight:500;font-family:var(--font-sans);white-space:nowrap">Send</button>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <button onclick="vendorToggleMsgRead('${convo.id}')" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--text3);font-family:var(--font-sans);text-decoration:underline;text-underline-offset:2px">${convo.read ? '○ Mark as unread' : '● Mark as read'}</button>
+          <button onclick="vendorDeleteMsg('${convo.id}')" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--terra);font-family:var(--font-sans);text-decoration:underline;text-underline-offset:2px">🗑 Delete conversation</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function vendorInboxToggleConvo(convoId) {
+  const wasExpanded = ST.vendorInboxExpanded === convoId;
+  ST.vendorInboxExpanded = wasExpanded ? null : convoId;
+
+  // Only mark read when the vendor actually opens this specific
+  // conversation — never on inbox open, so unread state is meaningful and
+  // "mark as unread" actually sticks until they look again.
+  if(!wasExpanded && supabaseClient) {
+    const convo = (ST._vendorInboxConversations||[]).find(c => c.id === convoId);
+    if(convo && !convo.read) {
+      const now = new Date().toISOString();
+      convo.read = true;
+      convo.last_read_at = now;
+      await supabaseClient.from('messages').update({ read: true, last_read_at: now }).eq('id', convoId);
+    }
+  }
+  if(ST._vendorInboxConversations) renderVendorInboxList(ST._vendorInboxConversations);
+}
+
+async function vendorToggleMsgRead(convoId) {
+  if(!supabaseClient) return;
+  const convo = (ST._vendorInboxConversations||[]).find(c => c.id === convoId);
+  const newRead = !(convo?.read);
+  // Marking unread is a display preference only — never touches last_read_at,
+  // so it can never re-trigger or suppress an email notification.
+  if(convo) convo.read = newRead;
+  await supabaseClient.from('messages').update({ read: newRead }).eq('id', convoId);
+  if(ST._vendorInboxConversations) renderVendorInboxList(ST._vendorInboxConversations);
+}
+
+async function vendorDeleteMsg(convoId) {
+  if(!confirm('Delete this conversation? This cannot be undone.')) return;
+  if(!supabaseClient) return;
+  await supabaseClient.from('message_replies').delete().eq('message_id', convoId);
+  await supabaseClient.from('messages').delete().eq('id', convoId);
+  showVendorInbox();
+}
+
+async function sendVendorReply(messageId, inputId, recipientType) {
   const input = document.getElementById(inputId);
   const text = input?.value?.trim();
   if(!text) return;
@@ -12731,15 +13359,30 @@ async function sendVendorReply(messageId, inputId) {
   if(btn) { btn.textContent = 'Sending...'; btn.disabled = true; }
 
   try {
-    await supabaseClient.from('message_replies').insert({
+    const reply = {
       message_id: messageId,
       from_name: ST.user?.name || 'Vendor',
       from_email: ST.user?.email || '',
       body: text,
       role: 'vendor'
-    });
+    };
+    await supabaseClient.from('message_replies').insert(reply);
     if(input) input.value = '';
     if(btn) { btn.textContent = 'Send'; btn.disabled = false; }
+
+    // Notify the right party: support thread → notify admin; shopper thread
+    // → notify the shopper directly by email (they have no in-app inbox yet,
+    // so email is their only way to know a vendor replied).
+    const { data: threadMsg } = await supabaseClient.from('messages').select('*').eq('id', messageId).single();
+    if(threadMsg) {
+      if(recipientType === 'admin') {
+        notifyOnReply(threadMsg, ST.user?.name || 'A vendor', text, 'windmillmarketplace@gmail.com', 'Admin');
+      } else if(recipientType === 'vendor' && threadMsg.from_email) {
+        const vendorRec = DATA.vendors.find(x=>x.id===ST.vendorId);
+        notifyOnReply(threadMsg, ST.user?.name || vendorRec?.name || 'The vendor', text, threadMsg.from_email, threadMsg.from_name || 'there');
+      }
+    }
+
     // Refresh inbox
     showVendorInbox();
   } catch(e) {
@@ -13560,6 +14203,12 @@ function renderVendorSettings() {
           <div><div style="font-size:14px;font-weight:500;color:var(--text)">Notifications & Alerts</div><div style="font-size:11px;color:var(--text3)">Messages, followers, reminders</div></div>
         </div>${chevron}
       </div>
+      <div onclick="renderVendorSettingsSection('help')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid var(--border);cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:18px">📖</span>
+          <div><div style="font-size:14px;font-weight:500;color:var(--text)">Help & Guide</div><div style="font-size:11px;color:var(--text3)">How to use your dashboard</div></div>
+        </div>${chevron}
+      </div>
       <div onclick="renderVendorSettingsSection('about')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
         <div style="display:flex;align-items:center;gap:12px">
           <span style="font-size:18px">🌿</span>
@@ -13676,7 +14325,35 @@ function renderVendorSettingsSection(section) {
       <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:4px">Contact Support</div>
       <div style="font-size:12px;color:var(--text3);margin-bottom:20px">We respond within 24 hours.</div>
       <textarea class="form-textarea" placeholder="How can we help?" id="supportMsg" style="min-height:120px"></textarea>
-      <button onclick="submitContactSupport('vendor','Vendor')" style="width:100%;margin-top:10px;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Send message</button>
+      <button onclick="submitContactSupport('vendor','${(v?.name||ST.user?.name||'Vendor').replace(/'/g,"\\'")}')" style="width:100%;margin-top:10px;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Send message</button>
+    </div>`;
+  } else if(section === 'help') {
+    sb.innerHTML = backBtn + `<div style="padding:16px">
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:4px">Help & Guide</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">A quick reference for getting the most out of your dashboard.</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div onclick="ST.tab='home';renderCurrentPage()" style="border:0.5px solid var(--border);border-radius:var(--r-md);padding:12px;cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">📊 Dashboard</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">Your home base — see your stats and jump to anything else from here. <span style="color:var(--terra)">Go →</span></div>
+        </div>
+        <div onclick="navigate('explore')" style="border:0.5px solid var(--border);border-radius:var(--r-md);padding:12px;cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">👤 My Profile</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">Add your cover photo, write your story, upload gallery photos, and add your social links — this is everything shoppers see when they find you. <span style="color:var(--terra)">Go →</span></div>
+        </div>
+        <div onclick="navigate('markets')" style="border:0.5px solid var(--border);border-radius:var(--r-md);padding:12px;cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">📅 My Schedule</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">Confirm which markets you sell at — this is what tells shoppers where to find you. Also where you post weekly updates and confirm attendance. <span style="color:var(--terra)">Go →</span></div>
+        </div>
+        <div onclick="navigate('following')" style="border:0.5px solid var(--border);border-radius:var(--r-md);padding:12px;cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">📦 My Products</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">Add a name, description, and price for what you sell — like a menu for your stand. This is different from your Photo Gallery, which lives in My Profile. <span style="color:var(--terra)">Go →</span></div>
+        </div>
+        <div onclick="renderVendorSettings()" style="border:0.5px solid var(--border);border-radius:var(--r-md);padding:12px;cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">⚙️ Settings</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">See your plan, upgrade anytime, and manage your account. <span style="color:var(--terra)">Go →</span></div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);text-align:center;margin-top:16px">Have a question we didn't cover? <span style="color:var(--terra);cursor:pointer" onclick="renderVendorSettingsSection('support')">Send us a message →</span></div>
     </div>`;
   }
 }
@@ -14589,14 +15266,39 @@ async function submitOperatorSupportMessage() {
   if(btn) { btn.textContent = 'Sending…'; btn.disabled = true; }
   try {
     if(supabaseClient && ST.user) {
-      await supabaseClient.from('messages').insert({
-        from_user_id: ST.user.id,
-        from_email: ST.user.email,
-        to_type: 'admin',
-        to_id: 'windmill-support',
-        body: msg,
-        created_at: new Date().toISOString()
-      });
+      const { data: existing } = await supabaseClient.from('messages')
+        .select('id, last_emailed_at, last_read_at')
+        .eq('from_user_id', ST.user.id)
+        .eq('recipient_type', 'admin')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if(existing) {
+        await dbSaveReply(existing.id, { from: ST.user?.name || ST.opOrgName || 'Operator', from_email: ST.user.email, role: 'Operator', body: msg });
+        notifyOnReply(existing, ST.user?.name || ST.opOrgName || 'Operator', msg, 'windmillmarketplace@gmail.com', 'Admin');
+      } else {
+        await supabaseClient.from('messages').insert({
+          from_name: ST.user?.name || ST.opOrgName || 'Operator',
+          from_user_id: ST.user.id,
+          from_email: ST.user.email,
+          role: 'Operator',
+          recipient_type: 'admin',
+          recipient_id: 'windmill-support',
+          recipient_name: 'Windmill Support',
+          body: msg,
+          last_emailed_at: new Date().toISOString()
+        });
+        // Notify admin by email so support requests aren't only visible by checking the dashboard
+        sendWindmillEmail(
+          '💬 New support request — Operator',
+          '<h2>New Support Request</h2>' +
+          '<p><strong>From:</strong> ' + (ST.user?.name || ST.opOrgName || 'Operator') + ' (' + (ST.user?.email || 'unknown') + ')</p>' +
+          '<p><strong>Role:</strong> Operator</p>' +
+          '<p><strong>Message:</strong></p><p style="background:#f6f3ee;border-radius:8px;padding:12px">' + msg.replace(/\n/g,'<br>') + '</p>' +
+          '<p><a href="https://shopwindmill.com" style="background:#5C7A4E;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:12px">Review in Admin Dashboard →</a></p>'
+        );
+      }
     }
     document.getElementById('operatorSupportMsg').value = '';
     if(btn) { btn.textContent = 'Send message'; btn.disabled = false; }
