@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.71.11 -->
+<!-- v1.72.2 -->
 <!-- v1.71.10 -->
 <!-- v1.71.9 -->
 <!-- v1.71.8 -->
@@ -973,6 +973,24 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
       </label>
     </div>
     <button class="action-btn publish" style="width:100%;padding:12px" onclick="confirmEmailConflictApproval()">✓ Approve with selected email</button>
+  </div>
+</div>
+
+<!-- DENY CLAIM MODAL -->
+<div class="modal-overlay hidden" id="denyClaimModal" onclick="closeModalOnOverlay(event,'denyClaimModal')">
+  <div class="modal" style="max-height:80vh;overflow-y:auto">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('denyClaimModal')">×</button>
+    <div class="modal-title">Deny claim</div>
+    <div class="modal-sub" id="denyClaimSub" style="margin-bottom:16px"></div>
+    <div style="margin-bottom:16px">
+      <label style="font-size:11px;font-weight:500;color:var(--text3);display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Reason for denial <span style="font-weight:400;text-transform:none">(optional — included in email to claimant)</span></label>
+      <textarea id="denyClaimReason" placeholder="e.g. This market is already claimed by another operator. If you believe this is an error, reply to this email." style="width:100%;min-height:90px;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none;resize:vertical;line-height:1.6"></textarea>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="closeModal('denyClaimModal')" style="flex:1;padding:11px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans);color:var(--text2)">Cancel</button>
+      <button onclick="confirmDenyClaim()" style="flex:1;padding:11px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">✗ Deny claim</button>
+    </div>
   </div>
 </div>
 
@@ -2914,7 +2932,7 @@ function renderSidebar() {
   const maps = {
     customer:[{id:'home',e:'🏠',l:'Home'},{id:'explore',e:'🔍',l:'Explore'},{id:'markets',e:'📍',l:'Markets'},{id:'following',e:'❤️',l:'Following'},{id:'me',e:'👤',l:'My Account'}],
     vendor:[{id:'home',e:'📊',l:'Dashboard'},{id:'explore',e:'👤',l:'My Profile'},{id:'markets',e:'📅',l:'Schedule'},{id:'following',e:'📦',l:'Products'},{id:'me',e:'⚙️',l:'Settings'}],
-    operator:[{id:'home',e:'📊',l:'Dashboard'},{id:'markets',e:'🏪',l:'My Markets'},{id:'explore',e:'👥',l:'Vendor Roster'},{id:'following',e:'📅',l:'Schedule'},{id:'me',e:'⚙️',l:'Settings'}],
+    operator:[{id:'home',e:'📊',l:'Dashboard'},{id:'markets',e:'🏪',l:'My Markets'},{id:'explore',e:'👥',l:'Vendor Roster'},{id:'following',e:'📅',l:'Scheduling'},{id:'me',e:'⚙️',l:'Settings'}],
     admin:[
       {id:'dashboard',e:'📊',l:'Dashboard'},
       {id:'areas',e:'🗺️',l:'Areas'},
@@ -3356,7 +3374,7 @@ function renderBottom() {
   const maps = {
     customer:[{id:'home',l:t('nav_home'),i:HOME_I},{id:'explore',l:t('nav_explore'),i:EXPL_I},{id:'markets',l:t('nav_markets'),i:MARK_I},{id:'following',l:t('nav_following'),i:FOLL_I},{id:'me',l:t('nav_me'),i:ME_I}],
     vendor:[{id:'home',l:t('dashboard'),i:DASH_I},{id:'explore',l:t('my_profile'),i:ME_I},{id:'markets',l:t('my_schedule'),i:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>'},{id:'following',l:t('my_products'),i:'<path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>'},{id:'me',l:t('settings'),i:SETT_I}],
-    operator:[{id:'home',l:t('dashboard'),i:DASH_I},{id:'markets',l:t('your_markets'),i:MARK_I},{id:'explore',l:t('vendor_roster'),i:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'},{id:'following',l:t('announcements'),i:'<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.58 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 8a16 16 0 0 0 6 6l.81-.81a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>'},{id:'me',l:t('settings'),i:SETT_I}],
+    operator:[{id:'home',l:t('dashboard'),i:DASH_I},{id:'markets',l:t('your_markets'),i:MARK_I},{id:'explore',l:t('vendor_roster'),i:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'},{id:'following',l:'Scheduling',i:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>'},{id:'me',l:t('settings'),i:SETT_I}],
     admin:[{id:'home',l:'Dashboard',i:DASH_I},{id:'explore',l:'Vendors',i:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>'},{id:'markets',l:'Markets',i:MARK_I},{id:'following',l:'Claims',i:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>'},{id:'me',l:'Messages',i:MSG_I}]
   };
   el.innerHTML = (maps[ST.role]||maps.customer).map(item=>`
@@ -7106,6 +7124,9 @@ async function submitVendorJoinRequest() {
   }
 
   // Send email to admin
+  const vendorConflictBlock = emailStatus === 'conflict'
+    ? '<div style="background:#FEE2E2;border:1px solid #FECACA;border-radius:8px;padding:12px 16px;margin:12px 0;font-size:13px;color:#B91C1C"><strong>⚠️ Email conflict</strong><br>Submitted: <strong>' + email + '</strong><br>On file: <strong>' + (listingEmailAtSubmission||'—') + '</strong><br>You\'ll need to choose which email to use when approving.</div>'
+    : emailStatus === 'new' ? '<div style="background:#E0F2FE;border:1px solid #BAE6FD;border-radius:8px;padding:12px 16px;margin:12px 0;font-size:13px;color:#075985"><strong>🆕 No email on file</strong> — this is the first email submitted for this listing.</div>' : '';
   sendWindmillEmail(
     '🌾 New claim request — ' + businessName,
     '<h2>New Vendor Claim Request</h2>' +
@@ -7114,6 +7135,7 @@ async function submitVendorJoinRequest() {
     '<p><strong>Email:</strong> ' + email + '</p>' +
     '<p><strong>Phone:</strong> ' + (phone||'Not provided') + '</p>' +
     '<p><strong>Message:</strong> ' + (message||'None') + '</p>' +
+    vendorConflictBlock +
     '<p><a href="https://shopwindmill.com" style="background:#5C7A4E;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:12px">Review in Admin Dashboard →</a></p>'
   );
 
@@ -7762,6 +7784,9 @@ async function submitMarketJoinRequest() {
   });
 
   // Email to admin
+  const marketConflictBlock = marketEmailStatus === 'conflict'
+    ? '<div style="background:#FEE2E2;border:1px solid #FECACA;border-radius:8px;padding:12px 16px;margin:12px 0;font-size:13px;color:#B91C1C"><strong>⚠️ Email conflict</strong><br>Submitted: <strong>' + email + '</strong><br>On file: <strong>' + (marketListingEmailAtSubmission||'—') + '</strong><br>You\'ll need to choose which email to use when approving.</div>'
+    : marketEmailStatus === 'new' ? '<div style="background:#E0F2FE;border:1px solid #BAE6FD;border-radius:8px;padding:12px 16px;margin:12px 0;font-size:13px;color:#075985"><strong>🆕 No email on file</strong> — this is the first email submitted for this market.</div>' : '';
   sendWindmillEmail(
     '🏪 New market claim — ' + marketName,
     '<h2>New Market Operator Claim</h2>' +
@@ -7772,6 +7797,7 @@ async function submitMarketJoinRequest() {
     '<p><strong>Role:</strong> ' + (role||'Not specified') + '</p>' +
     '<p><strong>Manages additional markets:</strong> ' + (multiMarket?'Yes':'No') + '</p>' +
     '<p><strong>Message:</strong> ' + (message||'None') + '</p>' +
+    marketConflictBlock +
     '<p><a href="https://shopwindmill.com" style="background:#5C7A4E;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:12px">Review in Admin Dashboard →</a></p>'
   );
 
@@ -7784,12 +7810,15 @@ async function submitMarketJoinRequest() {
     'a photo of you at the market, your business license or registration, or the name and contact info of another market staff member or board member who can vouch for you.' +
     '</div>' : '';
   sendWindmillEmail(
-    '🏪 We received your Windmill market request!',
+    '🏪 We received your Windmill Founding Operator request!',
     '<h2>Thanks, ' + yourName + '!</h2>' +
     '<p>We\'ve received your request to claim <strong>' + marketName + '</strong> on Windmill.</p>' +
-    '<p>We\'ll verify your listing and get back to you within 24 hours with next steps.</p>' +
+    '<p>We\'ll verify your listing and get back to you within 24 hours.</p>' +
     '<div style="background:#f0f7ee;border-radius:8px;padding:16px;margin:16px 0;font-size:14px;line-height:2">' +
-    '✓ Free market listing<br>✓ Tag all your markets in one account<br>✓ Your page at shopwindmill.com</div>' +
+    '🌟 Founding Operator — 6 months of Pro free<br>' +
+    '✓ No credit card needed · No commitment<br>' +
+    '✓ One account for all your markets<br>' +
+    '✓ Your market page at shopwindmill.com</div>' +
     operatorVerificationBlock +
     '<p style="color:#666;font-size:13px">Questions? Reply to this email and we\'ll get right back to you.</p>' +
     '<p style="color:#666;font-size:13px">— The Windmill Team</p>',
@@ -9191,7 +9220,7 @@ function showVendorOnboarding(step) {
       title: "You're all set, " + name + "!",
       sub: "Your profile is saved. Want a quick tour of your dashboard, or head straight in?",
       content: `
-        <button onclick="vendorOnboardingNext(7).then(()=>{renderVendorSettings();renderVendorSettingsSection('help')})" style="width:100%;padding:13px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:10px">📖 View tutorial</button>
+        <button onclick="vendorTutorialAndFinish()" style="width:100%;padding:13px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:10px">📖 View tutorial</button>
         <div style="font-size:11px;color:var(--text3);text-align:center">You can always find this later in Settings → Help & Guide</div>`,
       nextLabel: "Finish ✓"
     }
@@ -9467,14 +9496,19 @@ async function completeVendorOnboarding(v) {
   }
 
   skipVendorOnboarding();
-  // Show success toast
   const toast = document.createElement('div');
   toast.textContent = 'Profile set up! ✓';
   toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 3000);
-  // Re-render dashboard with updated data
-  renderVendorDash();
+  if(ST._goToTutorial === 'vendor') {
+    ST._goToTutorial = null;
+    ST.tab = 'me';
+    renderVendorSettings();
+    setTimeout(() => renderVendorSettingsSection('help'), 50);
+  } else {
+    renderVendorDash();
+  }
 }
 
 function showOperatorOnboarding(step) {
@@ -9501,25 +9535,74 @@ function showOperatorOnboarding(step) {
 
   const currentPhoto = op?.photo || ST.opPendingPhoto || null;
 
+  // Pre-check only markets already linked to this operator
+  // Filter by the region of their already-linked market(s); fall back to all if none linked
+  const myMarketIds = new Set(allMarkets.map(m => m.id));
+  const opRegion = allMarkets.length > 0 ? allMarkets[0].region : null;
+  const showAllOpRegions = ST.opOnboardShowAllRegions || false;
+  const publishedMarkets = DATA.markets.filter(m => m.published !== false);
+  const regionPool = (opRegion && !showAllOpRegions) ? publishedMarkets.filter(m => m.region === opRegion) : publishedMarkets;
+  const sortedMarkets = [...regionPool].sort((a,b) => {
+    const aChecked = myMarketIds.has(a.id), bChecked = myMarketIds.has(b.id);
+    if(aChecked !== bChecked) return aChecked ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+  const marketCheckboxRows = sortedMarkets.map(m => `
+    <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:0.5px solid var(--border);cursor:pointer">
+      <input type="checkbox" class="opOnboardMarketChk" value="${m.id}" ${myMarketIds.has(m.id)?'checked':''} style="width:16px;height:16px;accent-color:var(--green);cursor:pointer;flex-shrink:0">
+      <div>
+        <div style="font-size:13px;font-weight:500;color:var(--text)">${m.name}</div>
+        <div style="font-size:11px;color:var(--text3)">${m.city||''}${m.day_of_week?' · '+m.day_of_week:''}${m.start_time?' · '+m.start_time:''}</div>
+      </div>
+    </label>`).join('');
+
   const steps = [
     {
       icon: '🏪',
       title: `Welcome to Windmill, ${name}!`,
-      sub: "Let's get your market listings set up.",
+      sub: "Let's get your operator profile set up. It takes about 5 minutes.",
       content: `<div style="background:var(--green-lt);border-radius:var(--r-md);padding:14px;margin-bottom:16px">
-        <div style="font-size:12px;font-weight:600;color:var(--green-dk);margin-bottom:6px">🌟 Founding Operator — Pro Trial</div>
-        <div style="font-size:12px;color:var(--green-dk);line-height:1.9">✓ Full Pro features for 6 months — free<br>✓ No credit card needed<br>✓ Tag all your markets in one account</div>
+        <div style="font-size:12px;font-weight:600;color:var(--green-dk);margin-bottom:8px">🌟 Founding Operator — 6 months of Pro free</div>
+        <div style="font-size:12px;color:var(--green-dk);line-height:1.9">✓ Full Pro features — no credit card needed<br>✓ Tag all the markets you operate<br>✓ Post announcements, manage vendors & more</div>
       </div>
-      <div style="font-size:12px;color:var(--text2)">Here's what we'll set up:<br><br>① Tag your markets<br>② Cover photo<br>③ Your story<br>④ Your links</div>`,
+      <div style="background:var(--surface2);border-radius:var(--r-md);padding:12px;font-size:12px;color:var(--text2);line-height:2">
+        Here's what we'll set up:<br>
+        ① Your contact info<br>
+        ② Your markets<br>
+        ③ Cover photo<br>
+        ④ Your story<br>
+        ⑤ Your links
+      </div>`,
       nextLabel: "Let's go →",
       skipLabel: null
+    },
+    {
+      icon: '📋',
+      title: 'Confirm your contact info',
+      sub: "Quick check — we'll use this to set up your account and your public listing.",
+      content: `
+        <div class="form-field"><label class="form-label">Your name <span style="color:var(--text3);font-weight:400">(private — never shown publicly)</span></label><input class="form-input" id="opOnboardPersonalName" value="${ST.user?.name||''}" placeholder="Your full name"></div>
+        <div class="form-field"><label class="form-label">Organization name</label><input class="form-input" id="opOnboardOrgName" value="${op?.name||''}" placeholder="e.g. Lakes Park Enrichment Foundation"></div>
+        <div class="form-field"><label class="form-label">Your role</label>
+          <select class="form-input" id="opOnboardContactRole" style="cursor:pointer">
+            <option value="" ${!op?.contact_role?'selected':''}>Select your role</option>
+            <option value="Owner/Director" ${op?.contact_role==='Owner/Director'?'selected':''}>Owner / Director</option>
+            <option value="Manager" ${op?.contact_role==='Manager'?'selected':''}>Manager</option>
+            <option value="Staff" ${op?.contact_role==='Staff'?'selected':''}>Staff</option>
+            <option value="Other" ${op?.contact_role==='Other'?'selected':''}>Other</option>
+          </select>
+        </div>
+        <div class="form-field"><label class="form-label">Phone <span style="color:var(--text3);font-weight:400">(shown publicly, optional)</span></label><input class="form-input" id="opOnboardPhone" value="${op?.phone||''}" placeholder="+1 (239) 000-0000" type="tel"></div>`,
+      nextLabel: 'Next →',
+      skipLabel: 'Skip for now'
     },
     {
       icon: '📍',
       title: 'Tag your markets',
       sub: 'Select all the markets you operate. You can update this anytime.',
-      content: `<div id="opMarketTagList" style="max-height:260px;overflow-y:auto">${marketCheckboxes}</div>
-      <div style="font-size:11px;color:var(--text3);margin-top:8px">Don&#39;t see your market? Email us at hello@shopwindmill.com</div>`,
+      content: `<div style="border:0.5px solid var(--border-med);border-radius:var(--r-md);max-height:280px;overflow-y:auto;margin-bottom:10px">${marketCheckboxRows}</div>
+      ${(opRegion && !showAllOpRegions) ? `<button onclick="ST.opOnboardShowAllRegions=true;showOperatorOnboarding(3)" style="width:100%;padding:10px;background:none;border:0.5px dashed var(--border-med);border-radius:var(--r-md);font-size:12px;color:var(--text2);cursor:pointer;font-family:var(--font-sans);margin-bottom:8px">Don't see all your markets? Show all regions →</button>` : ''}
+      <div style="font-size:11px;color:var(--text3)">Don't see a market at all? Email us at hello@shopwindmill.com and we'll add it.</div>`,
       nextLabel: 'Next →',
       skipLabel: null
     },
@@ -9565,8 +9648,17 @@ function showOperatorOnboarding(step) {
           <input class="form-input" id="opOnboardSocialValue" value="${op?.website||op?.instagram||op?.facebook||''}" placeholder="https://...">
         </div>
         <div style="font-size:11px;color:var(--text3);margin-top:4px">Upgrade to Pro to add all three links</div>`,
-      nextLabel: 'Finish setup ✓',
+      nextLabel: 'Next →',
       skipLabel: 'Skip for now'
+    },
+    {
+      icon: '🧭',
+      title: `You're all set, ${name}!`,
+      sub: "Your profile is saved. Want a quick tour of your dashboard, or head straight in?",
+      content: `
+        <button onclick="operatorTutorialAndFinish()" style="width:100%;padding:13px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:10px">📖 View tutorial</button>
+        <div style="font-size:11px;color:var(--text3);text-align:center">You can always find this later in Settings → Help & Guide</div>`,
+      nextLabel: 'Go to my dashboard →'
     }
   ];
 
@@ -9621,9 +9713,43 @@ async function operatorOnboardingNext(step) {
   const opId = ST.operatorId;
   const isPro = ST.opIsPro || ST.opIsProTrial;
 
-  // Step 2: save tagged markets
+  // Step 1: welcome — just advance, mark setup started so modal doesn't re-fire this session
+  if(step === 1) {
+    ST.opProfileSetupComplete = false; // still in progress, but won't re-fire mid-session
+    showOperatorOnboarding(step + 1);
+    return;
+  }
+
+  // Step 2: save contact info
   if(step === 2) {
-    const checked = Array.from(document.querySelectorAll('#opMarketTagList input[type=checkbox]:checked')).map(el => el.value);
+    const personalName = document.getElementById('opOnboardPersonalName')?.value?.trim() || '';
+    const orgName = document.getElementById('opOnboardOrgName')?.value?.trim() || '';
+    const contactRole = document.getElementById('opOnboardContactRole')?.value || '';
+    const phone = document.getElementById('opOnboardPhone')?.value?.trim() || '';
+    if(personalName && ST.user) ST.user.name = personalName;
+    if(supabaseClient) {
+      try {
+        if(personalName && ST.user?.id) {
+          await supabaseClient.from('users').update({ name: personalName }).eq('id', ST.user.id);
+        }
+        const opUpdates = {};
+        if(orgName) opUpdates.name = orgName;
+        if(contactRole) opUpdates.contact_role = contactRole;
+        if(phone) opUpdates.phone = phone;
+        if(opId && Object.keys(opUpdates).length > 0) {
+          await supabaseClient.from('operators').update(opUpdates).eq('id', opId);
+          const op = DATA.operators?.find(x => x.id === opId);
+          if(op) Object.assign(op, opUpdates);
+        }
+      } catch(e) { console.warn('Operator contact info save failed:', e); }
+    }
+    showOperatorOnboarding(step + 1);
+    return;
+  }
+
+  // Step 3: save tagged markets
+  if(step === 3) {
+    const checked = Array.from(document.querySelectorAll('.opOnboardMarketChk:checked')).map(el => el.value);
     if(supabaseClient && opId && checked.length > 0) {
       try {
         await supabaseClient.from('markets').update({ operator_id: opId }).in('id', checked);
@@ -9633,12 +9759,13 @@ async function operatorOnboardingNext(step) {
         });
       } catch(e) { console.warn('Market tag update failed:', e); }
     }
+    ST.opOnboardShowAllRegions = false;
     showOperatorOnboarding(step + 1);
     return;
   }
 
-  // Step 3: save cover photo
-  if(step === 3) {
+  // Step 4: save cover photo
+  if(step === 4) {
     if(ST.opPendingCoverPhotoFile && opId && supabaseClient) {
       try {
         const compressed = await compressImage(ST.opPendingCoverPhotoFile, 1200, 0.80);
@@ -9647,7 +9774,6 @@ async function operatorOnboardingNext(step) {
         ST.opPendingPhoto = url;
         ST.opPendingCoverPhotoFile = null;
         if(supabaseClient) await supabaseClient.from('operators').update({ photo: url }).eq('id', opId);
-        // Update local DATA
         const op = DATA.operators?.find(x => x.id === opId);
         if(op) op.photo = url;
       } catch(e) { console.warn('Operator photo upload failed:', e); }
@@ -9656,8 +9782,8 @@ async function operatorOnboardingNext(step) {
     return;
   }
 
-  // Step 4: save description
-  if(step === 4) {
+  // Step 5: save description
+  if(step === 5) {
     const desc = document.getElementById('opOnboardDescription')?.value?.trim() || '';
     ST.opPendingDescription = desc;
     if(desc && supabaseClient && opId) {
@@ -9671,8 +9797,8 @@ async function operatorOnboardingNext(step) {
     return;
   }
 
-  // Step 5: save links — final step
-  if(step === 5) {
+  // Step 6: save links
+  if(step === 6) {
     let links = {};
     if(isPro) {
       links.website = document.getElementById('opOnboardWebsite')?.value?.trim() || '';
@@ -9690,6 +9816,12 @@ async function operatorOnboardingNext(step) {
         if(op) Object.assign(op, links);
       } catch(e) { console.warn('Operator links save failed:', e); }
     }
+    showOperatorOnboarding(step + 1);
+    return;
+  }
+
+  // Step 7: completion — finalize and close
+  if(step === 7) {
     await completeOperatorOnboarding();
     return;
   }
@@ -9698,28 +9830,54 @@ async function operatorOnboardingNext(step) {
 }
 
 function operatorOnboardingSkipStep(step) {
-  if(step >= 5) { completeOperatorOnboarding(); return; }
+  if(step >= 7) { completeOperatorOnboarding(); return; }
   showOperatorOnboarding(step + 1);
 }
 
 async function completeOperatorOnboarding() {
+  const opId = ST.operatorId;
   if(supabaseClient && ST.user) {
     try {
       await supabaseClient.from('users').update({ profile_setup_complete: true }).eq('id', ST.user.id);
-      await supabaseClient.from('operators').update({ profile_setup_complete: true }).eq('id', ST.operatorId);
+      if(opId) await supabaseClient.from('operators').update({ profile_setup_complete: true }).eq('id', opId);
     } catch(e) { console.warn('Setup complete flag failed:', e); }
   }
   ST.opProfileSetupComplete = true;
   ST.opPendingCoverPhotoFile = null;
   ST.opPendingPhoto = null;
   ST.opPendingDescription = null;
+
+  // Notify admin that operator completed onboarding — include their claimed markets
+  const op = DATA.operators?.find(x => x.id === opId);
+  const claimedMarkets = DATA.markets.filter(m => m.operator_id === opId);
+  const marketList = claimedMarkets.length > 0
+    ? claimedMarkets.map(m => '• ' + m.name + (m.city ? ' (' + m.city + ')' : '')).join('<br>')
+    : '(none tagged yet)';
+  const operatorName = op?.name || ST.user?.name || ST.user?.email || 'Unknown operator';
+  const operatorEmail = op?.email || ST.user?.email || '';
+  sendWindmillEmail(
+    '✅ Operator onboarding complete — ' + operatorName,
+    '<h2>Operator setup complete</h2>' +
+    '<p><strong>' + operatorName + '</strong> has finished their onboarding.</p>' +
+    '<p><strong>Email:</strong> ' + operatorEmail + '</p>' +
+    '<p><strong>Markets tagged (' + claimedMarkets.length + '):</strong><br>' + marketList + '</p>' +
+    '<p style="color:#666;font-size:12px">No action needed — this is for your records.</p>'
+  );
+
   skipOperatorOnboarding();
   const toast = document.createElement('div');
   toast.textContent = "You're all set! Welcome to Windmill 🌿";
   toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 4000);
-  renderOperatorDash();
+  if(ST._goToTutorial === 'operator') {
+    ST._goToTutorial = null;
+    ST.tab = 'me';
+    renderOperatorSettings();
+    setTimeout(() => renderOperatorSettingsSection('help'), 50);
+  } else {
+    renderOperatorDash();
+  }
 }
 
 function skipOperatorOnboarding() {
@@ -9733,6 +9891,16 @@ function skipVendorOnboarding() {
   if(overlay) overlay.style.display = 'none';
 }
 
+async function vendorTutorialAndFinish() {
+  ST._goToTutorial = 'vendor';
+  await completeVendorOnboarding();
+}
+
+async function operatorTutorialAndFinish() {
+  ST._goToTutorial = 'operator';
+  await completeOperatorOnboarding();
+}
+
 /* ── VENDOR DASHBOARD ── */
 async function renderVendorDash() {
   hideFilterUI();
@@ -9744,8 +9912,21 @@ async function renderVendorDash() {
 
   const vendorId = ST.vendorId;
   const v = vendorId ? applyVendorProState(DATA.vendors.find(x => x.id === vendorId)) : null;
+
+  // Recompute trial status live on every render — catches in-session expiry
+  if(ST.trialStart && !v?.pro) {
+    const sixMonthsLater = new Date(ST.trialStart);
+    sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+    ST.isProTrial = new Date() < sixMonthsLater;
+  } else if(!v?.pro) {
+    ST.isProTrial = false;
+  }
+
   const isPro = v?.pro || ST.isProTrial;
   const isFreeTrial = ST.isProTrial && !v?.pro;
+  const trialJustExpired = ST.trialStart && !v?.pro && !ST.isProTrial && (() => {
+    const exp = new Date(ST.trialStart); exp.setMonth(exp.getMonth() + 6); return exp < new Date();
+  })();
 
   // Track that the vendor checked their own dashboard (admin-only metric, never shown to the vendor)
   if(vendorId) trackPageView('vendor_dashboard', vendorId, '/vendors/dashboard');
@@ -9767,17 +9948,39 @@ async function renderVendorDash() {
     unreadMsgCount = msgRes.count || 0;
   }
 
-  // Trial badge
+  // Trial badge — recomputed live, threshold-aware
   let trialBadge = '';
-  if(isFreeTrial && ST.trialStart) {
+  if(trialJustExpired) {
+    trialBadge = `<div style="background:#FEE2E2;border:0.5px solid #FECACA;border-radius:var(--r-md);padding:12px 14px;margin-bottom:16px;display:flex;align-items:flex-start;gap:10px">
+      <span style="font-size:18px;flex-shrink:0">⏰</span>
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:600;color:#B91C1C;margin-bottom:4px">Your Pro trial has ended</div>
+        <div style="font-size:11px;color:#B91C1C;opacity:.85;margin-bottom:8px">Your account has moved to the free tier. Upgrade to keep your photos, links, and analytics.</div>
+        <button onclick="navigate('vendors-join')" style="padding:7px 16px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Upgrade to Pro — $9/mo →</button>
+      </div>
+    </div>`;
+  } else if(isFreeTrial && ST.trialStart) {
     const sixMonthsLater = new Date(ST.trialStart);
     sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
     const daysLeft = Math.ceil((sixMonthsLater - new Date()) / (1000 * 60 * 60 * 24));
-    trialBadge = `<div style="background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-md);padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
-      <span style="font-size:18px">🌟</span>
-      <div>
-        <div style="font-size:12px;font-weight:600;color:var(--green-dk)">${t('pro_trial_badge')}</div>
-        <div style="font-size:11px;color:var(--green-dk);opacity:.8">${daysLeft} ${t('days_remaining')}</div>
+    const urgent = daysLeft <= 7;
+    const warning = daysLeft <= 30;
+    const bg = urgent ? '#FEE2E2' : warning ? 'var(--amber-lt)' : 'var(--green-lt)';
+    const border = urgent ? '#FECACA' : warning ? '#F0D090' : 'var(--green-mid)';
+    const textColor = urgent ? '#B91C1C' : warning ? '#7A4E08' : 'var(--green-dk)';
+    const icon = urgent ? '🚨' : warning ? '⚠️' : '🌟';
+    const label = urgent ? `Only ${daysLeft} day${daysLeft===1?'':'s'} left on your Pro trial` : warning ? `${daysLeft} days left on your Pro trial` : t('pro_trial_badge');
+    const sub = urgent
+      ? 'Upgrade now to keep your photos, links, and analytics.'
+      : warning
+        ? `Upgrade to Pro to keep all features after your trial ends. $9/mo — founding rate locked forever.`
+        : `${daysLeft} ${t('days_remaining')}`;
+    trialBadge = `<div style="background:${bg};border:0.5px solid ${border};border-radius:var(--r-md);padding:10px 14px;margin-bottom:16px;display:flex;align-items:flex-start;gap:10px">
+      <span style="font-size:18px;flex-shrink:0">${icon}</span>
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:600;color:${textColor};margin-bottom:2px">${label}</div>
+        <div style="font-size:11px;color:${textColor};opacity:.85${warning?';margin-bottom:8px':''}">${sub}</div>
+        ${warning ? `<button onclick="navigate('vendors-join')" style="padding:6px 14px;background:${urgent?'var(--terra)':'var(--amber)'};color:#fff;border:none;border-radius:var(--r-pill);font-size:11px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Upgrade to Pro →</button>` : ''}
       </div>
     </div>`;
   }
@@ -9869,9 +10072,21 @@ async function renderOperatorDash() {
   // Track that the operator checked their own dashboard (admin-only metric, never shown to the operator)
   trackPageView('operator_dashboard', opId, '/markets/dashboard');
 
+  // Recompute trial status live on every render — catches in-session expiry
+  if(ST.opTrialStart && !ST.opIsPro) {
+    const sixMonthsLater = new Date(ST.opTrialStart);
+    sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+    ST.opIsProTrial = new Date() < sixMonthsLater;
+  } else if(!ST.opIsPro) {
+    ST.opIsProTrial = false;
+  }
+
   const isPro = ST.opIsPro;
   const isFreeTrial = ST.opIsProTrial && !isPro;
   const isFree = !isPro && !isFreeTrial;
+  const opTrialJustExpired = ST.opTrialStart && !ST.opIsPro && !ST.opIsProTrial && (() => {
+    const exp = new Date(ST.opTrialStart); exp.setMonth(exp.getMonth() + 6); return exp < new Date();
+  })();
 
   // Load follower counts per market from Supabase
   let marketFollowers = {};
@@ -9889,17 +10104,39 @@ async function renderOperatorDash() {
     totalPageViews = viewRes.count || 0;
   }
 
-  // Trial badge
+  // Trial badge — recomputed live, threshold-aware
   let trialBadge = '';
-  if(isFreeTrial && ST.opTrialStart) {
+  if(opTrialJustExpired) {
+    trialBadge = `<div style="background:#FEE2E2;border:0.5px solid #FECACA;border-radius:var(--r-md);padding:12px 14px;margin-bottom:16px;display:flex;align-items:flex-start;gap:10px">
+      <span style="font-size:18px;flex-shrink:0">⏰</span>
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:600;color:#B91C1C;margin-bottom:4px">Your Pro trial has ended</div>
+        <div style="font-size:11px;color:#B91C1C;opacity:.85;margin-bottom:8px">Your account has moved to the free tier. Upgrade to keep announcements, analytics, and ad-free market pages.</div>
+        <button onclick="ST.sub='me';renderCurrentPage()" style="padding:7px 16px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Upgrade to Pro — $29/mo →</button>
+      </div>
+    </div>`;
+  } else if(isFreeTrial && ST.opTrialStart) {
     const sixMonthsLater = new Date(ST.opTrialStart);
     sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
     const daysLeft = Math.ceil((sixMonthsLater - new Date()) / (1000 * 60 * 60 * 24));
-    trialBadge = `<div style="background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-md);padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
-      <span style="font-size:18px">🌟</span>
-      <div>
-        <div style="font-size:12px;font-weight:600;color:var(--green-dk)">${t('op_trial_badge')}</div>
-        <div style="font-size:11px;color:var(--green-dk);opacity:.8">${daysLeft} ${t('days_remaining')}</div>
+    const urgent = daysLeft <= 7;
+    const warning = daysLeft <= 30;
+    const bg = urgent ? '#FEE2E2' : warning ? 'var(--amber-lt)' : 'var(--green-lt)';
+    const border = urgent ? '#FECACA' : warning ? '#F0D090' : 'var(--green-mid)';
+    const textColor = urgent ? '#B91C1C' : warning ? '#7A4E08' : 'var(--green-dk)';
+    const icon = urgent ? '🚨' : warning ? '⚠️' : '🌟';
+    const label = urgent ? `Only ${daysLeft} day${daysLeft===1?'':'s'} left on your Pro trial` : warning ? `${daysLeft} days left on your Pro trial` : t('op_trial_badge');
+    const sub = urgent
+      ? 'Upgrade now to keep announcements, analytics, and ad-free market pages.'
+      : warning
+        ? 'Upgrade to Pro to keep all features after your trial ends. $29/mo — founding rate locked forever.'
+        : `${daysLeft} ${t('days_remaining')}`;
+    trialBadge = `<div style="background:${bg};border:0.5px solid ${border};border-radius:var(--r-md);padding:10px 14px;margin-bottom:16px;display:flex;align-items:flex-start;gap:10px">
+      <span style="font-size:18px;flex-shrink:0">${icon}</span>
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:600;color:${textColor};margin-bottom:2px">${label}</div>
+        <div style="font-size:11px;color:${textColor};opacity:.85${warning?';margin-bottom:8px':''}">${sub}</div>
+        ${warning ? `<button onclick="ST.sub='me';renderCurrentPage()" style="padding:6px 14px;background:${urgent?'var(--terra)':'var(--amber)'};color:#fff;border:none;border-radius:var(--r-pill);font-size:11px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Upgrade to Pro →</button>` : ''}
       </div>
     </div>`;
   }
@@ -10013,6 +10250,36 @@ function renderAdminPanel() {
       </div>
     </div>` : ''}
 
+    ${(()=>{
+      const now = new Date();
+      const expiring7 = DATA.vendors.filter(v => {
+        if(v.pro || !v.trial_start || !v.claimed) return false;
+        const exp = new Date(v.trial_start); exp.setMonth(exp.getMonth()+6);
+        const d = Math.ceil((exp - now)/(24*60*60*1000));
+        return d >= 0 && d <= 7;
+      });
+      const expiring30 = DATA.vendors.filter(v => {
+        if(v.pro || !v.trial_start || !v.claimed) return false;
+        const exp = new Date(v.trial_start); exp.setMonth(exp.getMonth()+6);
+        const d = Math.ceil((exp - now)/(24*60*60*1000));
+        return d > 7 && d <= 30;
+      });
+      const expired = DATA.vendors.filter(v => {
+        if(v.pro || !v.trial_start || !v.claimed) return false;
+        const exp = new Date(v.trial_start); exp.setMonth(exp.getMonth()+6);
+        return exp < now;
+      });
+      if(!expiring7.length && !expiring30.length && !expired.length) return '';
+      let lines = [];
+      if(expired.length) lines.push(`<div style="font-size:12px;font-weight:600;color:#B91C1C;margin-bottom:2px">🔴 ${expired.length} trial${expired.length===1?'':'s'} expired — now on free tier</div>`);
+      if(expiring7.length) lines.push(`<div style="font-size:12px;font-weight:600;color:var(--terra);margin-bottom:2px">🚨 ${expiring7.length} trial${expiring7.length===1?'':'s'} expiring within 7 days</div>`);
+      if(expiring30.length) lines.push(`<div style="font-size:12px;color:#7A4E08;margin-bottom:2px">⚠️ ${expiring30.length} trial${expiring30.length===1?'':'s'} expiring within 30 days</div>`);
+      return `<div style="background:var(--amber-lt);border:0.5px solid #F0D090;border-radius:var(--r-md);padding:12px 14px;margin-bottom:16px;cursor:pointer" onclick="ST.adminVendorTier='trial';setAdminTab('vendors')">
+        ${lines.join('')}
+        <div style="font-size:11px;color:#7A4E08;margin-top:4px">Tap to filter vendors by trial →</div>
+      </div>`;
+    })()}
+
     <!-- DEMO PROFILES QUICK ACCESS -->
     <div style="background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-md);padding:14px;margin-bottom:12px">
       <div style="font-size:12px;font-weight:500;color:var(--green-dk);margin-bottom:8px">🎯 Demo Profiles — Sales Tool</div>
@@ -10116,20 +10383,28 @@ function renderAdminPanel() {
       const trialExpiry = trialStart ? new Date(trialStart.getTime() + 180*24*60*60*1000) : null;
       const daysLeft = trialExpiry ? Math.max(0, Math.ceil((trialExpiry - new Date()) / (24*60*60*1000))) : null;
       const onTrial = trialStart && !v.pro && daysLeft > 0;
+      const trialExpired = trialStart && !v.pro && daysLeft === 0;
+      const trialUrgent = onTrial && daysLeft <= 7;
+      const trialWarning = onTrial && daysLeft <= 30 && daysLeft > 7;
+      const trialColor = trialExpired ? '#B91C1C' : trialUrgent ? 'var(--terra)' : trialWarning ? 'var(--amber)' : 'var(--green-dk)';
+      const trialIcon = trialExpired ? '🔴' : trialUrgent ? '🚨' : trialWarning ? '⚠️' : '⏱';
+      const trialText = trialExpired
+        ? `Trial expired · moved to free · started ${trialStart.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`
+        : `${trialIcon} Trial · ${daysLeft} day${daysLeft===1?'':'s'} left · started ${trialStart.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
       h += `<div class="admin-row" data-name="${v.name.toLowerCase()}">
         <div class="admin-row-info">
           <div class="admin-row-name">${v.name}</div>
           <div class="admin-row-meta">${v.category} · ${v.markets.length} market${v.markets.length===1?'':'s'} · ${v.email||'no email'}</div>
-          ${onTrial ? `<div style="font-size:10px;color:var(--amber);margin-top:2px">⏱ Trial · ${daysLeft} days left · started ${trialStart.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>` : ''}
+          ${(onTrial||trialExpired) ? `<div style="font-size:10px;color:${trialColor};margin-top:2px;font-weight:${trialUrgent||trialExpired?'600':'400'}">${trialText}</div>` : ''}
           ${trialStart && v.pro ? `<div style="font-size:10px;color:var(--green-dk);margin-top:2px">✓ Pro · trial started ${trialStart.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>` : ''}
         </div>
         <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;align-items:flex-end">
           <span class="status-pill ${v.claimed?'claimed':'unclaimed'}" style="cursor:pointer" onclick="adminToggleVendorClaimed('${v.id}',this)">${v.claimed?'Claimed':'Unclaimed'}</span>
-          <span class="status-pill ${v.pro?'live':onTrial?'claimed':'draft'}" style="cursor:pointer" onclick="adminToggleVendorPro('${v.id}',this)">${v.pro?'Pro':onTrial?'Trial':'Free'}</span>
+          <span class="status-pill ${v.pro?'live':onTrial?'claimed':trialExpired?'draft':'draft'}" style="cursor:pointer${trialExpired?';background:#FEE2E2;color:#B91C1C;border-color:#FECACA':''}" onclick="adminToggleVendorPro('${v.id}',this)">${v.pro?'Pro':onTrial?'Trial':trialExpired?'Expired':'Free'}</span>
           <span class="status-pill ${v.published!==false?'live':'draft'}" id="vndpill-${v.id}" style="cursor:pointer" onclick="adminVendorPublishConfirm('${v.id}',this)">${v.published!==false?'Active':'Inactive'}</span>
         </div>
         <div class="admin-row-actions">
-          ${onTrial ? `<button class="action-btn edit" onclick="openExtendTrial('${v.id}','${v.name}')">Extend</button>` : ''}
+          ${(onTrial||trialExpired) ? `<button class="action-btn edit" onclick="openExtendTrial('${v.id}','${v.name}')">Extend</button>` : ''}
           <button class="action-btn edit" onclick="openAdminEditVendor('${v.id}')">Edit</button>
           <button class="action-btn preview" onclick="navigate('vendor','${v.id}')">View</button>
           ${v.id.startsWith('test-vendor') ? `<button class="action-btn" style="color:var(--terra);border-color:var(--terra)" onclick="adminResetVendorToUnclaimed('${v.id}','${v.name.replace(/'/g,"\\'")}')">Reset</button>` : ''}
@@ -12216,18 +12491,19 @@ async function adminApproveClaimFinalize(claimId, resolvedEmail) {
     }
     // Send operator approval email
     sendWindmillEmail(
-      '🎉 Your market listing is approved — welcome to Windmill!',
+      '🎉 You\'re a Windmill Founding Operator — your market is approved!',
       '<h2>Welcome to Windmill, ' + c.claimant + '!</h2>' +
-      '<p>Your listing for <strong>' + c.vendorName + '</strong> has been approved.</p>' +
-      '<p>As a founding operator, you have <strong>6 months of Operator Pro free</strong> — no credit card needed.</p>' +
+      '<p>Your claim for <strong>' + c.vendorName + '</strong> has been approved. You\'re now a Founding Operator on Windmill.</p>' +
+      '<p>As a founding operator, you get <strong>6 months of Operator Pro completely free</strong> — no credit card, no commitment.</p>' +
       '<div style="background:#f0f7ee;border-radius:8px;padding:16px;margin:16px 0;font-size:14px;line-height:2">' +
-      '✓ Full Pro features unlocked<br>' +
-      '✓ Tag all the markets you operate<br>' +
-      '✓ Your market pages go live on Windmill<br>' +
-      '✓ Followers, vendor roster & analytics</div>' +
+      '✓ Edit your market listing — hours, description, photos<br>' +
+      '✓ Tag all the markets you operate in one account<br>' +
+      '✓ Post announcements to your followers<br>' +
+      '✓ Remove ads from your market pages<br>' +
+      '✓ Vendor roster management & analytics</div>' +
       '<p style="text-align:center;margin:24px 0">' +
-      '<a href="https://shopwindmill.com/markets/login?email=' + encodeURIComponent(finalOperatorEmail) + '" style="background:#5C7A4E;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:15px;font-weight:600;display:inline-block">Set up your operator dashboard →</a></p>' +
-      '<p style="color:#666;font-size:12px">Go to shopwindmill.com/markets/login · Sign in or create your account with <strong>' + finalOperatorEmail + '</strong></p>' +
+      '<a href="https://shopwindmill.com/markets/login?email=' + encodeURIComponent(finalOperatorEmail) + '" style="background:#5C7A4E;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:15px;font-weight:600;display:inline-block">Create your account & get started →</a></p>' +
+      '<p style="color:#666;font-size:12px">Visit shopwindmill.com/markets/login and create your account using <strong>' + finalOperatorEmail + '</strong></p>' +
       '<p style="color:#666;font-size:12px">— The Windmill Team</p>',
       finalOperatorEmail
     );
@@ -12298,14 +12574,29 @@ async function adminApproveClaimFinalize(claimId, resolvedEmail) {
 
   renderAdminPanel();
 }
-async function adminDenyClaim(claimId) {
-  const reason = prompt('Reason for denial (optional):') ?? '';
+function adminDenyClaim(claimId) {
   const c = ST.adminClaims.find(x=>x.id===claimId);
   if(!c) return;
+  ST._pendingDenyClaimId = claimId;
+  const isMarketClaim = c.claim_type === 'market';
+  const noun = isMarketClaim ? 'market operator' : 'vendor';
+  document.getElementById('denyClaimSub').textContent = `Denying ${noun} claim for "${c.vendorName}" from ${c.claimant} (${c.email}). They will receive an email.`;
+  document.getElementById('denyClaimReason').value = '';
+  openModal('denyClaimModal');
+}
+
+async function confirmDenyClaim() {
+  const claimId = ST._pendingDenyClaimId;
+  if(!claimId) return;
+  const c = ST.adminClaims.find(x=>x.id===claimId);
+  if(!c) return;
+  const reason = document.getElementById('denyClaimReason')?.value?.trim() || '';
+  closeModal('denyClaimModal');
+  ST._pendingDenyClaimId = null;
+
   c.status = 'denied';
   c.denyReason = reason || 'No reason provided';
 
-  // Persist to Supabase
   if(supabaseClient) {
     try {
       await supabaseClient.from('claims').update({
@@ -12315,7 +12606,6 @@ async function adminDenyClaim(claimId) {
     } catch(e) { console.warn('Deny persist failed:', e); }
   }
 
-  // Send denial email to claimant
   const isMarketClaim = c.claim_type === 'market';
   const noun = isMarketClaim ? 'market' : 'vendor';
   sendWindmillEmail(
@@ -12323,7 +12613,7 @@ async function adminDenyClaim(claimId) {
     '<h2>Hi ' + c.claimant + ',</h2>' +
     '<p>Thank you for your interest in listing <strong>' + c.vendorName + '</strong> on Windmill.</p>' +
     '<p>After reviewing your request, we weren\'t able to approve it at this time.' +
-    (c.denyReason && c.denyReason !== 'No reason provided' ? ' ' + c.denyReason : '') + '</p>' +
+    (reason ? ' ' + reason : '') + '</p>' +
     '<p>If you think this was an error or have more information to share, reply to this email and we\'ll take another look.</p>' +
     '<p style="color:#666;font-size:13px">— The Windmill Team</p>',
     c.email
@@ -14839,8 +15129,8 @@ function renderOperatorAnnouncements() {
 
   const sb = document.getElementById('scrollBody');
   sb.innerHTML = `<div class="operator-dash">
-    <div class="dash-title">Schedule & Updates</div>
-    <div class="dash-sub">Manage your market schedule and post announcements</div>
+    <div class="dash-title">Scheduling</div>
+    <div class="dash-sub">Manage your market schedule and post updates to followers</div>
 
     ${myMarkets.length > 1 ? `<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:16px;scrollbar-width:none">${marketTabs}</div>` : ''}
 
@@ -15083,10 +15373,16 @@ function renderOperatorSettings() {
           <div><div style="font-size:14px;font-weight:500;color:var(--text)">Notifications & Alerts</div><div style="font-size:11px;color:var(--text3)">Vendor claims, followers, weekly summary</div></div>
         </div>${chevron}
       </div>
-      <div onclick="renderOperatorSettingsSection('about')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+      <div onclick="renderOperatorSettingsSection('about')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid var(--border);cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
         <div style="display:flex;align-items:center;gap:12px">
           <span style="font-size:18px">🌿</span>
           <div><div style="font-size:14px;font-weight:500;color:var(--text)">About Windmill</div><div style="font-size:11px;color:var(--text3)">Our mission, contact, social</div></div>
+        </div>${chevron}
+      </div>
+      <div onclick="renderOperatorSettingsSection('help')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:18px">📖</span>
+          <div><div style="font-size:14px;font-weight:500;color:var(--text)">Help & Guide</div><div style="font-size:11px;color:var(--text3)">How to use your dashboard</div></div>
         </div>${chevron}
       </div>
     </div>
@@ -15207,6 +15503,46 @@ function renderOperatorSettingsSection(section) {
       <div style="font-size:12px;color:var(--text3);margin-bottom:20px">We respond within 24 hours.</div>
       <textarea id="operatorSupportMsg" placeholder="How can we help?" style="width:100%;min-height:120px;padding:10px 12px;border:0.5px solid var(--border);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);color:var(--text);background:var(--surface);resize:vertical;box-sizing:border-box"></textarea>
       <button onclick="submitOperatorSupportMessage()" style="width:100%;margin-top:10px;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Send message</button>
+    </div>`;
+  } else if(section === 'help') {
+    sb.innerHTML = backBtn + `<div style="padding:16px 16px 40px">
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:4px">Help & Guide</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">A quick tour of your operator dashboard</div>
+
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-bottom:12px">
+
+        <div style="padding:14px 16px;border-bottom:0.5px solid var(--border)">
+          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">🏠 Dashboard</div>
+          <p style="font-size:12px;color:var(--text2);line-height:1.6;margin:0">Your home base. Shows how many markets you're running, total followers across all your markets, page views (Pro), and how many of your vendors have claimed their listings. A good snapshot at a glance.</p>
+        </div>
+
+        <div style="padding:14px 16px;border-bottom:0.5px solid var(--border)">
+          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">📍 Your Markets</div>
+          <p style="font-size:12px;color:var(--text2);line-height:1.6;margin:0">See all the markets linked to your account. Tap any market to edit its hours, season dates, description, and photos. You can also view your market's public Windmill page directly from here.</p>
+        </div>
+
+        <div style="padding:14px 16px;border-bottom:0.5px solid var(--border)">
+          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">👥 Vendor Roster</div>
+          <p style="font-size:12px;color:var(--text2);line-height:1.6;margin:0">Browse all vendors who are listed at your markets on Windmill. See which ones have claimed their profile and which haven't. A great way to nudge vendors to get set up — claimed vendors make your market pages richer for shoppers.</p>
+        </div>
+
+        <div style="padding:14px 16px;border-bottom:0.5px solid var(--border)">
+          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">📣 Announcements</div>
+          <p style="font-size:12px;color:var(--text2);line-height:1.6;margin:0">Post updates to the followers of any of your markets. Use this for closures, special events, holiday hours, or seasonal news. Followers get notified. You can also set a badge label that shows on your market card — like "This weekend" or "Holiday hours."</p>
+        </div>
+
+        <div style="padding:14px 16px">
+          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">🌟 Your Founding Operator Pro trial</div>
+          <p style="font-size:12px;color:var(--text2);line-height:1.6;margin:0">As a Founding Operator you get 6 months of Pro free — no credit card needed. Pro removes ads from your market pages, unlocks announcements, gives you a sponsor slot you can sell and keep the revenue from, and unlocks page view analytics.</p>
+        </div>
+
+      </div>
+
+      <div style="background:var(--green-lt);border:0.5px solid var(--green-mid);border-radius:var(--r-md);padding:14px 16px;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:600;color:var(--green-dk);margin-bottom:6px">💬 Have a question?</div>
+        <p style="font-size:12px;color:var(--green-dk);line-height:1.6;margin:0 0 10px">Our team is here to help. We typically respond within 24 hours.</p>
+        <button onclick="renderOperatorSettingsSection('support')" style="padding:9px 20px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Contact support →</button>
+      </div>
     </div>`;
   }
 }
