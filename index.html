@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.72.2 -->
+<!-- v1.72.8 -->
 <!-- v1.71.10 -->
 <!-- v1.71.9 -->
 <!-- v1.71.8 -->
@@ -976,6 +976,20 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
   </div>
 </div>
 
+<!-- CONTACT WINDMILL MODAL -->
+<div class="modal-overlay hidden" id="contactWindmillModal" onclick="closeModalOnOverlay(event,'contactWindmillModal')">
+  <div class="modal" style="max-height:85vh;overflow-y:auto">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('contactWindmillModal')">×</button>
+    <div class="modal-title">Contact Windmill</div>
+    <div class="modal-sub" style="margin-bottom:16px">We typically respond within 24 hours.</div>
+    <div class="form-field"><label class="form-label">Your name</label><input class="form-input" id="cwName" placeholder="Your name"></div>
+    <div class="form-field"><label class="form-label">Email</label><input class="form-input" id="cwEmail" placeholder="your@email.com" type="email"></div>
+    <div class="form-field"><label class="form-label">Message</label><textarea id="cwMessage" placeholder="How can we help?" style="width:100%;min-height:110px;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none;resize:vertical;line-height:1.6"></textarea></div>
+    <button onclick="submitContactWindmill()" style="width:100%;padding:13px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Send message</button>
+  </div>
+</div>
+
 <!-- DENY CLAIM MODAL -->
 <div class="modal-overlay hidden" id="denyClaimModal" onclick="closeModalOnOverlay(event,'denyClaimModal')">
   <div class="modal" style="max-height:80vh;overflow-y:auto">
@@ -1383,19 +1397,25 @@ const DATA = {
     {id:"test-vendor-pro",region:"test-area",slug:"test-vendor-pro",name:"Test Vendor Pro",category:"Honey & Preserves",email:null,website:null,phone:null,claimed:false,pro:false,published:false,markets:["windmill-test-market"]}
   ],
   categories:[
-    {id:"produce",label:"Produce",es:"Productos",pt:"Produtos",emoji:"🥬",photo:"https://images.unsplash.com/photo-1610348725531-843dff563e2c?w=400&q=80"},
-    {id:"baked-goods",label:"Baked Goods",es:"Panadería",pt:"Padaria",emoji:"🍞",photo:"https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&q=80"},
-    {id:"honey-preserves",label:"Honey & Preserves",es:"Miel",pt:"Mel",emoji:"🍯",photo:"https://images.unsplash.com/photo-1558642452-9d2a7deb7f62?w=400&q=80"},
-    {id:"plants-herbs",label:"Plants & Herbs",es:"Plantas",pt:"Plantas",emoji:"🌿",photo:"https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?w=400&q=80"},
-    {id:"crafts-art",label:"Crafts & Art",es:"Artesanías",pt:"Artesanato",emoji:"🎨",photo:"https://images.unsplash.com/photo-1452860606245-08befc0ff44b?w=400&q=80"},
-    {id:"dairy-eggs",label:"Dairy & Eggs",es:"Lácteos",pt:"Laticínios",emoji:"🥚",photo:"https://images.unsplash.com/photo-1550583724-b2692b85b150?w=400&q=80"},
-    {id:"seafood",label:"Seafood",es:"Mariscos",pt:"Frutos do Mar",emoji:"🐟",photo:"https://images.unsplash.com/photo-1534482421-64566f976cfa?w=400&q=80"},
-    {id:"prepared-food",label:"Prepared Food",es:"Comida",pt:"Comida",emoji:"🍲",photo:"https://images.unsplash.com/photo-1547592180-85f173990554?w=400&q=80"},
-    {id:"coffee-drinks",label:"Coffee & Drinks",es:"Café",pt:"Café",emoji:"☕",photo:"https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&q=80"},
-    {id:"flowers",label:"Flowers",es:"Flores",pt:"Flores",emoji:"🌸",photo:"https://statics.vinwonders.com/ho-thi-ky-flower-market-1_1676975510.jpg"},
-    {id:"health-wellness",label:"Health & Wellness",es:"Salud",pt:"Saúde",emoji:"🌱",photo:"https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=400&q=80"},
-    {id:"jewelry",label:"Jewelry",es:"Joyería",pt:"Joias",emoji:"💎",photo:"https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400&q=80"},
-    {id:"food-truck",label:"Food Trucks",es:"Food Trucks",pt:"Food Trucks",emoji:"🚚",photo:"https://images.unsplash.com/photo-1565123409695-7b5ef63a2efb?w=400&q=80"}
+    {id:"produce",label:"Produce",emoji:"🥬",photo:"https://images.unsplash.com/photo-1610348725531-843dff563e2c?w=400&q=80"},
+    {id:"baked-goods",label:"Baked Goods",emoji:"🍞",photo:"https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&q=80"},
+    {id:"prepared-food",label:"Prepared Food",emoji:"🍲",photo:"https://images.unsplash.com/photo-1547592180-85f173990554?w=400&q=80"},
+    {id:"meat-seafood",label:"Meat & Seafood",emoji:"🐟",photo:"https://images.unsplash.com/photo-1534482421-64566f976cfa?w=400&q=80"},
+    {id:"dairy-eggs",label:"Dairy & Eggs",emoji:"🥚",photo:"https://images.unsplash.com/photo-1550583724-b2692b85b150?w=400&q=80"},
+    {id:"honey-preserves",label:"Honey & Preserves",emoji:"🍯",photo:"https://images.unsplash.com/photo-1558642452-9d2a7deb7f62?w=400&q=80"},
+    {id:"sauces-pantry",label:"Sauces & Pantry",emoji:"🫙",photo:"https://images.unsplash.com/photo-1472476443507-c7a5948772fc?w=400&q=80"},
+    {id:"candy-sweets",label:"Candy & Sweets",emoji:"🍬",photo:"https://images.unsplash.com/photo-1582058091505-f87a2e55a40f?w=400&q=80"},
+    {id:"coffee-drinks",label:"Coffee & Drinks",emoji:"☕",photo:"https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&q=80"},
+    {id:"plants-flowers",label:"Plants & Flowers",emoji:"🌸",photo:"https://statics.vinwonders.com/ho-thi-ky-flower-market-1_1676975510.jpg"},
+    {id:"food-trucks",label:"Food Trucks",emoji:"🚚",photo:"https://images.unsplash.com/photo-1565123409695-7b5ef63a2efb?w=400&q=80"},
+    {id:"arts-crafts",label:"Arts & Crafts",emoji:"🎨",photo:"https://images.unsplash.com/photo-1452860606245-08befc0ff44b?w=400&q=80"},
+    {id:"jewelry",label:"Jewelry",emoji:"💎",photo:"https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400&q=80"},
+    {id:"clothing-accessories",label:"Clothing & Accessories",emoji:"👗",photo:"https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&q=80"},
+    {id:"health-wellness",label:"Health & Wellness",emoji:"🌱",photo:"https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=400&q=80"},
+    {id:"soaps-body-care",label:"Soaps & Body Care",emoji:"🧴",photo:"https://josspure.com/cdn/shop/files/spring_collection_soap_bars.png?v=1778082501"},
+    {id:"home-candles",label:"Home & Candles",emoji:"🕯️",photo:"https://www.countryandhome.co.uk/blog-admin/wp-content/uploads/2021/10/ch-blog-6.jpg"},
+    {id:"pet-products",label:"Pet Products",emoji:"🐾",photo:"https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=400&q=80"},
+    {id:"recreation-hobbies",label:"Recreation & Hobbies",emoji:"🎯",photo:"https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&q=80"}
   ],
   market_photos:{
     "sanibel-island":"https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&q=80",
@@ -1614,11 +1634,7 @@ let ST = {
     {city:'Tampa, FL',zip:'33602',markets:'Tampa Armature Works Market, Sunday Morning Market',contact:'Sarah Johnson · sarah@email.com',date:'May 24, 2026'},
     {city:'Naples, FL',zip:'34102',markets:'Third Street South Farmers Market, Cambier Park Market',contact:'Mike Chen · mike@email.com',date:'May 23, 2026'}
   ],
-  adminMessages:[
-    {id:'m1',from:'Maria Gonzalez',role:'Vendor',subject:'Question about my profile',body:'Hi! I just claimed my listing but I cannot figure out how to add my Instagram link. Can you help?',date:'May 28, 2026 9:14am',read:false,resolved:false,replies:[]},
-    {id:'m2',from:'Gulf Coast Markets',role:'Operator',subject:'Adding a new market location',body:'We are opening a second location in Bonita Springs starting in October. How do I add it to our listing?',date:'May 27, 2026 3:42pm',read:false,resolved:false,replies:[]},
-    {id:'m3',from:'Bob Hendricks',role:'Vendor',subject:'Pro upgrade question',body:'What is included in the Pro tier exactly? Is the $9/mo rate locked in forever if I sign up now?',date:'May 27, 2026 11:05am',read:true,resolved:false,replies:[{from:'Windmill Admin',body:'Hi Bob! Yes — the $9/mo founding rate is locked forever for early members. Pro includes photo gallery, Instagram feed, product catalog, analytics, and no ads on your profile. Let me know if you have more questions!',date:'May 27, 2026 11:30am'}]}
-  ],
+  adminMessages:[],
   adminClaims:[
     {id:'c1',vendorId:'the-empanada-queen',vendorName:'The Empanada Queen',claimant:'Maria Gonzalez',email:'maria@empanadaqueen.com',phone:'239-555-0182',message:'This is my business — I have been selling at Lakes Park for 3 years.',date:'May 28, 2026',status:'pending'},
     {id:'c2',vendorId:'suncoast-honey-co',vendorName:'Suncoast Honey Co.',claimant:'David Park',email:'david@suncoasthoney.com',phone:'239-555-0247',message:'I am the owner of Suncoast Honey and want to manage my listing.',date:'May 27, 2026',status:'pending'},
@@ -3910,40 +3926,58 @@ const CATEGORY_COPY = {
     desc: "Sun-ripened tomatoes, fresh citrus, leafy greens, and tropical fruits straight from local farms. Florida's warm climate means exceptional produce year-round — from sweet strawberries in winter to juicy mangoes in summer. These are the vendors who bring the farm directly to your table."
   },
   'baked-goods': {
-    desc: "Artisan breads, flaky pastries, homemade cookies, and cakes crafted with care. Southwest Florida's bakers bring old-world techniques and local ingredients to market every week — from sourdough loaves to guava pastries that reflect the region's rich cultural flavors."
-  },
-  'honey-preserves': {
-    desc: "Raw Florida wildflower honey, citrus preserves, handmade jams, and local hot sauces. Florida's diverse wildflowers and citrus groves produce some of the most distinctive honey in the country. These vendors capture the taste of the region in every jar."
-  },
-  'plants-herbs': {
-    desc: "Native plants, tropical specimens, fresh herbs, and rare finds for Florida gardens. Local nurseries and plant vendors bring the best of Southwest Florida's growing culture to market — from herbs for your kitchen to native plants that thrive in the Florida heat."
-  },
-  'crafts-art': {
-    desc: "Handmade jewelry, original artwork, ceramics, candles, and one-of-a-kind creations. Southwest Florida has a thriving community of artists and artisans who pour their creativity into every piece. Find something truly unique that you won't see anywhere else."
-  },
-  'dairy-eggs': {
-    desc: "Farm-fresh eggs, artisan cheeses, and dairy products from local producers. There's a reason farm-fresh eggs taste different — these vendors raise their animals with care and bring the freshest product directly to market, often within hours of harvest."
-  },
-  'seafood': {
-    desc: "Fresh-caught Gulf shrimp, grouper, snapper, smoked fish dips, and local seafood straight from Florida waters. Living on the Gulf Coast means access to some of the finest seafood in the world — and our market vendors deliver it as fresh as it gets."
+    desc: "Artisan breads, flaky pastries, homemade cookies, granola, and cakes crafted with care. Southwest Florida's bakers bring old-world techniques and local ingredients to market every week — from sourdough loaves to guava pastries that reflect the region's rich cultural flavors."
   },
   'prepared-food': {
     desc: "Ready-to-eat meals, fresh-made empanadas, BBQ, tamales, international cuisine, and local specialties. Some of Southwest Florida's most talented cooks bring their best dishes to market every week. Come hungry — this is farmers market food at its finest."
   },
+  'meat-seafood': {
+    desc: "Fresh-caught Gulf shrimp, grouper, snapper, smoked fish dips, locally raised meats, and poultry straight from Florida farms and waters. Living on the Gulf Coast means access to some of the finest seafood in the world — paired with the best local proteins around."
+  },
+  'dairy-eggs': {
+    desc: "Farm-fresh eggs, artisan cheeses, and dairy products from local producers. There's a reason farm-fresh eggs taste different — these vendors raise their animals with care and bring the freshest product directly to market, often within hours of harvest."
+  },
+  'honey-preserves': {
+    desc: "Raw Florida wildflower honey, citrus preserves, handmade jams, and fruit jellies. Florida's diverse wildflowers and citrus groves produce some of the most distinctive honey in the country. These vendors capture the taste of the region in every jar."
+  },
+  'sauces-pantry': {
+    desc: "Artisan hot sauces, olive oils, spice blends, chimichurri, hummus, pasta, and handcrafted condiments. These are the pantry staples you didn't know you needed — made locally in small batches with ingredients you can actually pronounce. Stock your kitchen with something special."
+  },
+  'candy-sweets': {
+    desc: "Handmade fudge, chocolate truffles, kettle corn, licorice, popcorn, and sweet treats crafted locally. From the pop of fresh kettle corn to the richness of artisan chocolate, Southwest Florida's sweet vendors are the highlight of many market visits."
+  },
   'coffee-drinks': {
-    desc: "Locally roasted coffees, fresh-pressed juices, smoothies, kombucha, and handcrafted beverages. From the first sip of locally roasted cold brew to a fresh-squeezed Florida orange juice, market drink vendors fuel the browsing experience like nothing else."
+    desc: "Locally roasted coffees, fresh-pressed juices, smoothies, matcha, kombucha, and handcrafted beverages. From the first sip of locally roasted cold brew to a fresh-squeezed Florida orange juice, market drink vendors fuel the browsing experience like nothing else."
   },
-  'flowers': {
-    desc: "Fresh-cut tropical blooms, native wildflowers, succulents, and seasonal arrangements. Florida's year-round growing season means flowers at every market, every week. Local flower vendors grow and cut their blooms fresh, bringing color and fragrance to your home."
+  'plants-flowers': {
+    desc: "Fresh-cut tropical blooms, native plants, succulents, herbs, and rare specimens for Florida gardens. Florida's year-round growing season means flowers and plants at every market, every week — from kitchen herbs to stunning native specimens that thrive in the Florida heat."
   },
-  'health-wellness': {
-    desc: "Herbal remedies, essential oils, natural skincare, supplements, and wellness products crafted locally. Southwest Florida's wellness community brings natural, thoughtfully made products to market — from sea moss blends to handmade salves and botanical tinctures."
+  'food-trucks': {
+    desc: "Mobile kitchens serving hot meals, street food, and local flavors right at the market. Food trucks bring energy and variety to farmers markets — from wood-fired pizza to fresh tacos, they're the heartbeat of the lunchtime market experience."
+  },
+  'arts-crafts': {
+    desc: "Original artwork, woodwork, ceramics, metalwork, handmade cards, and one-of-a-kind creations. Southwest Florida has a thriving community of artists and craftspeople who pour their creativity into every piece. Find something truly unique that you won't see anywhere else."
   },
   'jewelry': {
     desc: "Handcrafted necklaces, bracelets, rings, and wearable art made by local artisans. Each piece tells a story — sea glass gathered from Sanibel beaches, silver shaped by hand, stones sourced with intention. Find jewelry as unique as the person wearing it."
   },
-  'food-truck': {
-    desc: "Mobile kitchens serving hot meals, street food, and local flavors right at the market. Food trucks bring energy and variety to farmers markets — from wood-fired pizza to fresh tacos, they're the heartbeat of the lunchtime market experience."
+  'clothing-accessories': {
+    desc: "Handmade and artisan clothing, accessories, and wearables crafted locally. From breezy resort wear to bold African prints, Southwest Florida's clothing vendors bring personal style and craftsmanship together in every stitch."
+  },
+  'health-wellness': {
+    desc: "Herbal remedies, essential oils, natural skincare, supplements, and wellness products crafted locally. Southwest Florida's wellness community brings natural, thoughtfully made products to market — from sea moss blends to handmade salves and botanical tinctures."
+  },
+  'soaps-body-care': {
+    desc: "Handcrafted soaps, bath bombs, body butters, scrubs, and natural beauty products made in small batches. These vendors skip the chemicals and go straight to nature — real ingredients, real care, and products that feel as good as they smell."
+  },
+  'home-candles': {
+    desc: "Hand-poured candles, home décor, kitchenware, and artisan goods for your living space. Whether you're looking for a hand-poured soy candle that fills a room or a handmade piece that anchors a shelf, these vendors bring warmth and character to your home."
+  },
+  'pet-products': {
+    desc: "Handmade pet treats, accessories, and natural care products for your four-legged market companions. Southwest Florida's pet-friendly markets welcome dogs at the door — and these vendors make sure your pets leave with something special too."
+  },
+  'recreation-hobbies': {
+    desc: "Collectibles, hobby supplies, games, and specialty items for enthusiasts and curious minds. From vintage finds to handmade goods that spark joy, these vendors bring something a little different to the market experience."
   }
 };
 
@@ -6423,7 +6457,7 @@ function renderVendorsJoin() {
     <!-- FOOTER -->
     <div style="padding:20px 16px;border-top:0.5px solid var(--border);text-align:center">
       <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">${c.footer_q}</div>
-      <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
+      <button onclick="openContactWindmill()" style="background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);padding:8px 18px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-sans)">Contact Windmill</button>
       <div style="margin-top:12px;font-size:12px;color:var(--text3)">${c.footer_signin} <span style="color:var(--terra);cursor:pointer" onclick="navigate('vendors-login')">${c.footer_signin_link}</span></div>
       <div style="margin-top:8px;font-size:11px;color:var(--text3)"><span style="color:var(--terra);cursor:pointer" onclick="navigate('privacy-policy')">Privacy Policy</span></div>
     </div>
@@ -7011,7 +7045,7 @@ function renderClaimStatusBanner(status, type) {
     claimed: {
       bg:'var(--surface2)', border:'var(--border-med)', color:'var(--text2)',
       icon:'🔒',
-      text:`This ${noun} listing has already been claimed. Think this is an error? <a href="mailto:hello@shopwindmill.com" style="color:var(--terra)">Email us</a>.`
+      text:`This ${noun} listing has already been claimed. Think this is an error? <a href="#" onclick="openContactWindmill();return false;" style="color:var(--terra)">Contact us</a>.`
     },
     other_pending: {
       bg:'var(--amber-lt)', border:'#F0D090', color:'#7A4E08',
@@ -7623,7 +7657,7 @@ function renderMarketsJoin() {
 
     <div style="padding:20px 16px;border-top:0.5px solid var(--border);text-align:center">
       <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">${c.footer_q}</div>
-      <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
+      <button onclick="openContactWindmill()" style="background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);padding:8px 18px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-sans)">Contact Windmill</button>
       <div style="margin-top:12px;font-size:12px;color:var(--text3)">${c.footer_signin} <span style="color:var(--terra);cursor:pointer" onclick="navigate('markets-login')">${c.footer_signin_link}</span></div>
       <div style="margin-top:8px;font-size:11px;color:var(--text3)"><span style="color:var(--terra);cursor:pointer" onclick="navigate('privacy-policy')">Privacy Policy</span></div>
     </div>
@@ -7696,7 +7730,7 @@ function renderMarketPending() {
       <div style="font-size:12px;font-weight:600;color:var(--green-dk);margin-bottom:4px">What happens next?</div>
       <div style="font-size:12px;color:var(--green-dk);line-height:1.7;opacity:.85">1. We verify you operate this market<br>2. You get an email with your login link<br>3. Tag all your markets in onboarding<br>4. Your market page goes live</div>
     </div>
-    <p style="font-size:12px;color:var(--text3)">Questions? Email us at <a href="mailto:hello@shopwindmill.com" style="color:var(--terra)">hello@shopwindmill.com</a></p>
+    <p style="font-size:12px;color:var(--text3)">Questions? <a href="#" onclick="openContactWindmill();return false;" style="color:var(--terra)">Contact us</a> and we'll get right back to you.</p>
   </div>`;
 }
 
@@ -8209,7 +8243,7 @@ function renderPrivacyPolicy() {
     ${section('Changes to this policy', `We may update this policy as Windmill grows. We'll update the date above when we do.`)}
     <div style="margin-top:24px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px">
       <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">✉️ Questions about this policy?</div>
-      <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
+      <button onclick="openContactWindmill()" style="background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);padding:8px 18px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-sans)">Contact Windmill</button>
     </div>
   </div>`;
 }
@@ -8663,7 +8697,7 @@ async function renderMeSection(section) {
       </div>
       <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-bottom:12px">
         <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">✉️ Contact us</div>
-        <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
+        <button onclick="openContactWindmill()" style="background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);padding:8px 18px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-sans)">Contact Windmill</button>
       </div>
       <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px">
         <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:10px">🌐 Follow us</div>
@@ -9075,7 +9109,7 @@ async function renderMe() {
       </div>
       <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px">
         <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">✉️ Contact us</div>
-        <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
+        <button onclick="openContactWindmill()" style="background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);padding:8px 18px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-sans)">Contact Windmill</button>
       </div>
       <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px">
         <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:10px">🌐 Follow us</div>
@@ -9602,7 +9636,7 @@ function showOperatorOnboarding(step) {
       sub: 'Select all the markets you operate. You can update this anytime.',
       content: `<div style="border:0.5px solid var(--border-med);border-radius:var(--r-md);max-height:280px;overflow-y:auto;margin-bottom:10px">${marketCheckboxRows}</div>
       ${(opRegion && !showAllOpRegions) ? `<button onclick="ST.opOnboardShowAllRegions=true;showOperatorOnboarding(3)" style="width:100%;padding:10px;background:none;border:0.5px dashed var(--border-med);border-radius:var(--r-md);font-size:12px;color:var(--text2);cursor:pointer;font-family:var(--font-sans);margin-bottom:8px">Don't see all your markets? Show all regions →</button>` : ''}
-      <div style="font-size:11px;color:var(--text3)">Don't see a market at all? Email us at hello@shopwindmill.com and we'll add it.</div>`,
+      <div style="font-size:11px;color:var(--text3)">Don't see a market at all? <a href="#" onclick="closeModal('operatorOnboardingOverlay');openContactWindmill();return false;" style="color:var(--terra)">Contact us</a> and we'll add it.</div>`,
       nextLabel: 'Next →',
       skipLabel: null
     },
@@ -10322,7 +10356,7 @@ function renderAdminPanel() {
       const trialStart = v.trial_start ? new Date(v.trial_start) : null;
       const trialExpiry = trialStart ? new Date(trialStart.getTime() + 180*24*60*60*1000) : null;
       const daysLeft = trialExpiry ? Math.max(0, Math.ceil((trialExpiry - new Date()) / (24*60*60*1000))) : null;
-      const onTrial = trialStart && !v.pro && daysLeft > 0;
+      const onTrial = trialStart && !v.pro && daysLeft !== null && daysLeft > 0;
       const tier = v.pro ? 'pro' : onTrial ? 'trial' : 'free';
 
       if(ST.adminVendorSearch && !v.name.toLowerCase().includes(ST.adminVendorSearch.toLowerCase())) return false;
@@ -10382,15 +10416,15 @@ function renderAdminPanel() {
       const trialStart = v.trial_start ? new Date(v.trial_start) : null;
       const trialExpiry = trialStart ? new Date(trialStart.getTime() + 180*24*60*60*1000) : null;
       const daysLeft = trialExpiry ? Math.max(0, Math.ceil((trialExpiry - new Date()) / (24*60*60*1000))) : null;
-      const onTrial = trialStart && !v.pro && daysLeft > 0;
-      const trialExpired = trialStart && !v.pro && daysLeft === 0;
+      const onTrial = trialStart && !v.pro && daysLeft !== null && daysLeft > 0;
+      const trialExpired = trialStart && !v.pro && daysLeft !== null && daysLeft === 0;
       const trialUrgent = onTrial && daysLeft <= 7;
       const trialWarning = onTrial && daysLeft <= 30 && daysLeft > 7;
       const trialColor = trialExpired ? '#B91C1C' : trialUrgent ? 'var(--terra)' : trialWarning ? 'var(--amber)' : 'var(--green-dk)';
       const trialIcon = trialExpired ? '🔴' : trialUrgent ? '🚨' : trialWarning ? '⚠️' : '⏱';
-      const trialText = trialExpired
+      const trialText = (onTrial || trialExpired) && trialStart ? (trialExpired
         ? `Trial expired · moved to free · started ${trialStart.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`
-        : `${trialIcon} Trial · ${daysLeft} day${daysLeft===1?'':'s'} left · started ${trialStart.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
+        : `${trialIcon} Trial · ${daysLeft} day${daysLeft===1?'':'s'} left · started ${trialStart.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`) : '';
       h += `<div class="admin-row" data-name="${v.name.toLowerCase()}">
         <div class="admin-row-info">
           <div class="admin-row-name">${v.name}</div>
@@ -12238,12 +12272,13 @@ function adminToggleVendorPro(id, el) {
 async function adminResetVendorToUnclaimed(vendorId, vendorName) {
   if(!confirm(`Reset "${vendorName}" back to unclaimed for testing?\n\nThis clears its claimed status, Pro/trial state, any linked account connection, and old claim records for this listing — so you can run through claim → approve → signup again from scratch.\n\nThis is restricted to designated test vendors only.`)) return;
   const v = DATA.vendors.find(x => x.id === vendorId);
-  if(v) { v.claimed = false; v.pro = false; v.trial_start = null; }
+  const resetEmail = `${vendorId}@testwindmill.com`;
+  if(v) { v.claimed = false; v.pro = false; v.trial_start = null; v.email = resetEmail; }
   if(supabaseClient) {
     try {
-      await supabaseClient.from('vendors').update({ claimed: false, pro: false, trial_start: null }).eq('id', vendorId);
-      // Disconnect any user account currently linked to this test vendor
-      await supabaseClient.from('users').update({ role: 'customer', vendor_id: null, trial_start: null }).eq('vendor_id', vendorId);
+      await supabaseClient.from('vendors').update({ claimed: false, pro: false, trial_start: null, email: resetEmail }).eq('id', vendorId);
+      // Disconnect any user account currently linked to this test vendor and reset their email
+      await supabaseClient.from('users').update({ role: 'customer', vendor_id: null, trial_start: null, email: resetEmail }).eq('vendor_id', vendorId);
       // Clear old claim records so a fresh claim can be submitted without being blocked
       await supabaseClient.from('claims').delete().eq('vendor_id', vendorId);
     } catch(e) { console.warn('Reset failed:', e); }
@@ -12260,11 +12295,12 @@ async function adminResetVendorToUnclaimed(vendorId, vendorName) {
 
 async function adminResetOperatorToUnclaimed(operatorId, operatorName) {
   if(!confirm(`Reset "${operatorName}" back to unclaimed for testing?\n\nThis clears its claimed status, Pro/trial state, any linked account connection, and old claim records for this listing — so you can run through claim → approve → signup again from scratch.\n\nThis is restricted to designated test operators only.`)) return;
+  const resetEmail = `${operatorId}@testwindmill.com`;
   if(supabaseClient) {
     try {
-      await supabaseClient.from('operators').update({ claimed: false, pro: false, trial_start: null, email: null, contact_role: null }).eq('id', operatorId);
-      // Disconnect any user account currently linked to this test operator
-      await supabaseClient.from('users').update({ role: 'customer', operator_id: null, trial_start: null }).eq('operator_id', operatorId);
+      await supabaseClient.from('operators').update({ claimed: false, pro: false, trial_start: null, email: resetEmail, contact_role: null }).eq('id', operatorId);
+      // Disconnect any user account currently linked to this test operator and reset their email
+      await supabaseClient.from('users').update({ role: 'customer', operator_id: null, trial_start: null, email: resetEmail }).eq('operator_id', operatorId);
       // Clear old claim records tied to any market run by this test operator so a fresh claim can be submitted without being blocked
       const { data: testMarkets } = await supabaseClient.from('markets').select('id').eq('operator_id', operatorId);
       const testMarketIds = (testMarkets||[]).map(m => m.id);
@@ -12574,6 +12610,47 @@ async function adminApproveClaimFinalize(claimId, resolvedEmail) {
 
   renderAdminPanel();
 }
+function openContactWindmill() {
+  if(!ST.user) {
+    ST.authMode = 'signin';
+    renderAuthModal('signin');
+    openModal('signinModal');
+    return;
+  }
+  setTimeout(() => {
+    const nameEl = document.getElementById('cwName');
+    const emailEl = document.getElementById('cwEmail');
+    if(nameEl && ST.user.name) nameEl.value = ST.user.name;
+    if(emailEl && ST.user.email) emailEl.value = ST.user.email;
+  }, 50);
+  openModal('contactWindmillModal');
+}
+
+async function submitContactWindmill() {
+  const name = document.getElementById('cwName')?.value?.trim() || '';
+  const email = document.getElementById('cwEmail')?.value?.trim() || '';
+  const message = document.getElementById('cwMessage')?.value?.trim() || '';
+  if(!message) { alert('Please enter a message.'); return; }
+  if(!email) { alert('Please enter your email so we can reply.'); return; }
+
+  sendWindmillEmail(
+    '💬 New contact message from ' + (name || email),
+    '<h2>Contact message from ' + (name || 'anonymous') + '</h2>' +
+    '<p><strong>Name:</strong> ' + (name || 'Not provided') + '</p>' +
+    '<p><strong>Email:</strong> ' + email + '</p>' +
+    '<p><strong>Message:</strong></p><p style="white-space:pre-wrap">' + message + '</p>'
+  );
+
+  closeModal('contactWindmillModal');
+  document.getElementById('cwMessage').value = '';
+
+  const toast = document.createElement('div');
+  toast.textContent = "Message sent! We'll be in touch within 24 hours.";
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
+}
+
 function adminDenyClaim(claimId) {
   const c = ST.adminClaims.find(x=>x.id===claimId);
   if(!c) return;
@@ -12774,7 +12851,7 @@ function adminDeleteVendor(id) {
 }
 function openAdminAddVendor() {
   const regions = DATA.regions.map(r => ({id: r.id, label: r.label}));
-  const categories = [...new Set(DATA.vendors.map(v=>v.category))].sort();
+  const categories = ['Arts & Crafts','Baked Goods','Candy & Sweets','Clothing & Accessories','Coffee & Drinks','Dairy & Eggs','Food Trucks','Health & Wellness','Home & Candles','Honey & Preserves','Jewelry','Meat & Seafood','Pet Products','Plants & Flowers','Prepared Food','Produce','Recreation & Hobbies','Sauces & Pantry','Soaps & Body Care'];
   const marketOptions = [...DATA.markets].sort((a,b)=>a.name.localeCompare(b.name))
     .map(m=>`<option value="${m.id}">${m.name} (${m.city})</option>`).join('');
   openAdminModal('Add Vendor', 'Create a new vendor listing', `
@@ -12785,8 +12862,10 @@ function openAdminAddVendor() {
       </select>
     </div>
     <div class="form-field"><label class="form-label">Category *</label>
-      <input class="form-input" id="nv_cat" placeholder="e.g. Honey & Preserves" list="nv_cat_list">
-      <datalist id="nv_cat_list">${categories.map(c=>`<option value="${c}">`).join('')}</datalist>
+      <select class="form-input" id="nv_cat" style="cursor:pointer">
+        <option value="">Select a category</option>
+        ${categories.map(c=>`<option value="${c}">${c}</option>`).join('')}
+      </select>
     </div>
     <div class="form-field"><label class="form-label">Email</label><input class="form-input" id="nv_email" placeholder="vendor@email.com" type="email"></div>
     <div class="form-field"><label class="form-label">Phone</label><input class="form-input" id="nv_phone" placeholder="+1 (239) 000-0000" type="tel"></div>
@@ -13868,7 +13947,7 @@ function renderVendorProfileEdit() {
   else if(v?.instagram) { socialType = 'instagram'; socialValue = v.instagram; }
   else if(v?.facebook) { socialType = 'facebook'; socialValue = v.facebook; }
 
-  const categories = ['Baked Goods','Produce','Honey & Preserves','Plants & Herbs','Crafts & Art','Dairy & Eggs','Seafood','Prepared Food','Coffee & Drinks','Flowers','Health & Wellness','Jewelry','Food Trucks','Juice & Drinks','Meat & Poultry','Other'];
+  const categories = ['Arts & Crafts','Baked Goods','Candy & Sweets','Clothing & Accessories','Coffee & Drinks','Dairy & Eggs','Food Trucks','Health & Wellness','Home & Candles','Honey & Preserves','Jewelry','Meat & Seafood','Pet Products','Plants & Flowers','Prepared Food','Produce','Recreation & Hobbies','Sauces & Pantry','Soaps & Body Care'];
 
   // Build section content strings
   const photoContent = `
@@ -14590,7 +14669,7 @@ function renderVendorSettingsSection(section) {
       </div>
       <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-bottom:12px">
         <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">✉️ Contact us</div>
-        <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
+        <button onclick="openContactWindmill()" style="background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);padding:8px 18px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-sans)">Contact Windmill</button>
       </div>
       <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px">
         <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:10px">🌐 Follow us</div>
@@ -15025,7 +15104,7 @@ async function saveVendorRosterMarkets(vendorId) {
 function openAddVendorModal() {
   const opId = ST.operatorId || 'local-roots';
   const myMarkets = DATA.markets.filter(m=>m.operator_id===opId);
-  const categories = [...new Set(DATA.vendors.map(v=>v.category))].sort();
+  const categories = ['Arts & Crafts','Baked Goods','Candy & Sweets','Clothing & Accessories','Coffee & Drinks','Dairy & Eggs','Food Trucks','Health & Wellness','Home & Candles','Honey & Preserves','Jewelry','Meat & Seafood','Pet Products','Plants & Flowers','Prepared Food','Produce','Recreation & Hobbies','Sauces & Pantry','Soaps & Body Care'];
 
   const existing = document.getElementById('addVendorRosterModal');
   if(existing) existing.remove();
@@ -15041,8 +15120,10 @@ function openAddVendorModal() {
 
       <div class="form-field"><label class="form-label">Vendor name *</label><input class="form-input" id="avr_name" placeholder="e.g. Sunshine Honey Co."></div>
       <div class="form-field"><label class="form-label">Category *</label>
-        <input class="form-input" id="avr_cat" placeholder="e.g. Honey & Preserves" list="avr_cat_list">
-        <datalist id="avr_cat_list">${categories.map(c=>`<option value="${c}">`).join('')}</datalist>
+        <select class="form-input" id="avr_cat" style="cursor:pointer">
+          <option value="">Select a category</option>
+          ${categories.map(c=>`<option value="${c}">${c}</option>`).join('')}
+        </select>
       </div>
       <div class="form-field"><label class="form-label">Email</label><input class="form-input" id="avr_email" placeholder="vendor@email.com" type="email"></div>
       <div class="form-field"><label class="form-label">Phone</label><input class="form-input" id="avr_phone" placeholder="+1 (239) 000-0000" type="tel"></div>
@@ -15477,7 +15558,7 @@ function renderOperatorSettingsSection(section) {
       </div>
       <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-bottom:12px">
         <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">✉️ Contact us</div>
-        <a href="mailto:hello@shopwindmill.com" style="font-size:12px;color:var(--terra);text-decoration:none">hello@shopwindmill.com</a>
+        <button onclick="openContactWindmill()" style="background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);padding:8px 18px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-sans)">Contact Windmill</button>
       </div>
       <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px">
         <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:10px">🌐 Follow us</div>
