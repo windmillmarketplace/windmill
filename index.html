@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.72.8 -->
+<!-- v1.73.6 -->
 <!-- v1.71.10 -->
 <!-- v1.71.9 -->
 <!-- v1.71.8 -->
@@ -2165,18 +2165,8 @@ const MAP_ADS = [
 ];
 
 function sponsoredMapCard(slotIndex) {
-  const ad = MAP_ADS[slotIndex % MAP_ADS.length];
-  return `<div class="map-market-card map-sponsored-card" data-slot="${slotIndex}" style="background:var(--amber-lt);border-left:3px solid var(--amber)">
-    <div style="width:38px;height:38px;border-radius:9px;background:#FDF3DC;border:0.5px solid #F0D090;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${ad.icon}</div>
-    <div style="flex:1;min-width:0">
-      <div style="display:flex;align-items:center;gap:5px;margin-bottom:2px">
-        <div class="map-card-name" style="color:var(--text)">${ad.name}</div>
-        <span style="font-size:9px;padding:1px 5px;background:var(--amber);color:#fff;border-radius:var(--r-pill);flex-shrink:0">Sponsored</span>
-      </div>
-      <div class="map-card-sub">${ad.sub}</div>
-    </div>
-    <button style="font-size:10px;padding:4px 9px;border:0.5px solid var(--amber);border-radius:var(--r-pill);color:#7A4E08;background:transparent;cursor:pointer;white-space:nowrap;font-family:var(--font-sans)">Learn more</button>
-  </div>`;
+  // HIDDEN v1.73.2 — ad slots not yet active; restore when sponsors confirmed
+  return '';
 }
 
 /* Build a list interleaving real cards with fixed ad slots at 5,10,15...
@@ -2213,25 +2203,8 @@ function buildMapCardList(realCards) {
 }
 
 function sponsoredCard() {
-  const ads = [
-    {name:"First Florida Credit Union",sub:"Free checking for market vendors & shoppers",icon:"🏦"},
-    {name:"Lee County Electric Co-op",sub:"Power your home with local energy",icon:"⚡"},
-    {name:"Gulf Coast Toyota",sub:"New & used vehicles — family-owned since 1978",icon:"🚗"},
-    {name:"Sanibel Captiva Conservation",sub:"Protect the islands we all love",icon:"🌿"},
-    {name:"Florida Blue",sub:"Health coverage for local business owners",icon:"💙"}
-  ];
-  const ad = ads[Math.floor(Math.random()*ads.length)];
-  return `<div class="vendor-card" style="background:linear-gradient(135deg,#F5F1EB,#EEF2EB);border-color:var(--border-med);opacity:0.95">
-    <div class="vendor-avatar" style="background:#EEF2EB;color:var(--green-dk);font-size:22px;border:none">${ad.icon}</div>
-    <div class="vendor-body">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
-        <div class="vendor-name">${ad.name}</div>
-        <span style="font-size:9px;padding:1px 5px;background:var(--amber-lt);color:#7A4E08;border-radius:var(--r-pill);border:0.5px solid #F0D090;flex-shrink:0">${t('ad_label')}</span>
-      </div>
-      <div style="font-size:11px;color:var(--text2)">${ad.sub}</div>
-    </div>
-    <button style="align-self:flex-start;font-size:11px;padding:5px 10px;border:0.5px solid var(--green);border-radius:var(--r-pill);color:var(--green-dk);background:transparent;cursor:pointer;white-space:nowrap">Learn more</button>
-  </div>`;
+  // HIDDEN v1.73.2 — ad slots not yet active; restore when sponsors confirmed
+  return '';
 }
 
 /* ── ROLE SWITCHER ── */
@@ -9164,8 +9137,8 @@ function showVendorOnboarding(step) {
       sub: "Quick check — we'll use this to set up your account and your public page.",
       content: `
         <div class="form-field"><label class="form-label">Your name <span style="color:var(--text3);font-weight:400">(private — never shown publicly)</span></label><input class="form-input" id="onboardPersonalName" value="${ST.user?.name||''}" placeholder="Your full name"></div>
-        <div class="form-field"><label class="form-label">Business name</label><input class="form-input" id="onboardBusinessName" value="${v?.name||''}" placeholder="Your business name"></div>
-        <div class="form-field"><label class="form-label">Contact email <span style="color:var(--text3);font-weight:400">(shown publicly)</span></label><input class="form-input" id="onboardContactEmail" value="${v?.email||''}" placeholder="you@example.com" type="email"></div>
+        <div class="form-field"><label class="form-label">Business name</label><input class="form-input" value="${v?.name||''}" readonly style="background:var(--surface2);color:var(--text3);cursor:default" tabindex="-1"></div>
+        <div class="form-field"><label class="form-label">Login email <span style="color:var(--text3);font-weight:400">(your account email — contact support to change)</span></label><input class="form-input" value="${ST.user?.email||v?.email||''}" readonly style="background:var(--surface2);color:var(--text3);cursor:default" tabindex="-1"></div>
         <div class="form-field"><label class="form-label">Phone <span style="color:var(--text3);font-weight:400">(shown publicly, optional)</span></label><input class="form-input" id="onboardContactPhone" value="${v?.phone||''}" placeholder="+1 (239) 000-0000" type="tel"></div>`,
       nextLabel: 'Next →',
       skipLabel: 'Skip for now'
@@ -9368,7 +9341,7 @@ function refreshGalleryGrid(v) {
       </div>
       <div style="padding:6px 8px">
         <input type="text" value="${cap}" placeholder="Add a caption..." onchange="updateGalleryCaption(${idx},this.value)" style="width:100%;border:none;background:transparent;font-size:11px;color:var(--text2);font-family:var(--font-sans);outline:none;box-sizing:border-box">
-        <div style="margin-top:4px;font-size:10px;color:var(--text3)">📘 Share to Facebook — coming soon</div>
+        <!-- HIDDEN v1.73.2 — Facebook photo auto-post not yet built -->
       </div>
     </div>`;
   }).join('');
@@ -9412,8 +9385,6 @@ async function vendorOnboardingNext(step) {
   // Save data from current step — works with or without local vendor object
   if(step === 2) {
     const personalName = document.getElementById('onboardPersonalName')?.value?.trim();
-    const businessName = document.getElementById('onboardBusinessName')?.value?.trim();
-    const email = document.getElementById('onboardContactEmail')?.value?.trim();
     const phone = document.getElementById('onboardContactPhone')?.value?.trim();
     // Personal name is account-level (private) — saved to the users table, not the vendor's public record
     if(personalName) {
@@ -9422,8 +9393,12 @@ async function vendorOnboardingNext(step) {
         try { await supabaseClient.from('users').update({ name: personalName }).eq('id', ST.user.id); } catch(e) { console.warn('Name save failed:', e); }
       }
     }
-    if(v) { if(businessName) v.name = businessName; if(email) v.email = email; v.phone = phone || v.phone; }
-    ST.pendingOnboardContact = { name: businessName, email, phone };
+    // Phone is the only vendor-level field editable here
+    if(phone && v) v.phone = phone;
+    if(phone && supabaseClient && vendorId) {
+      try { await supabaseClient.from('vendors').update({ phone }).eq('id', vendorId); } catch(e) { console.warn('Phone save failed:', e); }
+    }
+    ST.pendingOnboardContact = { phone };
   }
 
   if(step === 3) {
@@ -10039,7 +10014,9 @@ async function renderVendorDash() {
     { icon:'📦', label:t('my_products'), sub: isPro ? `${productCount} ${t('listed')}` : `🔒 ${t('pro_feature')}`, tab:'following', locked: !isPro },
     { icon:'📢', label:t('post_update'), sub: isPro ? t('reach_followers') : `🔒 ${t('pro_feature')}`, tab:null, locked: !isPro, action: isPro ? 'showWeeklyUpdateModal()' : "navigate('vendors-join')" },
     { icon:'💬', label:t('messaging'), sub: isPro ? t('view_messages') : `🔒 ${t('pro_feature')}`, tab:null, locked: !isPro, action: isPro ? 'showVendorInbox()' : "navigate('vendors-join')", badgeCount: isPro ? unreadMsgCount : 0 },
-    { icon:'🛒', label:'Pre-Orders', sub:t('coming_soon_label'), tab:null, locked:true, action:'showPreOrderComingSoon()', comingSoon:true },
+    { icon:'📲', label:'Share your page', sub: isPro ? 'Post to Facebook & Instagram' : `🔒 ${t('pro_feature')}`, tab:null, locked: !isPro, action: isPro ? 'showVendorShareModal()' : "navigate('vendors-join')" },
+    // HIDDEN v1.73.2 — Pre-Orders not yet built; restore when feature is live
+    // { icon:'🛒', label:'Pre-Orders', sub:t('coming_soon_label'), tab:null, locked:true, action:'showPreOrderComingSoon()', comingSoon:true },
   ];
 
   document.getElementById('scrollBody').innerHTML = `<div class="vendor-dash">
@@ -10049,6 +10026,15 @@ async function renderVendorDash() {
     </div>
     <div class="dash-sub">${tierLabel}</div>
     ${trialBadge}
+
+    <!-- SETUP PROMPT (only if not complete) — shown at top so vendor sees it immediately -->
+    ${!ST.profileSetupComplete ? `
+    <div class="dash-section" style="background:var(--terra-lt);border:0.5px solid #ECC4B0;border-radius:var(--r-md);padding:16px;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:600;color:#7A2E10;margin-bottom:6px">${t('complete_profile')}</div>
+      <div style="font-size:12px;color:var(--terra-mid);margin-bottom:12px;line-height:1.5">${t('complete_profile_sub')}</div>
+      <button onclick="showVendorOnboarding(1)" style="width:100%;padding:10px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">${t('finish_setup')}</button>
+    </div>` : ''}
+
     ${!isPro ? `<div class="dash-ad"><div><div class="ad-label">${t('ad_label')}</div><div class="ad-text">${t('ad_text')}</div></div><div class="ad-placeholder">📢</div></div>
     <div class="upgrade-banner"><span style="font-size:20px">⭐</span><div class="upgrade-text">${t('upgrade_banner')} <strong>$9/mo · ${t('first_month_free')}</strong></div><button class="upgrade-btn" onclick="navigate('vendors-join')">${t('start_free_trial')}</button></div>` : ''}
 
@@ -10074,14 +10060,6 @@ async function renderVendorDash() {
           </div>`).join('')}
       </div>
     </div>
-
-    <!-- SETUP PROMPT (only if not complete) -->
-    ${!ST.profileSetupComplete ? `
-    <div class="dash-section" style="background:var(--terra-lt);border:0.5px solid #ECC4B0;border-radius:var(--r-md);padding:16px">
-      <div style="font-size:13px;font-weight:600;color:#7A2E10;margin-bottom:6px">${t('complete_profile')}</div>
-      <div style="font-size:12px;color:var(--terra-mid);margin-bottom:12px;line-height:1.5">${t('complete_profile_sub')}</div>
-      <button onclick="showVendorOnboarding(1)" style="width:100%;padding:10px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">${t('finish_setup')}</button>
-    </div>` : ''}
 
     <!-- VIEW PUBLIC PROFILE -->
     ${v ? `<div class="dash-section">
@@ -10214,13 +10192,19 @@ async function renderOperatorDash() {
           ${isFree ? `<span style="font-size:14px">🔒</span>` : `<span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="ST.sub='following';ST.currentPage=null;renderCurrentPage()">Post →</span>`}
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);${isFree?'opacity:0.6':''}">
+          <div><div style="font-size:13px;font-weight:500;color:var(--text)">📲 Share your page</div><div style="font-size:11px;color:var(--text3)">Post updates to Facebook & Instagram</div></div>
+          ${isFree ? `<span style="font-size:14px">🔒</span>` : `<span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="showOperatorShareModal()">Share →</span>`}
+        </div>
+        <!-- HIDDEN v1.73.2 — Sponsor slot not yet built; restore when feature is live -->
+        <!-- <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);${isFree?'opacity:0.6':''}">
           <div><div style="font-size:13px;font-weight:500;color:var(--text)">🎯 Sponsor slot</div><div style="font-size:11px;color:var(--text3)">"Presented By" placement on your market pages</div></div>
           ${isFree ? `<span style="font-size:14px">🔒</span>` : `<span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="alert('Sponsor slots coming soon')">Manage →</span>`}
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);${isFree?'opacity:0.6':''}">
+        </div> -->
+        <!-- HIDDEN v1.73.2 — Analytics row not yet built; page view count shown in stats grid above -->
+        <!-- <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);${isFree?'opacity:0.6':''}">
           <div><div style="font-size:13px;font-weight:500;color:var(--text)">📊 Analytics</div><div style="font-size:11px;color:var(--text3)">Page views, follower trends, vendor activity</div></div>
           ${isFree ? `<span style="font-size:14px">🔒</span>` : `<span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="alert('Analytics coming soon')">View →</span>`}
-        </div>
+        </div> -->
         ${isFree ? `<button onclick="alert('Operator Pro coming soon — $29/mo')" style="width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans);margin-top:4px">Upgrade to Pro — $29/mo</button>` : ''}
       </div>
     </div>
@@ -11664,6 +11648,7 @@ async function authSignOut() {
   ST.isProTrial = false;
   ST.trialStart = null;
   ST.profileSetupComplete = false;
+  ST._onboardingShownThisSession = false;
   // Clear dev mode on logout for security
   ST.devMode = false;
   localStorage.setItem('windmill_dev', 'false');
@@ -11697,6 +11682,8 @@ async function onAuthSuccess(user) {
   }
   name = name || user.email.split('@')[0];
   let role = profile?.role || user.user_metadata?.role || 'customer';
+  // Admin role is sacred — never let a bad profile fetch demote it
+  if(user.email === 'windmillmarketplace@gmail.com') role = 'admin';
   let vendorId = profile?.vendor_id || null;
 
   // If no vendor_id in users table, check vendors table by email
@@ -11761,8 +11748,8 @@ async function onAuthSuccess(user) {
     } catch(e) { console.warn('Operator tier lookup failed:', e); }
   }
 
-  // Auto-create users table row if it doesn't exist
-  if(!profile) {
+  // Auto-create users table row if it doesn't exist (never for admin — role is protected above)
+  if(!profile && user.email !== 'windmillmarketplace@gmail.com') {
     try {
       await supabaseClient.from('users').upsert({
         id: user.id,
@@ -11817,15 +11804,14 @@ async function onAuthSuccess(user) {
   const isFreshLogin = !ST.user || ST._sessionInitialized === false;
   ST._sessionInitialized = true;
 
-  if(role === 'vendor' && vendorId && !alreadyInDash) {
+  if(role === 'vendor' && vendorId) {
     ST.tab = 'home';
     ST.currentPage = null;
     renderCurrentPage();
-    if(!ST.profileSetupComplete) setTimeout(() => showVendorOnboarding(), 800);
-  } else if(role === 'vendor' && vendorId && alreadyInDash) {
-    // Already on dashboard — just re-render to update nav, don't reset tab
-    renderBottom();
-    renderSidebar();
+    if(!ST.profileSetupComplete && !ST._onboardingShownThisSession) {
+      ST._onboardingShownThisSession = true;
+      setTimeout(() => showVendorOnboarding(), 800);
+    }
   } else if(isFreshLogin) {
     renderMe();
   } else {
@@ -13893,6 +13879,7 @@ async function saveWeeklyUpdate() {
   }
   document.getElementById('weeklyUpdateOverlay')?.remove();
   showToast('Update posted ✓');
+  setTimeout(function(){ showPostUpdateSharePrompt(text); }, 400);
 }
 
 async function removeWeeklyUpdate() {
@@ -13908,6 +13895,321 @@ async function removeWeeklyUpdate() {
   document.getElementById('weeklyUpdateOverlay')?.remove();
   showToast('Update removed ✓');
 }
+
+
+/* -- SHARE & PROMOTE -- v1.73.5 */
+
+window._wShare = {};
+
+function _shareFB(k) {
+  var t = window._wShare[k] || "";
+  if(!t) return;
+  window.open("https://www.facebook.com/sharer/sharer.php?quote=" + encodeURIComponent(t) + "&u=https://shopwindmill.com", "_blank");
+}
+function _copyIG(k) {
+  var t = window._wShare[k] || "";
+  if(!t) return;
+  copyForInstagram(t);
+}
+function openFacebookShare(text) {
+  window.open("https://www.facebook.com/sharer/sharer.php?quote=" + encodeURIComponent(text) + "&u=https://shopwindmill.com", "_blank");
+}
+function copyForInstagram(text) {
+  if(navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text)
+      .then(function(){ showToast("Caption copied! Open Instagram and paste."); })
+      .catch(function(){ _clipboardFallback(text); });
+  } else {
+    _clipboardFallback(text);
+  }
+}
+function _clipboardFallback(text) {
+  var ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;";
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try {
+    document.execCommand("copy");
+    showToast("Caption copied! Open Instagram and paste.");
+  } catch(e) {
+    showToast("Copy failed — please copy manually", "var(--terra)");
+  }
+  document.body.removeChild(ta);
+}
+
+// ── Navigate away from share modal cleanly ──
+function _shareNav(modalId, action) {
+  var el = document.getElementById(modalId);
+  if(el) el.remove();
+  if(action === "products") { ST.tab = "following"; ST.currentPage = null; renderCurrentPage(); }
+  else if(action === "schedule") { ST.tab = "markets"; ST.currentPage = null; renderCurrentPage(); }
+  else if(action === "update") { showWeeklyUpdateModal(); }
+  else if(action === "op-markets") { ST.tab = "markets"; ST.currentPage = null; renderCurrentPage(); }
+  else if(action === "op-announce") { ST.tab = "following"; ST.currentPage = null; renderCurrentPage(); }
+}
+
+// ── Generic share overlay (post update / operator announcement) ──
+function _makeShareOverlay(overlayId, title, subtext, fbKey, igKey) {
+  var el = document.createElement("div");
+  el.id = overlayId;
+  el.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10001;display:flex;align-items:flex-end;justify-content:center;padding:16px";
+  el.innerHTML = ""
+    + "<div style=\"background:var(--surface);border-radius:var(--r-lg) var(--r-lg) 0 0;width:100%;max-width:480px;padding:24px 20px 32px\">"
+    + "<div style=\"display:flex;align-items:center;justify-content:space-between;margin-bottom:6px\">"
+    + "<div style=\"font-family:var(--font-serif);font-size:17px;font-weight:600;color:var(--text)\">" + title + "</div>"
+    + "<button onclick=\"document.getElementById('" + overlayId + "').remove()\" style=\"background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3)\">x</button>"
+    + "</div>"
+    + "<div style=\"font-size:12px;color:var(--text2);margin-bottom:20px\">" + subtext + "</div>"
+    + "<div style=\"display:flex;gap:10px\">"
+    + "<button onclick=\"_shareFB('" + fbKey + "');document.getElementById('" + overlayId + "').remove()\" style=\"flex:1;padding:12px;background:#EBF1FB;color:#1877F2;border:0.5px solid #1877F2;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)\">Share to Facebook</button>"
+    + "<button onclick=\"_copyIG('" + igKey + "');document.getElementById('" + overlayId + "').remove()\" style=\"flex:1;padding:12px;background:#FDF0F5;color:#E1306C;border:0.5px solid #E1306C;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)\">Copy for Instagram</button>"
+    + "</div>"
+    + "<button onclick=\"document.getElementById('" + overlayId + "').remove()\" style=\"width:100%;margin-top:10px;padding:9px;background:transparent;color:var(--text2);border:none;font-size:12px;cursor:pointer;font-family:var(--font-sans)\">Skip for now</button>"
+    + "</div>";
+  document.body.appendChild(el);
+  el.addEventListener("click", function(e){ if(e.target === el) el.remove(); });
+}
+
+// ── Generic modal row ──
+function _makeShareModalRow(label, hasCont, addLabel, navAction, fbKey, igKey, modalId) {
+  if(hasCont) {
+    return "<div style=\"padding:14px 0;border-bottom:0.5px solid var(--border)\">"
+      + "<div style=\"font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px\">" + label + "</div>"
+      + "<div style=\"display:flex;gap:8px\">"
+      + "<button onclick=\"_shareFB('" + fbKey + "')\" style=\"flex:1;padding:9px;background:#EBF1FB;color:#1877F2;border:0.5px solid #1877F2;border-radius:var(--r-md);font-size:12px;cursor:pointer;font-weight:500;font-family:var(--font-sans)\">Facebook</button>"
+      + "<button onclick=\"_copyIG('" + igKey + "')\" style=\"flex:1;padding:9px;background:#FDF0F5;color:#E1306C;border:0.5px solid #E1306C;border-radius:var(--r-md);font-size:12px;cursor:pointer;font-weight:500;font-family:var(--font-sans)\">Instagram</button>"
+      + "</div></div>";
+  } else {
+    return "<div style=\"padding:14px 0;border-bottom:0.5px solid var(--border)\">"
+      + "<div style=\"font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px\">" + label + "</div>"
+      + "<div style=\"font-size:12px;color:var(--text3);margin-bottom:8px\">Nothing to share yet.</div>"
+      + "<button onclick=\"_shareNav('" + modalId + "','" + navAction + "')\" style=\"padding:7px 14px;background:var(--surface2);color:var(--text2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-family:var(--font-sans)\">" + addLabel + "</button>"
+      + "</div>";
+  }
+}
+
+// ── Build schedule share section (injected into schedule page) ──
+function buildVendorScheduleShareSection(marketIds) {
+  if(!marketIds || !marketIds.length) {
+    return "<div class=\"dash-section\"><div style=\"font-size:13px;color:var(--text2);text-align:center;padding:8px 0\">No markets on your schedule yet. <span onclick=\"ST.sub='markets';ST.currentPage=null;renderCurrentPage()\" style=\"color:var(--green-dk);cursor:pointer;text-decoration:underline\">Add your markets</span> to share your schedule.</div></div>";
+  }
+  return "<div class=\"dash-section\">"
+    + "<div class=\"dash-section-title\">Share your schedule</div>"
+    + "<p style=\"font-size:13px;color:var(--text2);margin-bottom:12px\">Let your followers know where you will be this week.</p>"
+    + "<div style=\"display:flex;gap:8px\">"
+    + "<button onclick=\"shareVendorScheduleToFacebook()\" style=\"flex:1;padding:10px;background:#EBF1FB;color:#1877F2;border:0.5px solid #1877F2;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)\">Share to Facebook</button>"
+    + "<button onclick=\"copyVendorScheduleForInstagram()\" style=\"flex:1;padding:10px;background:#FDF0F5;color:#E1306C;border:0.5px solid #E1306C;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)\">Copy for Instagram</button>"
+    + "</div></div>";
+}
+
+// ── Vendor share text (schedule + update only — products fetched async) ──
+function vendorShareTextSync(type, vendorId, v, products) {
+  var slug = v.slug || vendorId;
+  var link = "shopwindmill.com/vendors/" + slug;
+  var hashtags = "#swflfarmersmarket #shoplocal #fortmyers #farmersmarket";
+  if(type === "schedule") {
+    var marketIds = v.markets || [];
+    if(!marketIds.length) return { fb: "", ig: "" };
+    var lines = marketIds.map(function(id){
+      var m = getMarket(id); if(!m) return null;
+      var day = getNextMarketDay(m);
+      var time = formatTimeRange(m.start_time, m.end_time);
+      return day + "s at " + m.name + (time ? ", " + time : "") + " - " + m.city;
+    }).filter(Boolean);
+    if(!lines.length) return { fb: "", ig: "" };
+    return {
+      fb: "Find us at the market this week!\n\n" + lines.join("\n") + "\n\nFollow us on Windmill -> " + link,
+      ig: "Find us at the market this week!\n\n" + lines.join("\n") + "\n\nFollow us on Windmill -> " + link + "\n\n" + hashtags
+    };
+  }
+  if(type === "products") {
+    if(!products || !products.length) return { fb: "", ig: "" };
+    var productLine = products.slice(0,5).map(function(p){ return p.name || ""; }).filter(Boolean).join(", ");
+    if(!productLine) return { fb: "", ig: "" };
+    return {
+      fb: "Here's what " + v.name + " is bringing to the market\n\n" + productLine + "\n\nSee our catalog -> " + link,
+      ig: "Here's what we're bringing to the market\n\n" + productLine + "\n\nShop our catalog -> " + link + "\n\n" + hashtags
+    };
+  }
+  if(type === "update") {
+    var update = v.weekly_update ? (typeof v.weekly_update === "object" ? v.weekly_update.text : v.weekly_update) : "";
+    if(!update) return { fb: "", ig: "" };
+    return {
+      fb: update + "\n\nFollow " + v.name + " on Windmill -> " + link,
+      ig: update + "\n\nFollow us on Windmill -> " + link + "\n\n" + hashtags
+    };
+  }
+  return { fb: "", ig: "" };
+}
+
+// Keep vendorShareText for contextual schedule/update buttons (no products needed)
+function vendorShareText(type) {
+  var vendorId = ST.vendorId;
+  var v = vendorId ? DATA.vendors.find(function(x){ return x.id === vendorId; }) : null;
+  if(!v) return { fb: "", ig: "" };
+  return vendorShareTextSync(type, vendorId, v, []);
+}
+
+// ── Contextual share buttons ──
+function shareVendorScheduleToFacebook() {
+  var t = vendorShareText("schedule");
+  if(!t.fb) { showToast("Add markets to your schedule first", "var(--terra)"); return; }
+  openFacebookShare(t.fb);
+}
+function copyVendorScheduleForInstagram() {
+  var t = vendorShareText("schedule");
+  if(!t.ig) { showToast("Add markets to your schedule first", "var(--terra)"); return; }
+  copyForInstagram(t.ig);
+}
+async function shareVendorProductsToFacebook() {
+  var vendorId = ST.vendorId;
+  var v = vendorId ? DATA.vendors.find(function(x){ return x.id === vendorId; }) : null;
+  if(!v) { showToast("Could not identify vendor", "var(--terra)"); return; }
+  var products = await loadVendorProductsDash(vendorId);
+  var t = vendorShareTextSync("products", vendorId, v, products);
+  if(!t.fb) { showToast("Add products to your catalog first", "var(--terra)"); return; }
+  openFacebookShare(t.fb);
+}
+async function copyVendorProductsForInstagram() {
+  var vendorId = ST.vendorId;
+  var v = vendorId ? DATA.vendors.find(function(x){ return x.id === vendorId; }) : null;
+  if(!v) { showToast("Could not identify vendor", "var(--terra)"); return; }
+  var products = await loadVendorProductsDash(vendorId);
+  var t = vendorShareTextSync("products", vendorId, v, products);
+  if(!t.ig) { showToast("Add products to your catalog first", "var(--terra)"); return; }
+  copyForInstagram(t.ig);
+}
+
+// ── Post update share prompt ──
+function showPostUpdateSharePrompt(updateText) {
+  var vendorId = ST.vendorId;
+  var v = vendorId ? DATA.vendors.find(function(x){ return x.id === vendorId; }) : null;
+  var slug = v ? (v.slug || vendorId) : vendorId;
+  var name = v ? v.name : "us";
+  var link = "shopwindmill.com/vendors/" + slug;
+  var hashtags = "#swflfarmersmarket #shoplocal #fortmyers #farmersmarket";
+  window._wShare.promptFB = updateText + "\n\nFollow " + name + " on Windmill -> " + link;
+  window._wShare.promptIG = updateText + "\n\nFollow us on Windmill -> " + link + "\n\n" + hashtags;
+  _makeShareOverlay("sharePromptOverlay", "Share your update", "Let your followers know on social media", "promptFB", "promptIG");
+}
+
+// ── Vendor share modal (async — fetches products from Supabase) ──
+async function showVendorShareModal() {
+  var vendorId = ST.vendorId;
+  var v = vendorId ? DATA.vendors.find(function(x){ return x.id === vendorId; }) : null;
+  if(!v && vendorId && supabaseClient) {
+    try {
+      var res = await supabaseClient.from('vendors').select('id,name,slug,markets,pro,trial_start,weekly_update').eq('id',vendorId).single();
+      if(res.data) { v = res.data; DATA.vendors.push(v); }
+    } catch(e) {}
+  }
+  if(!v) { showToast("Could not identify vendor", "var(--terra)"); return; }
+  var hasSchedule = !!(v.markets && v.markets.length);
+  var hasUpdate = !!(v.weekly_update);
+  var products = await loadVendorProductsDash(vendorId);
+  var hasProducts = products && products.length > 0;
+  var sched = vendorShareTextSync("schedule", vendorId, v, []);
+  var prod  = vendorShareTextSync("products", vendorId, v, products);
+  var upd   = vendorShareTextSync("update",   vendorId, v, []);
+  window._wShare.vSchedFB = sched.fb; window._wShare.vSchedIG = sched.ig;
+  window._wShare.vProdFB  = prod.fb;  window._wShare.vProdIG  = prod.ig;
+  window._wShare.vUpdFB   = upd.fb;   window._wShare.vUpdIG   = upd.ig;
+  var mid = "vendorShareModalOverlay";
+  var el = document.createElement("div");
+  el.id = mid;
+  el.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10001;display:flex;align-items:flex-end;justify-content:center;padding:16px";
+  el.innerHTML = ""
+    + "<div style=\"background:var(--surface);border-radius:var(--r-lg) var(--r-lg) 0 0;width:100%;max-width:480px;padding:24px 20px 32px;max-height:80vh;overflow-y:auto\">"
+    + "<div style=\"display:flex;align-items:center;justify-content:space-between;margin-bottom:4px\">"
+    + "<div style=\"font-family:var(--font-serif);font-size:17px;font-weight:600;color:var(--text)\">Share your page</div>"
+    + "<button onclick=\"document.getElementById('" + mid + "').remove()\" style=\"background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3)\">x</button>"
+    + "</div>"
+    + "<div style=\"font-size:12px;color:var(--text2);margin-bottom:16px\">Post updates to Facebook & Instagram</div>"
+    + _makeShareModalRow("My Schedule", hasSchedule, "Add your schedule ->", "schedule", "vSchedFB", "vSchedIG", mid)
+    + _makeShareModalRow("My Products", hasProducts, "Add your products ->", "products", "vProdFB",  "vProdIG",  mid)
+    + _makeShareModalRow("Weekly Update", hasUpdate, "Post a weekly update ->", "update", "vUpdFB",  "vUpdIG",   mid)
+    + "</div>";
+  document.body.appendChild(el);
+  el.addEventListener("click", function(e){ if(e.target === el) el.remove(); });
+}
+
+// ── Operator share text ──
+function operatorShareText(type) {
+  var opId = ST.operatorId;
+  var op = DATA.operators ? DATA.operators.find(function(o){ return o.id === opId; }) : null;
+  var myMarkets = DATA.markets.filter(function(m){ return m.operator_id === opId; });
+  var hashtags = "#swflfarmersmarket #shoplocal #fortmyers #farmersmarket";
+  var slug = op ? (op.slug || opId) : (opId || "");
+  var link = "shopwindmill.com/operators/" + slug;
+  if(type === "markets") {
+    if(!myMarkets.length) return { fb: "", ig: "" };
+    var lines = myMarkets.slice(0,3).map(function(m){
+      var day = getNextMarketDay(m);
+      var time = formatTimeRange(m.start_time, m.end_time);
+      return m.name + " - " + day + "s" + (time ? " " + time : "") + " - " + m.city;
+    });
+    return {
+      fb: "Come visit us at the market this week!\n\n" + lines.join("\n") + "\n\nFind all our markets -> " + link,
+      ig: "Come visit us at the market this week!\n\n" + lines.join("\n") + "\n\nFind us on Windmill -> " + link + "\n\n" + hashtags
+    };
+  }
+  if(type === "announcement") {
+    var text = op && op.announcement ? op.announcement.text : "";
+    if(!text) return { fb: "", ig: "" };
+    return {
+      fb: text + "\n\nFind our markets on Windmill -> " + link,
+      ig: text + "\n\nFind us on Windmill -> " + link + "\n\n" + hashtags
+    };
+  }
+  return { fb: "", ig: "" };
+}
+
+// ── Operator announcement share prompt ──
+function showOperatorAnnouncementSharePrompt(announcementText) {
+  var opId = ST.operatorId;
+  var op = DATA.operators ? DATA.operators.find(function(o){ return o.id === opId; }) : null;
+  var slug = op ? (op.slug || opId) : (opId || "");
+  var link = "shopwindmill.com/operators/" + slug;
+  var hashtags = "#swflfarmersmarket #shoplocal #fortmyers #farmersmarket";
+  window._wShare.opAnnFB = announcementText + "\n\nFind our markets on Windmill -> " + link;
+  window._wShare.opAnnIG = announcementText + "\n\nFind us on Windmill -> " + link + "\n\n" + hashtags;
+  _makeShareOverlay("opSharePromptOverlay", "Share your announcement", "Let your followers know on social media", "opAnnFB", "opAnnIG");
+}
+
+// ── Operator share modal ──
+function showOperatorShareModal() {
+  var opId = ST.operatorId;
+  var op = DATA.operators ? DATA.operators.find(function(o){ return o.id === opId; }) : null;
+  var myMarkets = DATA.markets.filter(function(m){ return m.operator_id === opId; });
+  var hasMarkets = myMarkets.length > 0;
+  var hasAnnouncement = !!(op && op.announcement && op.announcement.text);
+  var mkts = operatorShareText("markets");
+  var ann  = operatorShareText("announcement");
+  window._wShare.opMktsFB  = mkts.fb; window._wShare.opMktsIG  = mkts.ig;
+  window._wShare.opAnnFB2  = ann.fb;  window._wShare.opAnnIG2  = ann.ig;
+  var mid = "operatorShareModalOverlay";
+  var el = document.createElement("div");
+  el.id = mid;
+  el.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10001;display:flex;align-items:flex-end;justify-content:center;padding:16px";
+  el.innerHTML = ""
+    + "<div style=\"background:var(--surface);border-radius:var(--r-lg) var(--r-lg) 0 0;width:100%;max-width:480px;padding:24px 20px 32px;max-height:80vh;overflow-y:auto\">"
+    + "<div style=\"display:flex;align-items:center;justify-content:space-between;margin-bottom:4px\">"
+    + "<div style=\"font-family:var(--font-serif);font-size:17px;font-weight:600;color:var(--text)\">Share your page</div>"
+    + "<button onclick=\"document.getElementById('" + mid + "').remove()\" style=\"background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3)\">x</button>"
+    + "</div>"
+    + "<div style=\"font-size:12px;color:var(--text2);margin-bottom:16px\">Post updates to Facebook & Instagram</div>"
+    + _makeShareModalRow("This week's markets", hasMarkets, "View your markets ->", "op-markets", "opMktsFB", "opMktsIG", mid)
+    + _makeShareModalRow("Active announcement", hasAnnouncement, "Post an announcement ->", "op-announce", "opAnnFB2", "opAnnIG2", mid)
+    + "</div>";
+  document.body.appendChild(el);
+  el.addEventListener("click", function(e){ if(e.target === el) el.remove(); });
+}
+
+/* -- END SHARE & PROMOTE -- */
+
+
 
 function collapseSection(id) {
   const body = document.getElementById('cs_' + id);
@@ -13997,14 +14299,14 @@ function renderVendorProfileEdit() {
     <div style="padding:0 0 12px">
       <div style="font-size:12px;color:var(--text2);margin-bottom:12px">${gallery.length} of ${maxPhotos} photos · Shown on your public profile</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-        ${gallery.map((photo,idx)=>{const url=typeof photo==='object'?photo.url:photo;const cap=typeof photo==='object'?(photo.caption||''):'';return `<div style="border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;background:var(--surface)"><div style="height:100px;background:var(--surface2);position:relative;display:flex;align-items:center;justify-content:center"><img src="${url}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'"><button onclick="deleteGalleryPhoto(${idx})" style="position:absolute;top:4px;right:4px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);padding:3px 8px;font-size:11px;cursor:pointer;font-weight:500;z-index:2;font-family:var(--font-sans)">Delete</button><span style="font-size:11px;color:var(--text3);z-index:1">📷</span></div><div style="padding:6px 8px"><input type="text" value="${cap}" placeholder="Add a caption..." onchange="updateGalleryCaption(${idx},this.value)" style="width:100%;border:none;background:transparent;font-size:11px;color:var(--text2);font-family:var(--font-sans);outline:none;box-sizing:border-box"><div style="margin-top:4px;font-size:10px;color:var(--text3)">📘 Share to Facebook — coming soon</div></div></div>`;}).join('')}
+        ${gallery.map((photo,idx)=>{const url=typeof photo==='object'?photo.url:photo;const cap=typeof photo==='object'?(photo.caption||''):'';return `<div style="border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;background:var(--surface)"><div style="height:100px;background:var(--surface2);position:relative;display:flex;align-items:center;justify-content:center"><img src="${url}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'"><button onclick="deleteGalleryPhoto(${idx})" style="position:absolute;top:4px;right:4px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);padding:3px 8px;font-size:11px;cursor:pointer;font-weight:500;z-index:2;font-family:var(--font-sans)">Delete</button><span style="font-size:11px;color:var(--text3);z-index:1">📷</span></div><div style="padding:6px 8px"><input type="text" value="${cap}" placeholder="Add a caption..." onchange="updateGalleryCaption(${idx},this.value)" style="width:100%;border:none;background:transparent;font-size:11px;color:var(--text2);font-family:var(--font-sans);outline:none;box-sizing:border-box"></div></div>`;}).join('')}
       </div>
       ${gallery.length < maxPhotos ? `<button onclick="document.getElementById('galleryPhotoInput').click()" style="width:100%;padding:10px;background:var(--surface2);color:var(--text2);border:0.5px dashed var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans)">+ Add photo (${gallery.length}/${maxPhotos})</button><input type="file" id="galleryPhotoInput" accept="image/jpeg,image/png,image/webp,image/heic" style="display:none" onchange="addGalleryPhoto(this)">` : `<div style="text-align:center;font-size:12px;color:var(--text3);padding:8px">${v?.pro?'Maximum 10 photos reached':'Maximum 5 photos reached · Upgrade to Pro for 10 photos'}</div>`}
     </div>` : `<div style="padding:0 0 12px"><div class="pro-lock"><span style="font-size:20px">🔒</span><div class="pro-lock-text"><div class="pro-lock-title">Photo Gallery is a Pro feature</div><div class="pro-lock-sub">Add up to 5 photos during your free trial.</div></div><button class="pro-lock-btn" onclick="navigate('vendors-join')">Upgrade</button></div></div>`;
 
-  const brandingContent = `<div style="padding:0 0 12px">${isPro?`<div style="background:var(--surface2);border-radius:var(--r-md);padding:16px;text-align:center"><div style="font-size:24px;margin-bottom:8px">🎨</div><div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:4px">Branding tools coming soon</div><div style="font-size:12px;color:var(--text2)">Logo upload, brand colors — included in your Pro plan.</div></div>`:`<div class="pro-lock"><span style="font-size:20px">🔒</span><div class="pro-lock-text"><div class="pro-lock-title">Branding is a Pro feature</div><div class="pro-lock-sub">Add your logo and brand colors.</div></div><button class="pro-lock-btn" onclick="navigate('vendors-join')">Upgrade</button></div>`}</div>`;
-
-  const igContent = `<div style="padding:0 0 12px">${isPro?`<div style="background:var(--surface2);border-radius:var(--r-md);padding:16px;text-align:center"><div style="font-size:24px;margin-bottom:8px">📸</div><div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:4px">Instagram feed coming soon</div><div style="font-size:12px;color:var(--text2)">Auto-pull your latest posts — included in your Pro plan.</div></div>`:`<div class="pro-lock"><span style="font-size:20px">🔒</span><div class="pro-lock-text"><div class="pro-lock-title">Instagram Feed is a Pro feature</div><div class="pro-lock-sub">Auto-pull your latest Instagram posts.</div></div><button class="pro-lock-btn" onclick="navigate('vendors-join')">Upgrade</button></div>`}</div>`;
+  // HIDDEN v1.73.2 — Branding and Instagram Feed not yet built; restore when features are live
+  // const brandingContent = ...
+  // const igContent = ...
 
   const proBadge = `<span style="font-size:10px;padding:2px 8px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill);font-weight:500">✓ Pro</span>`;
   const lockBadge = `<span style="font-size:10px;color:var(--text3)">🔒 Pro</span>`;
@@ -14019,8 +14321,7 @@ function renderVendorProfileEdit() {
     ${collapsibleSection('links', isPro?'Links & Social':'Your Link', linksContent, isPro?proBadge:'', false)}
     ${collapsibleSection('schedule','Market Schedule', scheduleContent, '', false)}
     ${collapsibleSection('gallery','Photo Gallery', galleryContent, isPro?proBadge:lockBadge, false)}
-    ${collapsibleSection('branding','Branding', brandingContent, isPro?proBadge:lockBadge, false)}
-    ${collapsibleSection('ig','Instagram Feed', igContent, isPro?proBadge:lockBadge, false)}
+    ${''}<!-- HIDDEN v1.73.2 — Branding and Instagram Feed sections removed until features are built -->
 
     <div style="padding:8px 0 32px">
       <button onclick="saveVendorProfile()" style="width:100%;padding:14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:15px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Save changes</button>
@@ -14418,6 +14719,8 @@ async function renderVendorSchedule() {
       <button onclick="navigate('explore')" style="width:100%;margin-top:12px;padding:10px;background:var(--surface2);color:var(--text2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans)">+ Edit my market schedule</button>
     </div>
 
+    ${isPro ? buildVendorScheduleShareSection(marketIds) : ''}
+
     <!-- WEEKLY UPDATE POSTS -->
     <div class="dash-section">
       <div class="dash-section-title" style="display:flex;align-items:center;justify-content:space-between">
@@ -14480,6 +14783,10 @@ async function renderVendorProducts() {
         +'</p>'
         +'<div id="dashProductGrid"><div style="text-align:center;padding:16px;color:var(--text2);font-size:13px">Loading...</div></div>'
         +'<button class="product-add-btn" onclick="openProductModal(null,\''+vendorId+'\','+isTrial+')" style="margin-top:12px">+ Add a product</button>'
+      +'<div id="productShareBtns" style="display:none;margin-top:12px;gap:8px">'
+      +'<button onclick="shareVendorProductsToFacebook()" style="flex:1;padding:10px;background:#EBF1FB;color:#1877F2;border:0.5px solid #1877F2;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Share to Facebook</button>'
+      +'<button onclick="copyVendorProductsForInstagram()" style="flex:1;padding:10px;background:#FDF0F5;color:#E1306C;border:0.5px solid #E1306C;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Copy for Instagram</button>'
+      +'</div>'
       :'<div class="pro-lock"><span style="font-size:20px">🔒</span><div class="pro-lock-text"><div class="pro-lock-title">Product Catalog is a Pro feature</div><div class="pro-lock-sub">Add products and prices. Customers can browse before visiting the market.</div></div><button class="pro-lock-btn" onclick="navigate(\'vendors-join\')">Upgrade</button></div>'
         +'<div style="text-align:center;padding:20px 0"><div style="font-size:32px;margin-bottom:8px">📦</div><div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:12px">Upgrade to showcase your products</div><button onclick="navigate(\'vendors-join\')" style="padding:8px 20px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:13px;cursor:pointer;font-weight:500">Start free trial</button></div>'
     )
@@ -14489,9 +14796,12 @@ async function renderVendorProducts() {
     var products = await loadVendorProductsDash(vendorId);
     var grid = document.getElementById('dashProductGrid');
     if(grid) {
+      var shareDiv = document.getElementById('productShareBtns');
       if(!products.length) {
         grid.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text2);font-size:13px">No products yet — add your first one below.</div>';
+        if(shareDiv) shareDiv.style.display = 'none';
       } else {
+        if(shareDiv) shareDiv.style.display = 'flex';
         var html = '<div class="product-grid">';
         products.forEach(function(p){
           var pJson = JSON.stringify(p).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
@@ -15363,6 +15673,7 @@ async function saveOperatorAnnouncement() {
       await supabaseClient.from('operators').update({ announcement }).eq('id', opId);
       showToast('Announcement posted ✓');
       renderOperatorAnnouncements();
+      setTimeout(function(){ showOperatorAnnouncementSharePrompt(announcement.text); }, 400);
     } catch(e) {
       console.warn('Operator announcement save failed:', e);
       showToast('Save failed — please try again', 'var(--terra)');
