@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.73.6 -->
+<!-- v1.73.10 -->
 <!-- v1.71.10 -->
 <!-- v1.71.9 -->
 <!-- v1.71.8 -->
@@ -2131,7 +2131,21 @@ function getMarketCardLabel(m) {
 
 // Returns true if a market runs on the given day name.
 function marketHasDay(m, dayName) {
-  return getMarketDays(m).includes(dayName);
+  if(!getMarketDays(m).includes(dayName)) return false;
+  // If monthly frequency, check that today falls on the correct week of month
+  if(m.frequency && m.frequency.startsWith('monthly-')) {
+    const today = new Date();
+    const dayOfMonth = today.getDate();
+    const weekOfMonth = Math.ceil(dayOfMonth / 7);
+    if(m.frequency === 'monthly-last') {
+      const daysInMonth = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate();
+      return dayOfMonth > daysInMonth - 7;
+    }
+    const freqMap = {'monthly-1st':1,'monthly-2nd':2,'monthly-3rd':3,'monthly-4th':4};
+    const required = freqMap[m.frequency];
+    if(required) return weekOfMonth === required;
+  }
+  return true;
 }
 
 // Returns the soonest upcoming day name for a market, relative to today.
@@ -8503,7 +8517,7 @@ async function renderShopperProfileCard(profile) {
       <div style="padding:12px 14px;border-bottom:0.5px solid var(--border)">
         <div style="font-size:11px;color:var(--text3);margin-bottom:5px">📲 Phone — get market day text alerts</div>
         <div style="display:flex;align-items:center;gap:10px">
-          <input id="spPhone" value="${phone}" placeholder="(239) 555-0100" type="tel" style="flex:1;padding:8px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--surface2);color:var(--text)" oninput="(function(el){let v=el.value.replace(/\D/g,'').slice(0,10);if(v.length>=7)v='('+v.slice(0,3)+') '+v.slice(3,6)+'-'+v.slice(6);else if(v.length>=4)v='('+v.slice(0,3)+') '+v.slice(3);else if(v.length>0)v='('+v;el.value=v;})(this)">
+          <input id="spPhone" value="${phone.replace(/\D/g,'')}" placeholder="(239) 555-0100" type="tel" style="flex:1;padding:8px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--surface2);color:var(--text)" oninput="(function(el){let v=el.value.replace(/\D/g,'').slice(0,10);if(v.length>=7)v='('+v.slice(0,3)+') '+v.slice(3,6)+'-'+v.slice(6);else if(v.length>=4)v='('+v.slice(0,3)+') '+v.slice(3);else if(v.length>0)v='('+v;el.value=v;})(this)">
           <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
             <span style="font-size:11px;color:var(--text2);white-space:nowrap">Text alerts</span>
             <div id="spSmsToggle" class="toggle ${smsOptIn?'on':''}" onclick="this.classList.toggle('on')" style="flex-shrink:0"><div class="toggle-thumb"></div></div>
@@ -9920,6 +9934,18 @@ async function renderVendorDash() {
   document.title = 'Vendor Dashboard | Windmill';
 
   const vendorId = ST.vendorId;
+
+  // Fresh fetch from Supabase so gallery, captions, and all recent saves are always current
+  if(vendorId && supabaseClient && window.location.protocol !== 'file:') {
+    try {
+      const { data: freshVendor } = await supabaseClient.from('vendors').select('*').eq('id', vendorId).single();
+      if(freshVendor && freshVendor.id) {
+        const idx = DATA.vendors.findIndex(x => x.id === vendorId);
+        if(idx > -1) DATA.vendors[idx] = { ...DATA.vendors[idx], ...freshVendor };
+      }
+    } catch(e) { /* non-fatal — fall back to cached data */ }
+  }
+
   const v = vendorId ? applyVendorProState(DATA.vendors.find(x => x.id === vendorId)) : null;
 
   // Recompute trial status live on every render — catches in-session expiry
@@ -10338,7 +10364,7 @@ function renderAdminPanel() {
     let vFiltered = DATA.vendors.filter(v => {
       if(ST.adminVendorInactiveOnly && v.published !== false) return false;
       const trialStart = v.trial_start ? new Date(v.trial_start) : null;
-      const trialExpiry = trialStart ? new Date(trialStart.getTime() + 180*24*60*60*1000) : null;
+      const trialExpiry = trialStart ? (()=>{ const d=new Date(trialStart); d.setMonth(d.getMonth()+6); return d; })() : null;
       const daysLeft = trialExpiry ? Math.max(0, Math.ceil((trialExpiry - new Date()) / (24*60*60*1000))) : null;
       const onTrial = trialStart && !v.pro && daysLeft !== null && daysLeft > 0;
       const tier = v.pro ? 'pro' : onTrial ? 'trial' : 'free';
@@ -10398,7 +10424,7 @@ function renderAdminPanel() {
     <div class="admin-table" id="adminVendorTable">`;
     vSlice.forEach(v => {
       const trialStart = v.trial_start ? new Date(v.trial_start) : null;
-      const trialExpiry = trialStart ? new Date(trialStart.getTime() + 180*24*60*60*1000) : null;
+      const trialExpiry = trialStart ? (()=>{ const d=new Date(trialStart); d.setMonth(d.getMonth()+6); return d; })() : null;
       const daysLeft = trialExpiry ? Math.max(0, Math.ceil((trialExpiry - new Date()) / (24*60*60*1000))) : null;
       const onTrial = trialStart && !v.pro && daysLeft !== null && daysLeft > 0;
       const trialExpired = trialStart && !v.pro && daysLeft !== null && daysLeft === 0;
@@ -10459,7 +10485,7 @@ function renderAdminPanel() {
         const hasPro = vendors.some(v=>v.pro);
         const hasTrial = vendors.some(v=>{
           const ts=v.trial_start?new Date(v.trial_start):null;
-          const exp=ts?new Date(ts.getTime()+180*24*60*60*1000):null;
+          const exp=ts?(()=>{ const d=new Date(ts); d.setMonth(d.getMonth()+6); return d; })():null;
           return ts&&!v.pro&&exp&&new Date()<exp;
         });
         if(ST.adminMarketTier==='pro' && !hasPro) return false;
@@ -14827,7 +14853,7 @@ function renderVendorSettings() {
   const isPro = v?.pro || ST.isProTrial;
   const isTrial = !v?.pro && ST.isProTrial;
   const trialStart = ST.trialStart;
-  const trialExpiry = trialStart ? new Date(new Date(trialStart).getTime() + 180*24*60*60*1000) : null;
+  const trialExpiry = trialStart ? (()=>{ const d=new Date(trialStart); d.setMonth(d.getMonth()+6); return d; })() : null;
   const daysLeft = trialExpiry ? Math.max(0, Math.ceil((trialExpiry - new Date()) / (24*60*60*1000))) : null;
   const chevron = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
   const initials2 = (v?.name || ST.user?.email || 'V').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
