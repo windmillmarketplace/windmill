@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.73.10 -->
+<!-- v1.73.11 -->
 <!-- v1.71.10 -->
 <!-- v1.71.9 -->
 <!-- v1.71.8 -->
@@ -1124,7 +1124,23 @@ async function loadFromSupabase() {
         if(!vmMap[vm.vendor_id]) vmMap[vm.vendor_id] = [];
         vmMap[vm.vendor_id].push(vm.market_id);
       });
-      vendors.forEach(v => { v.markets = vmMap[v.id] || []; });
+      vendors.forEach(v => {
+        v.markets = vmMap[v.id] || [];
+        // Normalize gallery on load — Supabase may return it as a JSON string,
+        // or as an array whose items are JSON strings. Convert back to a clean
+        // array of {url, caption} objects so the vendor dashboard, the public
+        // page, and the add/delete/caption handlers all read the same shape.
+        if(v.gallery) {
+          let g = v.gallery;
+          if(typeof g === 'string') { try { g = JSON.parse(g); } catch(e) { g = []; } }
+          if(!Array.isArray(g)) g = [];
+          v.gallery = g.map(p => {
+            if(typeof p === 'string' && p.startsWith('{')) { try { return JSON.parse(p); } catch(e) { return {url:p,caption:''}; } }
+            if(typeof p === 'string') return { url: p, caption: '' };
+            return p;
+          });
+        }
+      });
 
       DATA.operators = operators || DATA.operators;
       DATA.markets = markets || DATA.markets;
@@ -8517,7 +8533,7 @@ async function renderShopperProfileCard(profile) {
       <div style="padding:12px 14px;border-bottom:0.5px solid var(--border)">
         <div style="font-size:11px;color:var(--text3);margin-bottom:5px">📲 Phone — get market day text alerts</div>
         <div style="display:flex;align-items:center;gap:10px">
-          <input id="spPhone" value="${phone.replace(/\D/g,'')}" placeholder="(239) 555-0100" type="tel" style="flex:1;padding:8px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--surface2);color:var(--text)" oninput="(function(el){let v=el.value.replace(/\D/g,'').slice(0,10);if(v.length>=7)v='('+v.slice(0,3)+') '+v.slice(3,6)+'-'+v.slice(6);else if(v.length>=4)v='('+v.slice(0,3)+') '+v.slice(3);else if(v.length>0)v='('+v;el.value=v;})(this)">
+          <input id="spPhone" value="${phone.replace(/[^0-9]/g,'')}" placeholder="(239) 555-0100" type="tel" style="flex:1;padding:8px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--surface2);color:var(--text)" oninput="(function(el){let v=el.value.replace(/[^0-9]/g,'').slice(0,10);if(v.length>=7)v='('+v.slice(0,3)+') '+v.slice(3,6)+'-'+v.slice(6);else if(v.length>=4)v='('+v.slice(0,3)+') '+v.slice(3);else if(v.length>0)v='('+v;el.value=v;})(this)">
           <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
             <span style="font-size:11px;color:var(--text2);white-space:nowrap">Text alerts</span>
             <div id="spSmsToggle" class="toggle ${smsOptIn?'on':''}" onclick="this.classList.toggle('on')" style="flex-shrink:0"><div class="toggle-thumb"></div></div>
