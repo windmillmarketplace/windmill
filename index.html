@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.73.12 -->
+<!-- v1.73.14 -->
 <!-- v1.71.10 -->
 <!-- v1.71.9 -->
 <!-- v1.71.8 -->
@@ -1138,8 +1138,10 @@ async function loadFromSupabase() {
             if(typeof p === 'string' && p.startsWith('{')) { try { return JSON.parse(p); } catch(e) { return {url:p,caption:''}; } }
             if(typeof p === 'string') return { url: p, caption: '' };
             return p;
-          });
+          }).filter(p => { const u = (p && typeof p === 'object') ? p.url : p; return !(typeof u === 'string' && u.startsWith('blob:')); });
         }
+        // Drop dead blob: preview URLs saved by a failed upload (invalid after reload)
+        if(typeof v.photo === 'string' && v.photo.startsWith('blob:')) v.photo = null;
       });
 
       DATA.operators = operators || DATA.operators;
@@ -5445,7 +5447,7 @@ async function renderVendorProfile(id) {
       </div>
       <div class="profile-actions">
         <button class="btn-follow" onclick="handleFollow(event,'vendor','${v.id}',this)" style="${isFollowing('vendor','${v.id}')?'background:var(--green);color:#fff;border-color:var(--green)':''}">${isFollowing('vendor','${v.id}')?t('following'):t('follow')}</button>
-        <button onclick="shareProfile('${v.name}','${v.id}','vendor')" style="padding:7px 14px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:transparent;color:var(--text2);font-family:var(--font-sans)">📤 ${t('share')}</button>
+        <button onclick="shareProfile('${v.id}','vendor')" style="padding:7px 14px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:transparent;color:var(--text2);font-family:var(--font-sans)">📤 ${t('share')}</button>
       </div>
       ${(!isClaimed && !ST.sandboxMode)?`<div style="margin-top:8px;font-size:11px;color:var(--terra);cursor:pointer" onclick="navigate('vendors-join','${v.id}')">Own this business? Manage your free listing →</div>`:''}
       ${(() => {
@@ -6020,7 +6022,7 @@ function renderMarketDetail(id) {
         <div style="font-size:18px;margin-bottom:6px">🏪</div>
         <div style="font-size:13px;font-weight:500;color:#7A2E10;margin-bottom:4px">${t('are_you_vendor')}</div>
         <div style="font-size:12px;color:var(--terra-mid);margin-bottom:12px">${t('claim_vendor_sub')}</div>
-        <button onclick="navigate('vendors-join','${v.id}')" style="padding:8px 20px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500">${t('claim_cta')}</button>
+        <button onclick="navigate('vendors-join')" style="padding:8px 20px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500">${t('claim_cta')}</button>
       </div>
       <div style="text-align:center;margin-top:16px;padding:10px;background:var(--surface2);border:0.5px solid var(--border);border-radius:var(--r-md)">
         <span style="font-size:12px;color:var(--text2)">${window.innerWidth < 768 ? 'Viewing on mobile · ' : 'Viewing on desktop · '}</span>
@@ -9362,10 +9364,17 @@ async function addGalleryPhoto(input) {
   }
 }
 
+function parseGallery(raw){
+  let g = raw || [];
+  if(typeof g === 'string'){ try { g = JSON.parse(g); } catch(e){ g = []; } }
+  if(!Array.isArray(g)) g = [];
+  return g.map(p => { if(typeof p === 'string' && p.startsWith('{')){ try { return JSON.parse(p); } catch(e){ return p; } } return p; });
+}
 function refreshGalleryGrid(v) {
   if(!v) return;
   const isPro = v.pro || ST.isProTrial;
   const maxPhotos = v.pro ? 10 : 5;
+  if(v) v.gallery = parseGallery(v.gallery);
   const gallery = v.gallery || [];
 
   // Find the gallery section body — it's inside the collapsible with id 'cs_gallery'
@@ -9970,7 +9979,7 @@ async function renderVendorDash() {
   // Fresh fetch from Supabase so gallery, captions, and all recent saves are always current
   if(vendorId && supabaseClient && window.location.protocol !== 'file:') {
     try {
-      const { data: freshVendor } = await supabaseClient.from('vendors').select('*').eq('id', vendorId).single();
+      const { data: freshVendor } = await supabaseClient.from('vendors').select('*').eq('id', vendorId).maybeSingle();
       if(freshVendor && freshVendor.id) {
         const idx = DATA.vendors.findIndex(x => x.id === vendorId);
         if(idx > -1) DATA.vendors[idx] = { ...DATA.vendors[idx], ...freshVendor };
@@ -12936,7 +12945,7 @@ async function adminCreateVendor() {
   const cat = document.getElementById('nv_cat').value.trim();
   const region = document.getElementById('nv_region').value;
   if(!name || !cat) { alert('Name and category are required.'); return; }
-  const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+  const id = name.toLowerCase().replace(/['"]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
   const slug = id;
   const sel = document.getElementById('nv_markets');
   const markets = Array.from(sel.selectedOptions).map(o => o.value);
@@ -13164,7 +13173,7 @@ async function adminCreateMarket() {
   const city = document.getElementById('nm_city').value.trim();
   const region = document.getElementById('nm_region').value;
   if(!name || !city) { alert('Name and city are required.'); return; }
-  const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+  const id = name.toLowerCase().replace(/['"]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
   const slug = id + '-market';
   const seasonStart = document.getElementById('nm_season_start').value;
   const seasonEnd = document.getElementById('nm_season_end').value;
@@ -14351,6 +14360,7 @@ function renderVendorProfileEdit() {
       </div>
     </div>`;
 
+  if(v) v.gallery = parseGallery(v.gallery);
   const gallery = v?.gallery || [];
   const maxPhotos = v?.pro ? 10 : 5;
   const galleryContent = isPro ? `
@@ -14447,7 +14457,8 @@ async function saveVendorProfile() {
       ST.pendingCoverPhoto = null;
     } catch(e) {
       console.warn('Photo upload failed:', e);
-      if(ST.pendingCoverPhoto) { v.photo = ST.pendingCoverPhoto; ST.pendingCoverPhoto = null; }
+      // Do NOT persist the temporary blob: preview on failure — it dies on reload. Keep existing photo.
+      ST.pendingCoverPhoto = null;
     }
   }
 
@@ -15533,7 +15544,7 @@ async function submitAddVendorRoster() {
   if(!cat) { showErr('Category is required.'); return; }
   if(selectedMarkets.length === 0) { showErr('Please select at least one market.'); return; }
 
-  const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') + '-' + Date.now().toString(36);
+  const id = name.toLowerCase().replace(/['"]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') + '-' + Date.now().toString(36);
   const region = myMarkets.find(m=>selectedMarkets.includes(m.id))?.region || ST.region || '';
 
   const vendor = {
@@ -16331,8 +16342,12 @@ function renderAdminSettings() {
 }
 
 /* ── SHARE HELPER ── */
-function shareProfile(name, slug, type) {
+function shareProfile(slug, type) {
   const url = `https://shopwindmill.com/${type}s/${slug}`;
+  let name = slug;
+  const coll = type === 'operator' ? DATA.operators : type === 'market' ? DATA.markets : DATA.vendors;
+  const found = (coll || []).find(x => x.slug === slug || x.id === slug);
+  if(found && found.name) name = found.name;
   if(navigator.share) {
     navigator.share({title: name + ' on Windmill', text: `Check out ${name} on Windmill — your local market discovery app`, url});
   } else {
@@ -16359,7 +16374,7 @@ function renderDemoVendorFree() {
           <div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-style:italic">${v.tagline}</div>
           <div class="profile-actions">
             <button class="btn-follow">Follow</button>
-            <button id="shareBtn" onclick="shareProfile('${v.name}','${v.slug}','vendor')" style="padding:7px 14px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:transparent;color:var(--text2);font-family:var(--font-sans)">📤 Share</button>
+            <button id="shareBtn" onclick="shareProfile('${v.slug}','vendor')" style="padding:7px 14px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:transparent;color:var(--text2);font-family:var(--font-sans)">📤 Share</button>
           </div>
         </div>
       </div>
@@ -16416,7 +16431,7 @@ function renderDemoVendorPro() {
           <div style="font-size:12px;color:var(--text2);margin-bottom:8px;font-style:italic">${v.tagline}</div>
           <div class="profile-actions">
             <button class="btn-follow" style="background:var(--green);color:#fff;border-color:var(--green)">❤️ Follow</button>
-            <button id="shareBtn" onclick="shareProfile('${v.name}','${v.slug}','vendor')" style="padding:7px 14px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:transparent;color:var(--text2);font-family:var(--font-sans)">📤 Share</button>
+            <button id="shareBtn" onclick="shareProfile('${v.slug}','vendor')" style="padding:7px 14px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:transparent;color:var(--text2);font-family:var(--font-sans)">📤 Share</button>
             <button style="padding:7px 14px;border:0.5px solid var(--green);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--green-lt);color:var(--green-dk);font-family:var(--font-sans)">💬 Message</button>
           </div>
         </div>
@@ -16499,7 +16514,7 @@ function renderDemoOperatorFree() {
           <div style="display:flex;gap:7px;flex-wrap:wrap">
             <span class="badge-pill gray">🏪 ${op.market_count} markets</span>
             <span class="badge-pill gray">👥 ${op.vendor_count} vendors</span>
-            <button id="shareBtn" onclick="shareProfile('${op.name}','${op.slug}','operator')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:11px;cursor:pointer;background:transparent;color:var(--text2);font-family:var(--font-sans)">📤 Share</button>
+            <button id="shareBtn" onclick="shareProfile('${op.slug}','operator')" style="padding:5px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:11px;cursor:pointer;background:transparent;color:var(--text2);font-family:var(--font-sans)">📤 Share</button>
           </div>
         </div>
       </div>
@@ -16563,7 +16578,7 @@ function renderDemoOperatorPro() {
           <div style="display:flex;gap:6px">
             <button class="btn-follow" style="background:var(--green);color:#fff;border-color:var(--green)">❤️ Follow</button>
             <button style="padding:7px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);font-family:var(--font-sans);white-space:nowrap">💬 Message</button>
-            <button id="shareBtn" onclick="shareProfile('${op.name}','${op.slug}','operator')" style="padding:7px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);font-family:var(--font-sans)">📤 Share</button>
+            <button id="shareBtn" onclick="shareProfile('${op.slug}','operator')" style="padding:7px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);font-family:var(--font-sans)">📤 Share</button>
           </div>
         </div>
         <div class="market-badges">
