@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.73.14 -->
+<!-- v1.73.17 — messaging: stop immediate emails on replies (first message still emails; 24h nudge handled by scheduled backend), and apostrophe/quote-proof the Message buttons + modal send + extend-trial + global-search + category chip -->
 <!-- v1.71.10 -->
 <!-- v1.71.9 -->
 <!-- v1.71.8 -->
@@ -2566,7 +2566,7 @@ function showGlobalSearchDropdown(results, val) {
       });
       if(results.moreMarkets > 0) {
         const q = val;
-        html += `<div class="gs-item gs-see-all" onclick="globalSearchSeeAll('markets','${val.replace(/'/g,"\'")}')">
+        html += `<div class="gs-item gs-see-all" onclick="globalSearchSeeAll('markets','${val.replace(/'/g,"\\'")}')">
           <div class="gs-item-icon" style="background:var(--surface2);font-size:16px">→</div>
           <div class="gs-item-info">
             <div class="gs-item-name" style="color:var(--green-dk)">See all markets for "${val}"</div>
@@ -2593,7 +2593,7 @@ function showGlobalSearchDropdown(results, val) {
         </div>`;
       });
       if(results.moreVendors > 0) {
-        html += `<div class="gs-item gs-see-all" onclick="globalSearchSeeAll('vendors','${val.replace(/'/g,"\'")}')">
+        html += `<div class="gs-item gs-see-all" onclick="globalSearchSeeAll('vendors','${val.replace(/'/g,"\\'")}')">
           <div class="gs-item-icon" style="background:var(--surface2);font-size:16px">→</div>
           <div class="gs-item-info">
             <div class="gs-item-name" style="color:var(--green-dk)">See all vendors for "${val}"</div>
@@ -2975,7 +2975,7 @@ function renderSidebar() {
       const active = ST.adminTab === item.id;
       const onclick = item.id === 'settings' ? `renderAdminSettings();renderSidebar()` : `setAdminTab('${item.id}')`;
       return `<div class="sidebar-nav-item ${active?'active':''}" onclick="${onclick}">
-        <span>${item.e}</span><span>${item.l}</span>
+        <span>${item.e}</span><span>${item.l}</span>${item.id==='messages' && ST._adminUnreadCount>0 ? '<span style="margin-left:6px;width:8px;height:8px;background:var(--terra);border-radius:50%;display:inline-block;flex-shrink:0"></span>' : ''}
       </div>`;
     }
     return `<div class="sidebar-nav-item ${ST.tab===item.id?'active':''}" onclick="navigate('${item.id}')">
@@ -3402,6 +3402,7 @@ function renderBottom() {
     <button class="nav-item ${ST.tab===item.id?'active':''}" onclick="navigate('${item.id}')" style="position:relative">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${item.i}</svg>
       ${item.id==='me' && ST.role==='customer' && ST._shopperUnreadCount>0 ? '<span style="position:absolute;top:2px;right:calc(50% - 16px);width:8px;height:8px;background:var(--terra);border-radius:50%;border:1.5px solid var(--surface)"></span>' : ''}
+      ${item.id==='me' && ST.role==='admin' && ST._adminUnreadCount>0 ? '<span style="position:absolute;top:2px;right:calc(50% - 16px);width:8px;height:8px;background:var(--terra);border-radius:50%;border:1.5px solid var(--surface)"></span>' : ''}
       <span class="nav-label">${item.l}</span>
     </button>`).join('');
 }
@@ -3912,7 +3913,7 @@ function renderVendorsList() {
         ${DATA.categories.map(cat=>{
           const label=ST.lang==='es'?cat.es:ST.lang==='pt'?cat.pt:cat.label;
           const active=catFilter===cat.label;
-          return `<div onclick="ST.vendorListCat='${cat.label}';renderVendorsList()" style="padding:5px 12px;border:0.5px solid ${active?'var(--green)':'var(--border-med)'};border-radius:var(--r-pill);font-size:11px;cursor:pointer;background:${active?'var(--green-lt)':'var(--surface)'};color:${active?'var(--green-dk)':'var(--text2)'};white-space:nowrap;flex-shrink:0">${cat.emoji} ${label}</div>`;
+          return `<div onclick="ST.vendorListCat='${(cat.label||'').replace(/'/g,"\\'")}';renderVendorsList()" style="padding:5px 12px;border:0.5px solid ${active?'var(--green)':'var(--border-med)'};border-radius:var(--r-pill);font-size:11px;cursor:pointer;background:${active?'var(--green-lt)':'var(--surface)'};color:${active?'var(--green-dk)':'var(--text2)'};white-space:nowrap;flex-shrink:0">${cat.emoji} ${label}</div>`;
         }).join('')}
       </div>
     </div>
@@ -5517,7 +5518,7 @@ async function renderVendorProfile(id) {
       <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg><div><div class="info-row-label">Instagram</div>${v.instagram?`<a class="info-row-link" href="${v.instagram}" target="_blank">${v.instagram.replace(/https?:\/\//,'')}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
       <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg><div><div class="info-row-label">Facebook</div>${v.facebook?`<a class="info-row-link" href="${v.facebook}" target="_blank">${v.facebook.replace(/https?:\/\//,'')}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
       <div style="margin-top:12px">
-        <button onclick="openMessageModal('vendor','${v.id}','${v.name}')" style="width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">💬 Message via Windmill</button>
+        <button onclick="openMessageModal('vendor','${v.id}')" style="width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">💬 Message via Windmill</button>
       </div>`:`
       <div class="info-row" style="opacity:.45"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/></svg><div><div class="info-row-label">Instagram</div><div style="font-size:12px;color:var(--text3)">${isClaimed?t('claim_to_add'):t('not_provided')}</div></div></div>
       <div class="info-row" style="opacity:.45"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg><div><div class="info-row-label">Facebook</div><div style="font-size:12px;color:var(--text3)">${isClaimed?t('claim_to_add'):t('not_provided')}</div></div></div>
@@ -5885,7 +5886,7 @@ function renderMarketDetail(id) {
           </div>
           <div style="display:flex;gap:6px">
             <button class="btn-follow" onclick="handleFollow(event,'market','${m.id}',this)" style="${isFollowing('market','${m.id}')?'background:var(--green);color:#fff;border-color:var(--green)':''}">${isFollowing('market','${m.id}')?t('following'):t('follow')}</button>
-            <button onclick="openMessageModal('market','${m.id}','${m.name}')" style="padding:7px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);font-family:var(--font-sans);white-space:nowrap">💬 Message</button>
+            <button onclick="openMessageModal('market','${m.id}')" style="padding:7px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);font-family:var(--font-sans);white-space:nowrap">💬 Message</button>
           </div>
         </div>
         <div class="market-badges">
@@ -10012,16 +10013,27 @@ async function renderVendorDash() {
   let profileViews = 0;
   let unreadMsgCount = 0;
   if(supabaseClient && vendorId) {
-    const [followRes, viewRes, msgRes] = await Promise.all([
+    const [followRes, viewRes] = await Promise.all([
       supabaseClient.from('follows').select('*', {count:'exact',head:true}).eq('vendor_id', vendorId),
-      supabaseClient.from('page_views').select('*', {count:'exact',head:true}).eq('page_type','vendor').eq('entity_id', vendorId),
-      isPro ? supabaseClient.from('messages').select('*', {count:'exact',head:true})
-        .or(`and(recipient_id.eq.${vendorId},recipient_type.eq.vendor),and(from_user_id.eq.${ST.user?.id||'00000000-0000-0000-0000-000000000000'},recipient_type.eq.admin)`)
-        .eq('read', false) : Promise.resolve({count:0})
+      supabaseClient.from('page_views').select('*', {count:'exact',head:true}).eq('page_type','vendor').eq('entity_id', vendorId)
     ]);
     followerCount = followRes.count || 0;
     profileViews = viewRes.count || 0;
-    unreadMsgCount = msgRes.count || 0;
+    // Unread = same signal the vendor inbox uses (thread.read === false), across
+    // shopper threads to this vendor plus the vendor's own support thread. Two
+    // plain queries instead of a nested .or() string, which was returning 0.
+    if(isPro) {
+      try {
+        const [shopperUnread, supportUnread] = await Promise.all([
+          supabaseClient.from('messages').select('*', {count:'exact',head:true})
+            .eq('recipient_id', vendorId).eq('recipient_type','vendor').eq('read', false),
+          ST.user?.id ? supabaseClient.from('messages').select('*', {count:'exact',head:true})
+            .eq('from_user_id', ST.user.id).eq('recipient_type','admin').eq('read', false)
+            : Promise.resolve({count:0})
+        ]);
+        unreadMsgCount = (shopperUnread.count||0) + (supportUnread.count||0);
+      } catch(e) { console.warn('Could not load vendor unread count:', e); }
+    }
   }
 
   // Trial badge — recomputed live, threshold-aware
@@ -10120,7 +10132,7 @@ async function renderVendorDash() {
         ${actions.map(a=>`
           <div onclick="${a.action || `navigate('${a.tab}')`}" style="background:${a.locked?'var(--surface2)':'var(--surface)'};border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px;cursor:pointer;opacity:${a.locked&&!a.comingSoon?.7:1};position:relative">
             ${a.comingSoon?`<span style="position:absolute;top:8px;right:8px;font-size:9px;padding:2px 6px;background:var(--amber-lt);color:var(--amber);border-radius:var(--r-pill);font-weight:600;border:0.5px solid #F0D090">SOON</span>`:''}
-            ${a.badgeCount>0?`<span style="position:absolute;top:10px;right:10px;min-width:18px;height:18px;padding:0 5px;background:var(--terra);color:#fff;border-radius:var(--r-pill);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">${a.badgeCount}</span>`:''}
+            ${a.badgeCount>0?`<span style="position:absolute;top:10px;right:10px;width:12px;height:12px;background:var(--terra);border-radius:50%;border:2px solid var(--surface);box-shadow:0 0 0 1px var(--terra)"></span>`:''}
             <div style="font-size:22px;margin-bottom:6px">${a.icon}</div>
             <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px">${a.label}</div>
             <div style="font-size:11px;color:var(--text3)">${a.sub}</div>
@@ -10489,7 +10501,7 @@ function renderAdminPanel() {
           <span class="status-pill ${v.published!==false?'live':'draft'}" id="vndpill-${v.id}" style="cursor:pointer" onclick="adminVendorPublishConfirm('${v.id}',this)">${v.published!==false?'Active':'Inactive'}</span>
         </div>
         <div class="admin-row-actions">
-          ${(onTrial||trialExpired) ? `<button class="action-btn edit" onclick="openExtendTrial('${v.id}','${v.name}')">Extend</button>` : ''}
+          ${(onTrial||trialExpired) ? `<button class="action-btn edit" onclick="openExtendTrial('${v.id}','${(v.name||'').replace(/'/g,"\\'")}')">Extend</button>` : ''}
           <button class="action-btn edit" onclick="openAdminEditVendor('${v.id}')">Edit</button>
           <button class="action-btn preview" onclick="navigate('vendor','${v.id}')">View</button>
           ${v.id.startsWith('test-vendor') ? `<button class="action-btn" style="color:var(--terra);border-color:var(--terra)" onclick="adminResetVendorToUnclaimed('${v.id}','${v.name.replace(/'/g,"\\'")}')">Reset</button>` : ''}
@@ -10693,10 +10705,13 @@ function renderAdminPanel() {
               <div class="msg-bubble-meta">${msg.from} · ${msg.date}</div>
               ${msg.body}
             </div>
-            ${msg.replies.map(r=>`<div class="msg-bubble admin">
-              <div class="msg-bubble-meta">You (Admin) · ${r.date}</div>
+            ${msg.replies.map(r=>{
+              const fromAdmin = (r.role==='admin') || (r.from==='Windmill Admin');
+              return `<div class="msg-bubble ${fromAdmin?'admin':'sender'}">
+              <div class="msg-bubble-meta">${fromAdmin ? 'You (Admin)' : (r.from || msg.from || 'User')} · ${r.date}</div>
               ${r.body}
-            </div>`).join('')}
+            </div>`;
+            }).join('')}
           </div>
           <div style="margin-top:12px">
             <textarea id="adminReplyText" class="form-textarea" placeholder="Type your reply..." style="margin-bottom:8px"></textarea>
@@ -10719,14 +10734,26 @@ function renderAdminPanel() {
           ST.adminMessages.forEach(msg => {
             const colors = [{bg:'#EEF2EB',c:'#3D6B35'},{bg:'#FDF3DC',c:'#7A4E08'},{bg:'#FAEDE6',c:'#7A2E10'}];
             const col = colors[msg.id.charCodeAt(1)%3];
-            const fullDateTime = msg.created_at
-              ? new Date(msg.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})
+            // Preview the most recent message in the thread (a reply if there is
+            // one), not the original first message — and stamp it with that
+            // message's time. Mirrors how the vendor inbox keys off last activity.
+            const _replies = msg.replies || [];
+            const _latest = _replies.length
+              ? _replies.reduce((a,b)=> new Date(b.created_at||0) > new Date(a.created_at||0) ? b : a)
+              : null;
+            const previewBody = (_latest ? _latest.body : msg.body) || '';
+            const previewWho = _latest
+              ? ((_latest.role==='admin' || _latest.from==='Windmill Admin') ? 'You' : (_latest.from || msg.role))
+              : msg.role;
+            const previewWhen = (_latest && _latest.created_at) ? _latest.created_at : msg.created_at;
+            const fullDateTime = previewWhen
+              ? new Date(previewWhen).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})
               : (msg.date || '');
             h += `<div class="msg-row ${msg.read?'':'unread'}" onclick="adminOpenMsg('${msg.id}')">
               <div class="msg-avatar" style="background:${col.bg};color:${col.c}">${msg.from.charAt(0)}</div>
               <div class="msg-body-wrap">
                 <div class="msg-subject">${msg.from}</div>
-                <div class="msg-preview">${msg.role} · ${msg.body.slice(0,60)}${msg.body.length>60?'...':''}</div>
+                <div class="msg-preview">${previewWho} · ${previewBody.slice(0,60)}${previewBody.length>60?'...':''}</div>
               </div>
               <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
                 <div class="msg-meta">${fullDateTime}</div>
@@ -11315,9 +11342,22 @@ async function loadAdminViews() {
 
 /* ── MESSAGING SYSTEM ── */
 
+// Resolve a recipient's display name from type+id, so we never have to inject
+// a (possibly apostrophe-containing) name into an inline onclick handler.
+function resolveRecipientName(type, recipientId) {
+  if(recipientId === 'windmill-support' || type === 'admin') return 'Windmill Support';
+  if(type === 'vendor') return DATA.vendors.find(v=>v.id===recipientId)?.name || 'this vendor';
+  if(type === 'market') return DATA.markets.find(m=>m.id===recipientId)?.name || 'this market';
+  return 'there';
+}
+
 function openMessageModal(type, recipientId, recipientName) {
   // Must be signed in
   if(!ST.user) { openSignIn('signup'); return; }
+
+  // Name is derived from the id (not passed through the click) so vendor/market
+  // names with apostrophes or quotes can't break the button.
+  recipientName = recipientName || resolveRecipientName(type, recipientId);
 
   const el = document.getElementById('messageModalContent');
   if(!el) return;
@@ -11359,12 +11399,13 @@ function openMessageModal(type, recipientId, recipientName) {
       <textarea class="form-textarea" id="msgBody" placeholder="Write your message here..." style="min-height:120px"></textarea>
     </div>
     <div id="msgError" style="color:var(--terra);font-size:12px;margin-bottom:8px;display:none"></div>
-    <button onclick="sendMessage('${type}','${recipientId}','${recipientName}')" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Send message</button>`;
+    <button onclick="sendMessage('${type}','${recipientId}')" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Send message</button>`;
 
   openModal('messageModal');
 }
 
 async function sendMessage(type, recipientId, recipientName) {
+  recipientName = recipientName || resolveRecipientName(type, recipientId);
   const body = document.getElementById('msgBody')?.value?.trim();
   const errEl = document.getElementById('msgError');
 
@@ -11389,7 +11430,12 @@ async function sendMessage(type, recipientId, recipientName) {
 
     if(existing) {
       // Append to the existing conversation as a reply
-      await dbSaveReply(existing.id, { from: ST.user.name, from_email: ST.user.email, role: 'Customer', body });
+      const savedOk = await dbSaveReply(existing.id, { from: ST.user.name, from_email: ST.user.email, role: 'Customer', body });
+      if(!savedOk) throw new Error('Message failed to save');
+      // For support threads, bump back to unread so the admin inbox resurfaces it
+      if(type === 'admin') {
+        await supabaseClient.from('messages').update({ read: false }).eq('id', existing.id);
+      }
       // Same suppression rules as any other reply: only emails if the
       // recipient hasn't already been notified since they last read this thread
       const recipientEmail = type === 'admin' ? 'windmillmarketplace@gmail.com' : DATA.vendors.find(v=>v.id===recipientId)?.email;
@@ -11398,7 +11444,7 @@ async function sendMessage(type, recipientId, recipientName) {
       }
     } else {
       // First message — create the conversation
-      const { data: inserted } = await supabaseClient.from('messages').insert({
+      const { data: inserted, error: insErr } = await supabaseClient.from('messages').insert({
         from_name: ST.user.name,
         from_email: ST.user.email,
         from_user_id: ST.user.id,
@@ -11409,6 +11455,7 @@ async function sendMessage(type, recipientId, recipientName) {
         recipient_name: recipientName,
         last_emailed_at: new Date().toISOString()
       }).select().single();
+      if(insErr) throw insErr;
 
       // Local admin-side cache, for the demo/admin inbox view
       ST.adminMessages.unshift({
@@ -11472,33 +11519,14 @@ function notifyMessageRecipient(type, recipientId, recipientName, _unusedSubject
   }
 }
 
-// Notifies a recipient that a reply landed on their thread. Sends right away
-// (the true 12hr-delay-if-unseen version is a fast-follow once we add a
-// scheduled Edge Function — see conversation notes). For now this still
-// avoids spamming: it only sends if no email has gone out since the
-// recipient last actually opened the thread, so a back-and-forth burst in
-// one sitting only emails once, and marking a message unread never
-// re-triggers it (that only touches the `read` flag, not last_read_at).
+// Replies intentionally send NO immediate email. Only the first message of a
+// brand-new conversation emails right away (see notifyMessageRecipient and the
+// new-thread branches). Unread replies are handled by a once-daily reminder
+// nudge — a scheduled Supabase function (separate backend task), NOT here —
+// so an active back-and-forth no longer floods inboxes with an email per
+// message. Signature is kept so existing reply call sites need no changes.
 async function notifyOnReply(threadMsg, replyFromName, replyBody, recipientEmail, recipientLabel) {
-  if(!threadMsg || !recipientEmail) return;
-  const lastEmailedAt = threadMsg.last_emailed_at ? new Date(threadMsg.last_emailed_at) : null;
-  const lastReadAt = threadMsg.last_read_at ? new Date(threadMsg.last_read_at) : null;
-  const alreadyEmailedSinceRead = lastEmailedAt && (!lastReadAt || lastEmailedAt > lastReadAt);
-  if(alreadyEmailedSinceRead) return; // already notified about this unseen reply, don't repeat
-
-  sendWindmillEmail(
-    '💬 New reply from ' + (replyFromName || recipientLabel || 'someone'),
-    '<h2>You have a reply</h2>' +
-    '<p><strong>From:</strong> ' + (replyFromName || recipientLabel) + '</p>' +
-    '<p><strong>Message:</strong></p><p style="background:#f6f3ee;border-radius:8px;padding:12px">' + (replyBody||'').replace(/\n/g,'<br>') + '</p>' +
-    '<p><a href="https://shopwindmill.com" style="background:#5C7A4E;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:12px">View and reply →</a></p>',
-    recipientEmail
-  );
-  const now = new Date().toISOString();
-  if(supabaseClient) {
-    await supabaseClient.from('messages').update({ last_emailed_at: now }).eq('id', threadMsg.id);
-  }
-  threadMsg.last_emailed_at = now;
+  return; // immediate reply emails disabled; 24h scheduled nudge handles unread replies
 }
 
 /* ── AUTH SYSTEM ── */
@@ -12139,7 +12167,7 @@ async function dbSaveMessage(msg) {
 }
 
 async function dbSaveReply(messageId, reply) {
-  if(!supabaseClient) return;
+  if(!supabaseClient) return false;
   try {
     const { error } = await supabaseClient.from('message_replies').insert({
       message_id: messageId,
@@ -12149,8 +12177,10 @@ async function dbSaveReply(messageId, reply) {
       body: reply.body
     });
     if(error) throw error;
+    return true;
   } catch(err) {
     console.warn('Failed to save reply to Supabase:', err);
+    return false;
   }
 }
 
@@ -12222,11 +12252,28 @@ function toggleAdminVisitorDetail(vid) {
   el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 
+// Fetch the admin's unread support-message count up front (independent of
+// opening the Messages tab) so the nav can show an alert dot from anywhere,
+// including the dashboard. Same definition the Messages tab uses: support
+// threads (recipient_type='admin') that are still unread.
+async function refreshAdminUnread() {
+  if(!supabaseClient || ST.role !== 'admin') return;
+  try {
+    const { count } = await supabaseClient.from('messages')
+      .select('*', { count:'exact', head:true })
+      .eq('recipient_type', 'admin').eq('read', false);
+    ST._adminUnreadCount = count || 0;
+  } catch(e) { console.warn('Could not load admin unread count:', e); }
+  renderSidebar();
+  renderBottom();
+}
+
 function setAdminTab(tab) {
   ST.adminTab = tab;
   ST.adminMsgThread = null;
   if(!ST.adminClaimsTab) ST.adminClaimsTab = 'pending';
   if(!ST.adminAnnouncements) ST.adminAnnouncements = [];
+  refreshAdminUnread(); // keep the nav alert dot current on every admin view
   if(tab === 'messages' && supabaseClient) {
     // Load real messages from Supabase. Admin only sees messages actually
     // addressed to admin (support requests) — shopper<->vendor conversations
@@ -12267,11 +12314,19 @@ function setAdminTab(tab) {
         // separately-ordered lists (as before) doesn't produce a single
         // chronological order.
         const demoMsgs = ST.adminMessages.filter(m => !m.fromDB);
-        ST.adminMessages = [...supabaseMsgs, ...demoMsgs].sort((a,b) => {
-          const aDate = new Date(a.created_at || a.date || 0);
-          const bDate = new Date(b.created_at || b.date || 0);
-          return bDate - aDate;
-        });
+        // Sort by most recent activity — a fresh reply on an old thread should
+        // pull it back to the top, so we use the latest of the message's own
+        // date or any of its replies, not just the original created_at.
+        const lastActivity = (m) => {
+          let t = new Date(m.created_at || m.date || 0).getTime();
+          (m.replies || []).forEach(r => { const rt = new Date(r.created_at || 0).getTime(); if(rt > t) t = rt; });
+          return t;
+        };
+        ST.adminMessages = [...supabaseMsgs, ...demoMsgs].sort((a,b) => lastActivity(b) - lastActivity(a));
+        // Keep the nav alert dot in sync with what just loaded
+        ST._adminUnreadCount = ST.adminMessages.filter(m => !m.read && m.fromDB).length;
+        renderSidebar();
+        renderBottom();
         renderAdminPanel();
       }
     });
@@ -13312,7 +13367,10 @@ async function submitContactSupport(role, senderName) {
       .maybeSingle();
 
     if(existing) {
-      await dbSaveReply(existing.id, { from: senderName || roleLabel+' User', from_email: senderEmail, role, body: text });
+      const savedOk = await dbSaveReply(existing.id, { from: senderName || roleLabel+' User', from_email: senderEmail, role, body: text });
+      if(!savedOk) throw new Error('Support reply failed to save');
+      // Bump the thread back to unread so it resurfaces at the top of the admin inbox
+      await supabaseClient.from('messages').update({ read: false }).eq('id', existing.id);
       notifyOnReply(existing, senderName || roleLabel+' User', text, 'windmillmarketplace@gmail.com', 'Admin');
     } else {
       // Real insert — let Postgres generate the uuid. The previous version
@@ -13710,8 +13768,9 @@ function renderVendorInboxList(conversations) {
       const isFromVendor = m.role === 'vendor';
       const isFromAdmin = m.role === 'admin';
       const label = isFromVendor ? 'You' : isFromAdmin ? 'Windmill Support' : (m.from_name || name);
+      const mDate = m.created_at ? new Date(m.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '';
       return `<div style="margin-bottom:8px;display:flex;flex-direction:column;align-items:${isFromVendor?'flex-end':'flex-start'}">
-        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px">${label}</div>
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px">${label}${mDate?` · ${mDate}`:''}</div>
         <div style="font-size:12px;color:var(--text2);line-height:1.5;padding:8px 10px;border-radius:var(--r-sm);max-width:85%;background:${isFromVendor?'var(--green-lt)':'var(--surface)'};${isFromVendor?'border-right:3px solid var(--green-mid)':'border-left:3px solid var(--border-med)'}">${m.body}</div>
       </div>`;
     }).join('');
@@ -16072,10 +16131,12 @@ async function submitOperatorSupportMessage() {
         .maybeSingle();
 
       if(existing) {
-        await dbSaveReply(existing.id, { from: ST.user?.name || ST.opOrgName || 'Operator', from_email: ST.user.email, role: 'Operator', body: msg });
+        const savedOk = await dbSaveReply(existing.id, { from: ST.user?.name || ST.opOrgName || 'Operator', from_email: ST.user.email, role: 'Operator', body: msg });
+        if(!savedOk) throw new Error('Support reply failed to save');
+        await supabaseClient.from('messages').update({ read: false }).eq('id', existing.id);
         notifyOnReply(existing, ST.user?.name || ST.opOrgName || 'Operator', msg, 'windmillmarketplace@gmail.com', 'Admin');
       } else {
-        await supabaseClient.from('messages').insert({
+        const { error: insErr } = await supabaseClient.from('messages').insert({
           from_name: ST.user?.name || ST.opOrgName || 'Operator',
           from_user_id: ST.user.id,
           from_email: ST.user.email,
@@ -16086,6 +16147,7 @@ async function submitOperatorSupportMessage() {
           body: msg,
           last_emailed_at: new Date().toISOString()
         });
+        if(insErr) throw insErr;
         // Notify admin by email so support requests aren't only visible by checking the dashboard
         sendWindmillEmail(
           '💬 New support request — Operator',
