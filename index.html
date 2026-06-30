@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.73.19 — messaging: per-party read (vendor support thread uses its own sender_last_read_at marker, isolating vendor/admin read state and fixing admin<->vendor unread alerts; new shopper messages now set read:false). Plus capped-height, auto-scroll-to-bottom thread views in all three inboxes. -->
+<!-- v1.74 — messaging: admin unread is now reply-aware (a new reply alerts the admin even if the read flag is stale) fixing vendor->admin and shopper->admin alerts; newest-activity sort for shopper + vendor inboxes; per-message timestamps in shopper inbox. -->
 <!-- v1.71.10 -->
 <!-- v1.71.9 -->
 <!-- v1.71.8 -->
@@ -8770,7 +8770,9 @@ async function renderShopperInbox() {
       .eq('from_user_id', ST.user.id)
       .order('created_at', { ascending: false });
 
-    ST._shopperInboxConversations = (conversations || []).filter(c => !(c.deleted_by||[]).includes(ST.user.id));
+    ST._shopperInboxConversations = (conversations || [])
+      .filter(c => !(c.deleted_by||[]).includes(ST.user.id))
+      .sort((a,b) => msgLastActivity(b) - msgLastActivity(a));
     renderShopperInboxList(ST._shopperInboxConversations);
     recalcShopperUnreadBadge();
   } catch(e) {
@@ -8836,8 +8838,9 @@ function renderShopperInboxList(conversations) {
       const isFromMe = m.role === 'Customer' || m.role === 'customer';
       const isFromAdmin = m.role === 'admin';
       const label = isFromMe ? 'You' : isFromAdmin ? 'Windmill Support' : name;
+      const mDate = m.created_at ? new Date(m.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '';
       return `<div style="margin-bottom:8px;display:flex;flex-direction:column;align-items:${isFromMe?'flex-end':'flex-start'}">
-        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px">${label}</div>
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px">${label}${mDate?` · ${mDate}`:''}</div>
         <div style="font-size:12px;color:var(--text2);line-height:1.5;padding:8px 10px;border-radius:var(--r-sm);max-width:85%;background:${isFromMe?'var(--green-lt)':'var(--surface)'};${isFromMe?'border-right:3px solid var(--green-mid)':'border-left:3px solid var(--border-med)'}">${m.body}</div>
       </div>`;
     }).join('');
@@ -10310,7 +10313,7 @@ async function renderOperatorDash() {
 function renderAdminPanel() {
   hideFilterUI();
   const claimed = DATA.vendors.filter(v=>v.claimed).length;
-  const unreadMsgs = ST.adminMessages.filter(m=>!m.read).length;
+  const unreadMsgs = ST.adminMessages.filter(isAdminThreadUnread).length;
   const pendingClaims = ST.adminClaims.filter(c=>c.status==='pending').length;
 
   const tabs = ['areas','markets','vendors','claims','messages','users','follows','ads','views'];
@@ -10764,7 +10767,7 @@ function renderAdminPanel() {
             const fullDateTime = previewWhen
               ? new Date(previewWhen).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})
               : (msg.date || '');
-            h += `<div class="msg-row ${msg.read?'':'unread'}" onclick="adminOpenMsg('${msg.id}')">
+            h += `<div class="msg-row ${isAdminThreadUnread(msg)?'unread':''}" onclick="adminOpenMsg('${msg.id}')">
               <div class="msg-avatar" style="background:${col.bg};color:${col.c}">${msg.from.charAt(0)}</div>
               <div class="msg-body-wrap">
                 <div class="msg-subject">${msg.from}</div>
@@ -12182,6 +12185,13 @@ async function dbSaveMessage(msg) {
   }
 }
 
+// Latest activity time for a conversation = newest of its own date or any reply.
+function msgLastActivity(m) {
+  let t = new Date(m.created_at || 0).getTime();
+  (m.message_replies || m.replies || []).forEach(r => { const rt = new Date(r.created_at||0).getTime(); if(rt > t) t = rt; });
+  return t;
+}
+
 // Scroll a capped-height thread container to its newest (bottom) message.
 function scrollThreadBottom(id) {
   requestAnimationFrame(() => {
@@ -12296,14 +12306,27 @@ function toggleAdminVisitorDetail(vid) {
 // opening the Messages tab) so the nav can show an alert dot from anywhere,
 // including the dashboard. Same definition the Messages tab uses: support
 // threads (recipient_type='admin') that are still unread.
+// A support thread is unread for the admin if the parent is unread OR a reply
+// from the other party landed after the admin last opened it. Reply-aware so a
+// stale read flag can't hide a new message (mirrors the shopper's logic).
+// Accepts either DB rows (message_replies) or mapped ST.adminMessages (replies).
+function isAdminThreadUnread(m) {
+  if(!m) return false;
+  if((m.deleted_by||[]).includes('admin')) return false;
+  if(!m.read) return true;
+  const reps = (m.replies || m.message_replies || []).filter(r => r.role !== 'admin');
+  if(!reps.length) return false;
+  const latest = reps.reduce((mx,r)=> new Date(r.created_at) > new Date(mx.created_at) ? r : mx, reps[0]);
+  return !m.last_read_at || new Date(latest.created_at) > new Date(m.last_read_at);
+}
+
 async function refreshAdminUnread() {
   if(!supabaseClient || ST.role !== 'admin') return;
   try {
-    const { count } = await supabaseClient.from('messages')
-      .select('*', { count:'exact', head:true })
-      .eq('recipient_type', 'admin').eq('read', false)
-      .not('deleted_by', 'cs', '{admin}');
-    ST._adminUnreadCount = count || 0;
+    const { data } = await supabaseClient.from('messages')
+      .select('read, last_read_at, deleted_by, message_replies(created_at, role)')
+      .eq('recipient_type', 'admin');
+    ST._adminUnreadCount = (data||[]).filter(isAdminThreadUnread).length;
   } catch(e) { console.warn('Could not load admin unread count:', e); }
   renderSidebar();
   renderBottom();
@@ -12366,7 +12389,7 @@ function setAdminTab(tab) {
         };
         ST.adminMessages = [...supabaseMsgs, ...demoMsgs].sort((a,b) => lastActivity(b) - lastActivity(a));
         // Keep the nav alert dot in sync with what just loaded
-        ST._adminUnreadCount = ST.adminMessages.filter(m => !m.read && m.fromDB).length;
+        ST._adminUnreadCount = ST.adminMessages.filter(m => m.fromDB && isAdminThreadUnread(m)).length;
         renderSidebar();
         renderBottom();
         renderAdminPanel();
@@ -13749,7 +13772,7 @@ async function showVendorInbox() {
     ]);
     const conversations = [...(shopperRes.data||[]), ...(supportRes.data||[])]
       .filter(c => !(c.deleted_by||[]).includes(ST.user.id))
-      .sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+      .sort((a,b) => msgLastActivity(b) - msgLastActivity(a));
 
     ST._vendorInboxConversations = conversations;
     renderVendorInboxList(conversations);
