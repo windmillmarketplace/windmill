@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.73.17 — messaging: stop immediate emails on replies (first message still emails; 24h nudge handled by scheduled backend), and apostrophe/quote-proof the Message buttons + modal send + extend-trial + global-search + category chip -->
+<!-- v1.73.19 — messaging: per-party read (vendor support thread uses its own sender_last_read_at marker, isolating vendor/admin read state and fixing admin<->vendor unread alerts; new shopper messages now set read:false). Plus capped-height, auto-scroll-to-bottom thread views in all three inboxes. -->
 <!-- v1.71.10 -->
 <!-- v1.71.9 -->
 <!-- v1.71.8 -->
@@ -8770,7 +8770,7 @@ async function renderShopperInbox() {
       .eq('from_user_id', ST.user.id)
       .order('created_at', { ascending: false });
 
-    ST._shopperInboxConversations = conversations || [];
+    ST._shopperInboxConversations = (conversations || []).filter(c => !(c.deleted_by||[]).includes(ST.user.id));
     renderShopperInboxList(ST._shopperInboxConversations);
     recalcShopperUnreadBadge();
   } catch(e) {
@@ -8852,7 +8852,7 @@ function renderShopperInboxList(conversations) {
     return `<div style="border:1px solid ${borderColor};border-radius:var(--r-md);margin-bottom:12px;box-shadow:0 2px 6px rgba(0,0,0,.06);overflow:hidden">
       ${header}
       <div style="padding:13px 14px;background:var(--bg)">
-        <div style="display:flex;flex-direction:column">${timelineHtml}</div>
+        <div id="sthread_${convo.id}" style="display:flex;flex-direction:column;max-height:340px;overflow-y:auto">${timelineHtml}</div>
         ${replyArea}
         <div style="display:flex;justify-content:space-between;align-items:center">
           <button onclick="shopperToggleMsgRead('${convo.id}')" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--text3);font-family:var(--font-sans);text-decoration:underline;text-underline-offset:2px">${isUnread ? '● Mark as read' : '○ Mark as unread'}</button>
@@ -8861,6 +8861,7 @@ function renderShopperInboxList(conversations) {
       </div>
     </div>`;
   }).join('');
+  if(ST.shopperInboxExpanded) scrollThreadBottom('sthread_'+ST.shopperInboxExpanded);
 }
 
 async function shopperInboxToggleConvo(convoId) {
@@ -8879,6 +8880,7 @@ async function shopperInboxToggleConvo(convoId) {
   }
   if(ST._shopperInboxConversations) renderShopperInboxList(ST._shopperInboxConversations);
   recalcShopperUnreadBadge();
+  if(!wasExpanded) scrollThreadBottom("sthread_"+convoId);
 }
 
 async function shopperToggleMsgRead(convoId) {
@@ -8914,10 +8916,9 @@ function recalcShopperUnreadBadge() {
 }
 
 async function shopperDeleteMsg(convoId) {
-  if(!confirm('Delete this conversation? This cannot be undone.')) return;
+  if(!confirm('Remove this conversation from your inbox? It will come back if a new message arrives.')) return;
   if(!supabaseClient) return;
-  await supabaseClient.from('message_replies').delete().eq('message_id', convoId);
-  await supabaseClient.from('messages').delete().eq('id', convoId);
+  await hideConversationFor(convoId, ST.user.id);
   renderShopperInbox();
 }
 
@@ -8969,9 +8970,10 @@ async function renderMe() {
     if(supabaseClient && ST.user?.id) {
       try {
         const { data: myConvos } = await supabaseClient.from('messages')
-          .select('id, sender_last_read_at, message_replies(created_at)')
+          .select('id, sender_last_read_at, deleted_by, message_replies(created_at)')
           .eq('from_user_id', ST.user.id);
         shopperUnreadCount = (myConvos||[]).filter(c => {
+          if((c.deleted_by||[]).includes(ST.user.id)) return false;
           const replies = c.message_replies || [];
           if(replies.length === 0) return false;
           const latestReply = replies.reduce((max,r) => new Date(r.created_at) > new Date(max.created_at) ? r : max, replies[0]);
@@ -10024,14 +10026,27 @@ async function renderVendorDash() {
     // plain queries instead of a nested .or() string, which was returning 0.
     if(isPro) {
       try {
-        const [shopperUnread, supportUnread] = await Promise.all([
+        const _vHidden = `{${ST.user?.id}}`;
+        const [shopperUnread, supportThreads] = await Promise.all([
           supabaseClient.from('messages').select('*', {count:'exact',head:true})
-            .eq('recipient_id', vendorId).eq('recipient_type','vendor').eq('read', false),
-          ST.user?.id ? supabaseClient.from('messages').select('*', {count:'exact',head:true})
-            .eq('from_user_id', ST.user.id).eq('recipient_type','admin').eq('read', false)
-            : Promise.resolve({count:0})
+            .eq('recipient_id', vendorId).eq('recipient_type','vendor').eq('read', false)
+            .not('deleted_by', 'cs', _vHidden),
+          ST.user?.id ? supabaseClient.from('messages')
+            .select('sender_last_read_at, deleted_by, message_replies(created_at)')
+            .eq('from_user_id', ST.user.id).eq('recipient_type','admin')
+            : Promise.resolve({data:[]})
         ]);
-        unreadMsgCount = (shopperUnread.count||0) + (supportUnread.count||0);
+        // Support thread: vendor is the sender, so unread = a reply (from admin)
+        // landed after the vendor last opened it — tracked in sender_last_read_at,
+        // independent of the admin's own read flag.
+        const supportUnreadCount = (supportThreads.data||[]).filter(c => {
+          if((c.deleted_by||[]).includes(ST.user?.id)) return false;
+          const reps = c.message_replies||[];
+          if(!reps.length) return false;
+          const latest = reps.reduce((mx,r)=> new Date(r.created_at)>new Date(mx.created_at)?r:mx, reps[0]);
+          return !c.sender_last_read_at || new Date(latest.created_at) > new Date(c.sender_last_read_at);
+        }).length;
+        unreadMsgCount = (shopperUnread.count||0) + supportUnreadCount;
       } catch(e) { console.warn('Could not load vendor unread count:', e); }
     }
   }
@@ -10700,7 +10715,7 @@ function renderAdminPanel() {
             <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px">${msg.from}</div>
             <div style="font-size:11px;color:var(--text2)">${msg.role} · ${msg.date}</div>
           </div>
-          <div class="msg-thread">
+          <div class="msg-thread" id="adminThreadScroll" style="max-height:340px;overflow-y:auto">
             <div class="msg-bubble sender">
               <div class="msg-bubble-meta">${msg.from} · ${msg.date}</div>
               ${msg.body}
@@ -11453,6 +11468,7 @@ async function sendMessage(type, recipientId, recipientName) {
         recipient_type: type,
         recipient_id: recipientId,
         recipient_name: recipientName,
+        read: false,
         last_emailed_at: new Date().toISOString()
       }).select().single();
       if(insErr) throw insErr;
@@ -12166,6 +12182,14 @@ async function dbSaveMessage(msg) {
   }
 }
 
+// Scroll a capped-height thread container to its newest (bottom) message.
+function scrollThreadBottom(id) {
+  requestAnimationFrame(() => {
+    const c = document.getElementById(id);
+    if(c) c.scrollTop = c.scrollHeight;
+  });
+}
+
 async function dbSaveReply(messageId, reply) {
   if(!supabaseClient) return false;
   try {
@@ -12177,11 +12201,27 @@ async function dbSaveReply(messageId, reply) {
       body: reply.body
     });
     if(error) throw error;
+    // A new message wakes the conversation back up: clear the hidden-for list so
+    // anyone who had deleted (hidden) this thread sees it again, full history intact.
+    await supabaseClient.from('messages').update({ deleted_by: [] }).eq('id', messageId);
     return true;
   } catch(err) {
     console.warn('Failed to save reply to Supabase:', err);
     return false;
   }
+}
+
+// Hide a conversation for one party only (per-party soft delete). Appends the
+// party's identifier to deleted_by instead of erasing the row, so the other
+// party keeps the full conversation.
+async function hideConversationFor(convoId, who) {
+  if(!supabaseClient) return;
+  try {
+    const { data } = await supabaseClient.from('messages').select('deleted_by').eq('id', convoId).maybeSingle();
+    const list = Array.isArray(data?.deleted_by) ? data.deleted_by.slice() : [];
+    if(!list.includes(who)) list.push(who);
+    await supabaseClient.from('messages').update({ deleted_by: list }).eq('id', convoId);
+  } catch(e) { console.warn('Could not hide conversation:', e); }
 }
 
 /* ── ADMIN ACTIONS ── */
@@ -12261,7 +12301,8 @@ async function refreshAdminUnread() {
   try {
     const { count } = await supabaseClient.from('messages')
       .select('*', { count:'exact', head:true })
-      .eq('recipient_type', 'admin').eq('read', false);
+      .eq('recipient_type', 'admin').eq('read', false)
+      .not('deleted_by', 'cs', '{admin}');
     ST._adminUnreadCount = count || 0;
   } catch(e) { console.warn('Could not load admin unread count:', e); }
   renderSidebar();
@@ -12282,7 +12323,8 @@ function setAdminTab(tab) {
     supabaseClient.from('messages').select('*, message_replies(*)').eq('recipient_type', 'admin').order('created_at', {ascending:false}).then(({data, error}) => {
       if(!error && data && data.length > 0) {
         // Merge Supabase messages with local demo messages, deduplicate by id
-        const supabaseMsgs = data.map(m => ({
+        // Skip conversations the admin has hidden (per-party delete)
+        const supabaseMsgs = data.filter(m => !(m.deleted_by||[]).includes('admin')).map(m => ({
           id: m.id,
           from: m.from_name,
           from_email: m.from_email,
@@ -12827,6 +12869,7 @@ function adminOpenMsg(msgId) {
   }
   ST.adminMsgThread = msgId;
   renderAdminPanel();
+  scrollThreadBottom('adminThreadScroll');
 }
 
 async function adminToggleMsgRead(msgId) {
@@ -12859,6 +12902,7 @@ function adminSendReply(msgId) {
     notifyOnReply(msg, 'Windmill Admin', text, msg.from_email, msg.from || 'there');
   }
   renderAdminPanel();
+  scrollThreadBottom('adminThreadScroll');
 }
 function adminResolveMsg(msgId) {
   const msg = ST.adminMessages.find(m=>m.id===msgId);
@@ -12867,14 +12911,14 @@ function adminResolveMsg(msgId) {
   renderAdminPanel();
 }
 async function adminDeleteMsg(msgId) {
-  if(!confirm('Delete this conversation? This cannot be undone.')) return;
+  if(!confirm('Remove this conversation from your inbox? It will come back if a new message arrives.')) return;
   const msg = ST.adminMessages.find(m=>m.id===msgId);
   ST.adminMessages = ST.adminMessages.filter(m=>m.id!==msgId);
   ST.adminMsgThread = null;
   if(supabaseClient && msg?.fromDB) {
-    await supabaseClient.from('message_replies').delete().eq('message_id', msgId);
-    await supabaseClient.from('messages').delete().eq('id', msgId);
+    await hideConversationFor(msgId, 'admin');
   }
+  refreshAdminUnread();
   renderAdminPanel();
 }
 function adminSendAnnouncement() {
@@ -13704,6 +13748,7 @@ async function showVendorInbox() {
         .order('created_at', { ascending: false }) : Promise.resolve({ data: [] })
     ]);
     const conversations = [...(shopperRes.data||[]), ...(supportRes.data||[])]
+      .filter(c => !(c.deleted_by||[]).includes(ST.user.id))
       .sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
 
     ST._vendorInboxConversations = conversations;
@@ -13731,9 +13776,13 @@ function renderVendorInboxList(conversations) {
   list.innerHTML = conversations.map(convo => {
     const replies = convo.message_replies || [];
     const isSupportThread = convo.recipient_type === 'admin';
-    // Unread = the conversation itself unread (the only flag we track),
-    // not per-message — a conversation is read or unread as a whole.
-    const isUnread = !convo.read;
+    const _latestReplyAt = replies.length ? replies[replies.length-1].created_at : null;
+    // Support thread: vendor is the SENDER → their read state lives in
+    // sender_last_read_at, isolated from the admin's `read` flag. Shopper
+    // threads: vendor is the recipient → the recipient `read` flag applies.
+    const isUnread = isSupportThread
+      ? (!!_latestReplyAt && (!convo.sender_last_read_at || new Date(_latestReplyAt) > new Date(convo.sender_last_read_at)))
+      : !convo.read;
     const totalMsgCount = 1 + replies.length;
     const lastActivityAt = replies.length > 0 ? replies[replies.length-1].created_at : convo.created_at;
     const date = new Date(lastActivityAt).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
@@ -13778,18 +13827,19 @@ function renderVendorInboxList(conversations) {
     return `<div style="border:1px solid ${borderColor};border-radius:var(--r-md);margin-bottom:12px;box-shadow:0 2px 6px rgba(0,0,0,.06);overflow:hidden">
       ${header}
       <div style="padding:13px 14px;background:var(--bg)">
-        <div style="display:flex;flex-direction:column">${timelineHtml}</div>
+        <div id="vthread_${convo.id}" style="display:flex;flex-direction:column;max-height:340px;overflow-y:auto">${timelineHtml}</div>
         <div style="display:flex;gap:8px;margin:10px 0 8px">
           <input id="reply_${convo.id}" type="text" placeholder="Write a reply..." style="flex:1;padding:8px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:12px;font-family:var(--font-sans);background:var(--surface);color:var(--text);outline:none">
           <button onclick="sendVendorReply('${convo.id}','reply_${convo.id}','${convo.recipient_type}')" style="padding:8px 14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:12px;cursor:pointer;font-weight:500;font-family:var(--font-sans);white-space:nowrap">Send</button>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center">
-          <button onclick="vendorToggleMsgRead('${convo.id}')" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--text3);font-family:var(--font-sans);text-decoration:underline;text-underline-offset:2px">${convo.read ? '○ Mark as unread' : '● Mark as read'}</button>
+          <button onclick="vendorToggleMsgRead('${convo.id}')" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--text3);font-family:var(--font-sans);text-decoration:underline;text-underline-offset:2px">${isUnread ? '● Mark as read' : '○ Mark as unread'}</button>
           <button onclick="vendorDeleteMsg('${convo.id}')" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--terra);font-family:var(--font-sans);text-decoration:underline;text-underline-offset:2px">🗑 Delete conversation</button>
         </div>
       </div>
     </div>`;
   }).join('');
+  if(ST.vendorInboxExpanded) scrollThreadBottom('vthread_'+ST.vendorInboxExpanded);
 }
 
 async function vendorInboxToggleConvo(convoId) {
@@ -13801,32 +13851,48 @@ async function vendorInboxToggleConvo(convoId) {
   // "mark as unread" actually sticks until they look again.
   if(!wasExpanded && supabaseClient) {
     const convo = (ST._vendorInboxConversations||[]).find(c => c.id === convoId);
-    if(convo && !convo.read) {
+    if(convo) {
       const now = new Date().toISOString();
-      convo.read = true;
-      convo.last_read_at = now;
-      await supabaseClient.from('messages').update({ read: true, last_read_at: now }).eq('id', convoId);
+      if(convo.recipient_type === 'admin') {
+        // vendor is the sender of their support thread → sender-side marker
+        convo.sender_last_read_at = now;
+        await supabaseClient.from('messages').update({ sender_last_read_at: now }).eq('id', convoId);
+      } else if(!convo.read) {
+        convo.read = true;
+        convo.last_read_at = now;
+        await supabaseClient.from('messages').update({ read: true, last_read_at: now }).eq('id', convoId);
+      }
     }
   }
   if(ST._vendorInboxConversations) renderVendorInboxList(ST._vendorInboxConversations);
+  if(!wasExpanded) scrollThreadBottom('vthread_'+convoId);
 }
 
 async function vendorToggleMsgRead(convoId) {
   if(!supabaseClient) return;
   const convo = (ST._vendorInboxConversations||[]).find(c => c.id === convoId);
-  const newRead = !(convo?.read);
-  // Marking unread is a display preference only — never touches last_read_at,
-  // so it can never re-trigger or suppress an email notification.
-  if(convo) convo.read = newRead;
-  await supabaseClient.from('messages').update({ read: newRead }).eq('id', convoId);
+  if(!convo) return;
+  if(convo.recipient_type === 'admin') {
+    // Support thread: vendor is the sender → toggle the sender-side marker so it
+    // never touches the admin's read flag.
+    const reps = convo.message_replies || [];
+    const latestReplyAt = reps.length ? reps[reps.length-1].created_at : null;
+    const isCurrentlyUnread = !!latestReplyAt && (!convo.sender_last_read_at || new Date(latestReplyAt) > new Date(convo.sender_last_read_at));
+    const newValue = isCurrentlyUnread ? new Date().toISOString() : null; // read = now, unread = clear
+    convo.sender_last_read_at = newValue;
+    await supabaseClient.from('messages').update({ sender_last_read_at: newValue }).eq('id', convoId);
+  } else {
+    const newRead = !(convo.read);
+    convo.read = newRead;
+    await supabaseClient.from('messages').update({ read: newRead }).eq('id', convoId);
+  }
   if(ST._vendorInboxConversations) renderVendorInboxList(ST._vendorInboxConversations);
 }
 
 async function vendorDeleteMsg(convoId) {
-  if(!confirm('Delete this conversation? This cannot be undone.')) return;
+  if(!confirm('Remove this conversation from your inbox? It will come back if a new message arrives.')) return;
   if(!supabaseClient) return;
-  await supabaseClient.from('message_replies').delete().eq('message_id', convoId);
-  await supabaseClient.from('messages').delete().eq('id', convoId);
+  await hideConversationFor(convoId, ST.user.id);
   showVendorInbox();
 }
 
