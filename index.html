@@ -8,6 +8,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
+<!-- v1.74.4 — vendor bottom nav & sidebar: "My Products" slot swapped for "Messages" (Products still reachable from the dashboard quick-links and quick-action tile, now wired directly rather than through the tab system); added vendor unread dot, gated to Pro/Pro-trial same as existing dashboard badge. Startup fix: shopper "Me" dot, admin "Messages" dot, and new vendor "Messages" dot now all compute once on initial app load instead of only after navigating into that tab — fixes hard refresh never showing the alert. -->
 <!-- v1.74.3 — fix: shopper replies to an existing vendor thread (via both the message modal and the shopper's own inbox) now correctly re-flag the thread as unread for the vendor; badge queries (shopper account page, vendor dashboard) now fetch reply role so a sender's own message is never counted as unread for them; removed temporary Sentry test function now that error tracking is confirmed working. -->
 <!-- v1.74.2 — add Sentry error tracking loader script + temporary test error function (window.testSentryError). -->
 <!-- v1.74.1 — fix: sending your own reply no longer marks your own conversation as unread; sender-side unread now ignores the viewer's own replies (shopper + vendor support threads). -->
@@ -2925,7 +2926,7 @@ function renderVendorSubPage() {
   const sub = ST.tab;
   if(sub === 'explore') return renderVendorProfileEdit();
   if(sub === 'markets') return renderVendorSchedule();
-  if(sub === 'following') return renderVendorProducts();
+  if(sub === 'following') return showVendorInbox();
   if(sub === 'me') return renderVendorSettings();
   renderVendorDash(); // home / default
 }
@@ -2958,7 +2959,7 @@ function renderSidebar() {
   if(!nav) return;
   const maps = {
     customer:[{id:'home',e:'🏠',l:'Home'},{id:'explore',e:'🔍',l:'Explore'},{id:'markets',e:'📍',l:'Markets'},{id:'following',e:'❤️',l:'Following'},{id:'me',e:'👤',l:'My Account'}],
-    vendor:[{id:'home',e:'📊',l:'Dashboard'},{id:'explore',e:'👤',l:'My Profile'},{id:'markets',e:'📅',l:'Schedule'},{id:'following',e:'📦',l:'Products'},{id:'me',e:'⚙️',l:'Settings'}],
+    vendor:[{id:'home',e:'📊',l:'Dashboard'},{id:'explore',e:'👤',l:'My Profile'},{id:'markets',e:'📅',l:'Schedule'},{id:'following',e:'✉️',l:'Messages'},{id:'me',e:'⚙️',l:'Settings'}],
     operator:[{id:'home',e:'📊',l:'Dashboard'},{id:'markets',e:'🏪',l:'My Markets'},{id:'explore',e:'👥',l:'Vendor Roster'},{id:'following',e:'📅',l:'Scheduling'},{id:'me',e:'⚙️',l:'Settings'}],
     admin:[
       {id:'dashboard',e:'📊',l:'Dashboard'},
@@ -2985,7 +2986,7 @@ function renderSidebar() {
       </div>`;
     }
     return `<div class="sidebar-nav-item ${ST.tab===item.id?'active':''}" onclick="navigate('${item.id}')">
-      <span>${item.e}</span><span>${item.l}</span>
+      <span>${item.e}</span><span>${item.l}</span>${item.id==='following' && navRole==='vendor' && ST._vendorUnreadCount>0 ? '<span style="margin-left:6px;width:8px;height:8px;background:var(--terra);border-radius:50%;display:inline-block;flex-shrink:0"></span>' : ''}
     </div>`;
   }).join('');
   // Show lang pill for vendor/operator only
@@ -3400,7 +3401,7 @@ function renderBottom() {
   const MSG_I='<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>';
   const maps = {
     customer:[{id:'home',l:t('nav_home'),i:HOME_I},{id:'explore',l:t('nav_explore'),i:EXPL_I},{id:'markets',l:t('nav_markets'),i:MARK_I},{id:'following',l:t('nav_following'),i:FOLL_I},{id:'me',l:t('nav_me'),i:ME_I}],
-    vendor:[{id:'home',l:t('dashboard'),i:DASH_I},{id:'explore',l:t('my_profile'),i:ME_I},{id:'markets',l:t('my_schedule'),i:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>'},{id:'following',l:t('my_products'),i:'<path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>'},{id:'me',l:t('settings'),i:SETT_I}],
+    vendor:[{id:'home',l:t('dashboard'),i:DASH_I},{id:'explore',l:t('my_profile'),i:ME_I},{id:'markets',l:t('my_schedule'),i:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>'},{id:'following',l:'Messages',i:MSG_I},{id:'me',l:t('settings'),i:SETT_I}],
     operator:[{id:'home',l:t('dashboard'),i:DASH_I},{id:'markets',l:t('your_markets'),i:MARK_I},{id:'explore',l:t('vendor_roster'),i:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'},{id:'following',l:'Scheduling',i:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>'},{id:'me',l:t('settings'),i:SETT_I}],
     admin:[{id:'home',l:'Dashboard',i:DASH_I},{id:'explore',l:'Vendors',i:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>'},{id:'markets',l:'Markets',i:MARK_I},{id:'following',l:'Claims',i:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>'},{id:'me',l:'Messages',i:MSG_I}]
   };
@@ -3409,6 +3410,7 @@ function renderBottom() {
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${item.i}</svg>
       ${item.id==='me' && ST.role==='customer' && ST._shopperUnreadCount>0 ? '<span style="position:absolute;top:2px;right:calc(50% - 16px);width:8px;height:8px;background:var(--terra);border-radius:50%;border:1.5px solid var(--surface)"></span>' : ''}
       ${item.id==='me' && ST.role==='admin' && ST._adminUnreadCount>0 ? '<span style="position:absolute;top:2px;right:calc(50% - 16px);width:8px;height:8px;background:var(--terra);border-radius:50%;border:1.5px solid var(--surface)"></span>' : ''}
+      ${item.id==='following' && ST.role==='vendor' && ST._vendorUnreadCount>0 ? '<span style="position:absolute;top:2px;right:calc(50% - 16px);width:8px;height:8px;background:var(--terra);border-radius:50%;border:1.5px solid var(--surface)"></span>' : ''}
       <span class="nav-label">${item.l}</span>
     </button>`).join('');
 }
@@ -8961,6 +8963,65 @@ async function sendShopperReply(messageId, inputId, recipientType, recipientId) 
   }
 }
 
+async function refreshVendorUnreadCount() {
+  // Lightweight standalone version of the unread calc inside renderVendorDash,
+  // used so the bottom-nav dot is correct on initial load without waiting for
+  // the vendor to open their dashboard. Messaging is a Pro feature, so this
+  // is a no-op for free/unclaimed vendors — matches existing dashboard gating.
+  const vendorId = ST.vendorId;
+  if(!supabaseClient || !vendorId) return;
+  const v = DATA.vendors.find(x => x.id === vendorId);
+  const isPro = v?.pro || ST.isProTrial;
+  if(!isPro) { ST._vendorUnreadCount = 0; return; }
+  try {
+    const _vHidden = `{${ST.user?.id}}`;
+    const [shopperUnread, supportThreads] = await Promise.all([
+      supabaseClient.from('messages').select('*', {count:'exact',head:true})
+        .eq('recipient_id', vendorId).eq('recipient_type','vendor').eq('read', false)
+        .not('deleted_by', 'cs', _vHidden),
+      ST.user?.id ? supabaseClient.from('messages')
+        .select('sender_last_read_at, deleted_by, message_replies(created_at, role)')
+        .eq('from_user_id', ST.user.id).eq('recipient_type','admin')
+        : Promise.resolve({data:[]})
+    ]);
+    const supportUnreadCount = (supportThreads.data||[]).filter(c => {
+      if((c.deleted_by||[]).includes(ST.user?.id)) return false;
+      const reps = c.message_replies||[];
+      if(!reps.length) return false;
+      const latestReplyAt = latestOtherReplyAt(reps, 'vendor');
+      return !!latestReplyAt && (!c.sender_last_read_at || new Date(latestReplyAt) > new Date(c.sender_last_read_at));
+    }).length;
+    ST._vendorUnreadCount = (shopperUnread.count||0) + supportUnreadCount;
+  } catch(e) { console.warn('Could not load vendor unread count:', e); }
+  renderBottom();
+}
+
+async function refreshShopperUnreadCount() {
+  // Unread count across all of this shopper's conversations (vendor
+  // threads they started + their own admin/support thread). "Unread" here
+  // means a reply has landed since they last opened that specific
+  // conversation — sender_last_read_at tracks that, separate from the
+  // recipient-side `read`/`last_read_at` fields used elsewhere.
+  let shopperUnreadCount = 0;
+  if(supabaseClient && ST.user?.id) {
+    try {
+      const { data: myConvos } = await supabaseClient.from('messages')
+        .select('id, sender_last_read_at, deleted_by, message_replies(created_at, role)')
+        .eq('from_user_id', ST.user.id);
+      shopperUnreadCount = (myConvos||[]).filter(c => {
+        if((c.deleted_by||[]).includes(ST.user.id)) return false;
+        const replies = c.message_replies || [];
+        if(replies.length === 0) return false;
+        const latestReplyAt = latestOtherReplyAt(replies, 'customer');
+        return !!latestReplyAt && (!c.sender_last_read_at || new Date(latestReplyAt) > new Date(c.sender_last_read_at));
+      }).length;
+    } catch(e) { console.warn('Could not load shopper unread count:', e); }
+  }
+  ST._shopperUnreadCount = shopperUnreadCount;
+  renderBottom();
+  return shopperUnreadCount;
+}
+
 async function renderMe() {
   hideFilterUI();
   if(ST.role !== 'customer' && ST.role !== 'friends-family') { renderCurrentPage(); return; }
@@ -8971,28 +9032,7 @@ async function renderMe() {
     const sb = document.getElementById('scrollBody');
     const chevron = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
 
-    // Unread count across all of this shopper's conversations (vendor
-    // threads they started + their own admin/support thread). "Unread" here
-    // means a reply has landed since they last opened that specific
-    // conversation — sender_last_read_at tracks that, separate from the
-    // recipient-side `read`/`last_read_at` fields used elsewhere.
-    let shopperUnreadCount = 0;
-    if(supabaseClient && ST.user?.id) {
-      try {
-        const { data: myConvos } = await supabaseClient.from('messages')
-          .select('id, sender_last_read_at, deleted_by, message_replies(created_at, role)')
-          .eq('from_user_id', ST.user.id);
-        shopperUnreadCount = (myConvos||[]).filter(c => {
-          if((c.deleted_by||[]).includes(ST.user.id)) return false;
-          const replies = c.message_replies || [];
-          if(replies.length === 0) return false;
-          const latestReplyAt = latestOtherReplyAt(replies, 'customer');
-          return !!latestReplyAt && (!c.sender_last_read_at || new Date(latestReplyAt) > new Date(c.sender_last_read_at));
-        }).length;
-      } catch(e) { console.warn('Could not load shopper unread count:', e); }
-    }
-    ST._shopperUnreadCount = shopperUnreadCount;
-    renderBottom();
+    const shopperUnreadCount = await refreshShopperUnreadCount();
 
     sb.innerHTML = `<div style="padding:0 0 40px">
       <!-- Avatar header -->
@@ -10115,7 +10155,7 @@ async function renderVendorDash() {
   const actions = [
     { icon:'👤', label:t('my_profile'), sub:t('photo_story_links'), tab:'explore' },
     { icon:'📅', label:t('my_schedule'), sub:`${marketCount} ${marketCount!==1?t('markets_label'):t('market_label')}`, tab:'markets' },
-    { icon:'📦', label:t('my_products'), sub: isPro ? `${productCount} ${t('listed')}` : `🔒 ${t('pro_feature')}`, tab:'following', locked: !isPro },
+    { icon:'📦', label:t('my_products'), sub: isPro ? `${productCount} ${t('listed')}` : `🔒 ${t('pro_feature')}`, tab:null, locked: !isPro, action: 'renderVendorProducts()' },
     { icon:'📢', label:t('post_update'), sub: isPro ? t('reach_followers') : `🔒 ${t('pro_feature')}`, tab:null, locked: !isPro, action: isPro ? 'showWeeklyUpdateModal()' : "navigate('vendors-join')" },
     { icon:'💬', label:t('messaging'), sub: isPro ? t('view_messages') : `🔒 ${t('pro_feature')}`, tab:null, locked: !isPro, action: isPro ? 'showVendorInbox()' : "navigate('vendors-join')", badgeCount: isPro ? unreadMsgCount : 0 },
     { icon:'📲', label:'Share your page', sub: isPro ? 'Post to Facebook & Instagram' : `🔒 ${t('pro_feature')}`, tab:null, locked: !isPro, action: isPro ? 'showVendorShareModal()' : "navigate('vendors-join')" },
@@ -15259,7 +15299,7 @@ function renderVendorSettingsSection(section) {
           <div style="font-size:13px;font-weight:600;color:var(--text)">📅 My Schedule</div>
           <div style="font-size:12px;color:var(--text2);margin-top:2px">Confirm which markets you sell at — this is what tells shoppers where to find you. Also where you post weekly updates and confirm attendance. <span style="color:var(--terra)">Go →</span></div>
         </div>
-        <div onclick="navigate('following')" style="border:0.5px solid var(--border);border-radius:var(--r-md);padding:12px;cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+        <div onclick="renderVendorProducts()" style="border:0.5px solid var(--border);border-radius:var(--r-md);padding:12px;cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
           <div style="font-size:13px;font-weight:600;color:var(--text)">📦 My Products</div>
           <div style="font-size:12px;color:var(--text2);margin-top:2px">Add a name, description, and price for what you sell — like a menu for your stand. This is different from your Photo Gallery, which lives in My Profile. <span style="color:var(--terra)">Go →</span></div>
         </div>
@@ -17399,6 +17439,17 @@ async function initApp() {
   renderBottom();
   renderCurrentPage();
   initViewToggle();
+
+  // Fetch unread counts immediately so the bottom-nav alert dot is correct
+  // on first load — previously this only happened once the user navigated
+  // into Me/Messages, so a hard refresh landing on Home never showed it.
+  if(ST.role === 'customer' || ST.role === 'friends-family') {
+    refreshShopperUnreadCount();
+  } else if(ST.role === 'admin') {
+    refreshAdminUnread();
+  } else if(ST.role === 'vendor') {
+    refreshVendorUnreadCount();
+  }
 }
 
 // Add spin animation
