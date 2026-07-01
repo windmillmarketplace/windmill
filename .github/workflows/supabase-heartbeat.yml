@@ -1,0 +1,25 @@
+name: Supabase Heartbeat
+
+# Prevents the Supabase free-tier project from auto-pausing after 7 days
+# of inactivity, by running a lightweight real database read twice a week.
+
+on:
+  schedule:
+    - cron: '0 14 * * 1,4'   # Monday & Thursday, 14:00 UTC
+  workflow_dispatch:          # lets you trigger it manually from the Actions tab to test
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase database
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/markets?select=id&limit=1" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}")
+          echo "Supabase responded with HTTP $STATUS"
+          if [ "$STATUS" -ge 400 ]; then
+            echo "::error::Heartbeat ping failed (HTTP $STATUS) — check Supabase project status."
+            exit 1
+          fi
