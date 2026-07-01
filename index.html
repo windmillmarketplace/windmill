@@ -8,6 +8,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
+<!-- v1.74.8 — hid the Reviews section (and its nav-bar link) on both vendor and market profile pages; was a "No reviews yet" placeholder with a "Write a review" button that dead-ended into sign-in with no real system behind it. Original markup preserved in comments for both pages — market reviews planned to come back first as a lower-stakes test before vendor reviews. -->
+<!-- v1.74.7 — added real, working "Email updates & newsletters" toggle to Notifications & Alerts page, saving email_marketing_opt_in to shopper_profiles (new column, added directly in Supabase). Positioned above the existing "text alerts coming soon" placeholder rather than replacing it. Notifications menu subtitle updated to reflect the real feature. -->
+<!-- v1.74.6 — correction to v1.74.5: restored the phone field on the profile edit form as general optional contact info (was wrongly removed entirely, not just disconnected from the broken SMS feature). Also fixes a bug my v1.74.5 change introduced: submitShopperProfile() was still reading the now-removed SMS toggle element, which would have silently reset every shopper's sms_opt_in to false on their next profile save. -->
+<!-- v1.74.5 — hid the market-day text-alerts toggle (profile edit + notifications settings) and its phone field; feature was fully wired to save sms_opt_in/phone to Supabase but no SMS actually sends (no backend built), which was misleading real shoppers. Original markup preserved in comments for later restore when the SMS-sending Edge Function is built. Notifications menu subtitle updated to "Coming soon". -->
 <!-- v1.74.4 — vendor bottom nav & sidebar: "My Products" slot swapped for "Messages" (Products still reachable from the dashboard quick-links and quick-action tile, now wired directly rather than through the tab system); added vendor unread dot, gated to Pro/Pro-trial same as existing dashboard badge. Startup fix: shopper "Me" dot, admin "Messages" dot, and new vendor "Messages" dot now all compute once on initial app load instead of only after navigating into that tab — fixes hard refresh never showing the alert. -->
 <!-- v1.74.3 — fix: shopper replies to an existing vendor thread (via both the message modal and the shopper's own inbox) now correctly re-flag the thread as unread for the vendor; badge queries (shopper account page, vendor dashboard) now fetch reply role so a sender's own message is never counted as unread for them; removed temporary Sentry test function now that error tracking is confirmed working. -->
 <!-- v1.74.2 — add Sentry error tracking loader script + temporary test error function (window.testSentryError). -->
@@ -5507,7 +5511,9 @@ async function renderVendorProfile(id) {
       <button class="section-nav-btn" onclick="scrollToSection('vnd-schedule','vendorSectionNav',this)">Schedule</button>
       <button class="section-nav-btn" onclick="scrollToSection('vnd-photos','vendorSectionNav',this)">Photos</button>
       <button class="section-nav-btn" onclick="scrollToSection('vnd-products','vendorSectionNav',this)">Products</button>
+      <!-- HIDDEN v1.74.8 — Reviews not yet built (placeholder CTA dead-ended into sign-in with nothing behind it). Restore when a real review system exists.
       <button class="section-nav-btn" onclick="scrollToSection('vnd-reviews','vendorSectionNav',this)">Reviews</button>
+      -->
     </div>
     <div style="height:0;overflow:hidden;visibility:hidden" id="vnd-about"></div>
     <div class="profile-section">
@@ -5630,7 +5636,7 @@ async function renderVendorProfile(id) {
     <!-- ALSO AT THIS MARKET: all tiers, different categories, auto-scroll -->
     <div id="alsoAtMarketStrip"></div>
 
-    <!-- REVIEWS -->
+    <!-- REVIEWS — HIDDEN v1.74.8, not yet built. Restore when a real review system exists.
     <div style="height:0;overflow:hidden;visibility:hidden" id="vnd-reviews"></div>
     <div class="profile-section" style="margin-bottom:24px">
       <div class="profile-section-title">${t('reviews_label')}</div>
@@ -5640,9 +5646,10 @@ async function renderVendorProfile(id) {
         <button style="margin-top:8px;padding:7px 16px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-family:var(--font-sans)" onclick="openSignIn()">${t('write_review')}</button>
       </div>
     </div>
+    -->
   </div>`;
   document.getElementById('scrollBody').innerHTML = h;
-  setTimeout(() => { initSectionNavObserver('vendorSectionNav', ['vnd-about','vnd-contact','vnd-schedule','vnd-photos','vnd-products','vnd-reviews']); initPhotoStrip(); }, 100);
+  setTimeout(() => { initSectionNavObserver('vendorSectionNav', ['vnd-about','vnd-contact','vnd-schedule','vnd-photos','vnd-products']); initPhotoStrip(); }, 100);
   if(ST.pendingScrollSection) {
     const sec = ST.pendingScrollSection;
     ST.pendingScrollSection = null;
@@ -5921,7 +5928,9 @@ function renderMarketDetail(id) {
       <button class="section-nav-btn" onclick="scrollToSection('mkt-info','marketSectionNav',this)">Info</button>
       <button class="section-nav-btn" onclick="scrollToSection('mkt-gallery','marketSectionNav',this)">Gallery</button>
       <button class="section-nav-btn" onclick="scrollToSection('mkt-vendors','marketSectionNav',this)">Vendors</button>
+      <!-- HIDDEN v1.74.8 — Reviews not yet built (placeholder CTA dead-ended into sign-in with nothing behind it). Restore when a real review system exists.
       <button class="section-nav-btn" onclick="scrollToSection('mkt-reviews','marketSectionNav',this)">Reviews</button>
+      -->
     </div>
 
     ${(()=>{
@@ -6013,7 +6022,7 @@ function renderMarketDetail(id) {
     <!-- OTHER MARKETS IN YOUR AREA -->
     ${renderOtherMarketsCarousel(m.id, m.region)}
 
-    <!-- REVIEWS -->
+    <!-- REVIEWS — HIDDEN v1.74.8, not yet built. Restore when a real review system exists.
     <div style="height:0;overflow:hidden;visibility:hidden" id="mkt-reviews"></div>
     <div class="profile-section">
       <div class="profile-section-title">Reviews</div>
@@ -6024,6 +6033,7 @@ function renderMarketDetail(id) {
         <button style="padding:7px 16px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-family:var(--font-sans)" onclick="openSignIn()">Write a review</button>
       </div>
     </div>
+    -->
 
     <!-- CLAIM CTA -->
     <div style="padding:0 16px 24px">
@@ -6042,7 +6052,7 @@ function renderMarketDetail(id) {
   document.getElementById('scrollBody').innerHTML = h;
   ST._mktVendors = mvs;
   setTimeout(() => {
-    initSectionNavObserver('marketSectionNav', ['mkt-about','mkt-social','mkt-info','mkt-gallery','mkt-vendors','mkt-reviews']);
+    initSectionNavObserver('marketSectionNav', ['mkt-about','mkt-social','mkt-info','mkt-gallery','mkt-vendors']);
     initMarketVendorGrid();
   }, 100);
 }
@@ -8558,15 +8568,9 @@ async function renderShopperProfileCard(profile) {
         <input id="spLocation" value="${location}" placeholder="e.g. Fort Myers, FL" style="width:100%;padding:8px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--surface2);color:var(--text);box-sizing:border-box">
       </div>
       <div style="padding:12px 14px;border-bottom:0.5px solid var(--border)">
-        <div style="font-size:11px;color:var(--text3);margin-bottom:5px">📲 Phone — get market day text alerts</div>
-        <div style="display:flex;align-items:center;gap:10px">
-          <input id="spPhone" value="${phone.replace(/[^0-9]/g,'')}" placeholder="(239) 555-0100" type="tel" style="flex:1;padding:8px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--surface2);color:var(--text)" oninput="(function(el){let v=el.value.replace(/[^0-9]/g,'').slice(0,10);if(v.length>=7)v='('+v.slice(0,3)+') '+v.slice(3,6)+'-'+v.slice(6);else if(v.length>=4)v='('+v.slice(0,3)+') '+v.slice(3);else if(v.length>0)v='('+v;el.value=v;})(this)">
-          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-            <span style="font-size:11px;color:var(--text2);white-space:nowrap">Text alerts</span>
-            <div id="spSmsToggle" class="toggle ${smsOptIn?'on':''}" onclick="this.classList.toggle('on')" style="flex-shrink:0"><div class="toggle-thumb"></div></div>
-          </div>
-        </div>
-        <div style="font-size:10px;color:var(--text3);margin-top:4px">Optional. We'll never share your number.</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:5px">📱 Phone (optional)</div>
+        <input id="spPhone" value="${phone.replace(/[^0-9]/g,'')}" placeholder="(239) 555-0100" type="tel" style="width:100%;padding:8px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--surface2);color:var(--text);box-sizing:border-box" oninput="(function(el){let v=el.value.replace(/[^0-9]/g,'').slice(0,10);if(v.length>=7)v='('+v.slice(0,3)+') '+v.slice(3,6)+'-'+v.slice(6);else if(v.length>=4)v='('+v.slice(0,3)+') '+v.slice(3);else if(v.length>0)v='('+v;el.value=v;})(this)">
+        <div style="font-size:10px;color:var(--text3);margin-top:4px">We'll never share your number.</div>
       </div>
       <div style="padding:12px 14px;border-bottom:0.5px solid var(--border)">
         <div style="font-size:11px;color:var(--text3);margin-bottom:5px">🎂 Birthday — vendors love to celebrate their regulars</div>
@@ -8604,7 +8608,6 @@ function toggleShopperProfileEdit() {
 async function submitShopperProfile() {
   const name = document.getElementById('spName')?.value.trim() || '';
   const phone = document.getElementById('spPhone')?.value.trim() || '';
-  const smsOptIn = document.getElementById('spSmsToggle')?.classList.contains('on') || false;
   const bdMonth = document.getElementById('spBdMonth')?.value || '';
   const bdDay = document.getElementById('spBdDay')?.value || '';
   const location = document.getElementById('spLocation')?.value.trim() || '';
@@ -8613,7 +8616,6 @@ async function submitShopperProfile() {
   const ok = await saveShopperProfile({
     display_name: name,
     phone,
-    sms_opt_in: smsOptIn,
     birthday_month_day: birthdayMD,
     location
   });
@@ -8665,10 +8667,26 @@ async function renderMeSection(section) {
     const profile = await loadShopperProfile();
     const phone = profile?.phone || '';
     const smsOn = profile?.sms_opt_in || false;
+    const emailMarketingOn = profile?.email_marketing_opt_in || false;
     const slot = document.getElementById('meSectionContent');
     if(slot) slot.outerHTML = `<div style="padding:16px">
       <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:4px">Notifications & Alerts</div>
       <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Stay in the loop on market days and vendor updates.</div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;margin-bottom:14px">
+        <div style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:2px">📧 Email updates & newsletters</div>
+            <div style="font-size:11px;color:var(--text3)">Occasional emails about markets, new vendors, and Windmill news.</div>
+          </div>
+          <div id="notifEmailToggle" class="toggle ${emailMarketingOn?'on':''}" onclick="(async()=>{this.classList.toggle('on');await saveShopperProfile({email_marketing_opt_in:this.classList.contains('on')});const t=document.createElement('div');t.textContent=this.classList.contains('on')?'Email updates on ✓':'Email updates off';t.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:12px;z-index:9999;font-family:var(--font-sans);white-space:nowrap';document.body.appendChild(t);setTimeout(()=>t.remove(),2500);})()" style="flex-shrink:0;margin-left:12px"><div class="toggle-thumb"></div></div>
+        </div>
+      </div>
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;padding:24px 16px;text-align:center">
+        <div style="font-size:28px;margin-bottom:8px">📲</div>
+        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:4px">Market day text alerts</div>
+        <div style="font-size:12px;color:var(--text3)">Coming soon — we're working on it!</div>
+      </div>
+      <!-- HIDDEN v1.74.5 — original working toggle preserved below; it correctly saved sms_opt_in + phone to Supabase, but no SMS actually gets sent (no backend wired up yet). Restore this markup once the SMS-sending Edge Function is built.
       <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden">
         <div style="padding:14px 16px">
           <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:4px">📲 Market day text alerts</div>
@@ -8679,6 +8697,7 @@ async function renderMeSection(section) {
           </div>` : `<button onclick="renderMeSection('profile')" style="padding:9px 18px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Add phone number →</button>`}
         </div>
       </div>
+      -->
     </div>`;
 
   } else if(section === 'settings') {
@@ -9079,7 +9098,7 @@ async function renderMe() {
             <span style="font-size:18px">🔔</span>
             <div>
               <div style="font-size:14px;font-weight:500;color:var(--text)">Notifications & Alerts</div>
-              <div style="font-size:11px;color:var(--text3)">Text alerts, market day reminders</div>
+              <div style="font-size:11px;color:var(--text3)">Email updates, text alerts (coming soon)</div>
             </div>
           </div>
           ${chevron}
