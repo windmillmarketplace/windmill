@@ -1,9 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script
+  src="https://js.sentry-cdn.com/660423675d92f7369b79f3e2cc0b10e9.min.js"
+  crossorigin="anonymous"
+></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
+<!-- v1.74.3 — fix: shopper replies to an existing vendor thread (via both the message modal and the shopper's own inbox) now correctly re-flag the thread as unread for the vendor; badge queries (shopper account page, vendor dashboard) now fetch reply role so a sender's own message is never counted as unread for them; removed temporary Sentry test function now that error tracking is confirmed working. -->
+<!-- v1.74.2 — add Sentry error tracking loader script + temporary test error function (window.testSentryError). -->
 <!-- v1.74.1 — fix: sending your own reply no longer marks your own conversation as unread; sender-side unread now ignores the viewer's own replies (shopper + vendor support threads). -->
 <!-- v1.71.10 -->
 <!-- v1.71.9 -->
@@ -8935,6 +8941,11 @@ async function sendShopperReply(messageId, inputId, recipientType, recipientId) 
     if(input) input.value = '';
     if(btn) { btn.textContent = 'Send'; btn.disabled = false; }
 
+    // Bump back to unread for the recipient (vendor or admin) so this
+    // reply actually resurfaces in their inbox — mirrors the same fix in
+    // sendMessage's existing-conversation branch.
+    await supabaseClient.from('messages').update({ read: false }).eq('id', messageId);
+
     const { data: threadMsg } = await supabaseClient.from('messages').select('*').eq('id', messageId).single();
     if(threadMsg) {
       const recipientEmail = recipientType === 'admin' ? 'windmillmarketplace@gmail.com' : DATA.vendors.find(v=>v.id===recipientId)?.email;
@@ -8969,7 +8980,7 @@ async function renderMe() {
     if(supabaseClient && ST.user?.id) {
       try {
         const { data: myConvos } = await supabaseClient.from('messages')
-          .select('id, sender_last_read_at, deleted_by, message_replies(created_at)')
+          .select('id, sender_last_read_at, deleted_by, message_replies(created_at, role)')
           .eq('from_user_id', ST.user.id);
         shopperUnreadCount = (myConvos||[]).filter(c => {
           if((c.deleted_by||[]).includes(ST.user.id)) return false;
@@ -10031,7 +10042,7 @@ async function renderVendorDash() {
             .eq('recipient_id', vendorId).eq('recipient_type','vendor').eq('read', false)
             .not('deleted_by', 'cs', _vHidden),
           ST.user?.id ? supabaseClient.from('messages')
-            .select('sender_last_read_at, deleted_by, message_replies(created_at)')
+            .select('sender_last_read_at, deleted_by, message_replies(created_at, role)')
             .eq('from_user_id', ST.user.id).eq('recipient_type','admin')
             : Promise.resolve({data:[]})
         ]);
@@ -11446,10 +11457,11 @@ async function sendMessage(type, recipientId, recipientName) {
       // Append to the existing conversation as a reply
       const savedOk = await dbSaveReply(existing.id, { from: ST.user.name, from_email: ST.user.email, role: 'Customer', body });
       if(!savedOk) throw new Error('Message failed to save');
-      // For support threads, bump back to unread so the admin inbox resurfaces it
-      if(type === 'admin') {
-        await supabaseClient.from('messages').update({ read: false }).eq('id', existing.id);
-      }
+      // Bump back to unread so the recipient's inbox resurfaces it. This used
+      // to only run for admin threads — meaning a shopper's follow-up to a
+      // vendor never re-flagged that thread as unread for the vendor. Reset
+      // it for both admin and vendor threads.
+      await supabaseClient.from('messages').update({ read: false }).eq('id', existing.id);
       // Same suppression rules as any other reply: only emails if the
       // recipient hasn't already been notified since they last read this thread
       const recipientEmail = type === 'admin' ? 'windmillmarketplace@gmail.com' : DATA.vendors.find(v=>v.id===recipientId)?.email;
