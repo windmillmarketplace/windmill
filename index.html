@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.74 — messaging: admin unread is now reply-aware (a new reply alerts the admin even if the read flag is stale) fixing vendor->admin and shopper->admin alerts; newest-activity sort for shopper + vendor inboxes; per-message timestamps in shopper inbox. -->
+<!-- v1.74.1 — fix: sending your own reply no longer marks your own conversation as unread; sender-side unread now ignores the viewer's own replies (shopper + vendor support threads). -->
 <!-- v1.71.10 -->
 <!-- v1.71.9 -->
 <!-- v1.71.8 -->
@@ -8798,9 +8798,7 @@ function renderShopperInboxList(conversations) {
   list.innerHTML = conversations.map(convo => {
     const replies = convo.message_replies || [];
     const isSupportThread = convo.recipient_type === 'admin';
-    const latestReplyAt = replies.length > 0
-      ? replies.reduce((max,r) => new Date(r.created_at) > new Date(max) ? r.created_at : max, replies[0].created_at)
-      : null;
+    const latestReplyAt = latestOtherReplyAt(replies, 'customer');
     const isUnread = latestReplyAt && (!convo.sender_last_read_at || new Date(latestReplyAt) > new Date(convo.sender_last_read_at));
     const totalMsgCount = 1 + replies.length;
     const lastActivityAt = latestReplyAt || convo.created_at;
@@ -8894,9 +8892,7 @@ async function shopperToggleMsgRead(convoId) {
   // new again. "Mark as read" stamps it to now. Neither touches the
   // recipient-side `read`/`last_read_at` fields used by the other inbox.
   const replies = convo.message_replies || [];
-  const latestReplyAt = replies.length > 0
-    ? replies.reduce((max,r) => new Date(r.created_at) > new Date(max) ? r.created_at : max, replies[0].created_at)
-    : null;
+  const latestReplyAt = latestOtherReplyAt(replies, 'customer');
   const isCurrentlyUnread = latestReplyAt && (!convo.sender_last_read_at || new Date(latestReplyAt) > new Date(convo.sender_last_read_at));
   const newValue = isCurrentlyUnread ? new Date().toISOString() : null;
   convo.sender_last_read_at = newValue;
@@ -8912,8 +8908,8 @@ function recalcShopperUnreadBadge() {
   ST._shopperUnreadCount = convos.filter(c => {
     const replies = c.message_replies || [];
     if(replies.length === 0) return false;
-    const latestReplyAt = replies.reduce((max,r) => new Date(r.created_at) > new Date(max) ? r.created_at : max, replies[0].created_at);
-    return !c.sender_last_read_at || new Date(latestReplyAt) > new Date(c.sender_last_read_at);
+    const latestReplyAt = latestOtherReplyAt(replies, 'customer');
+    return !!latestReplyAt && (!c.sender_last_read_at || new Date(latestReplyAt) > new Date(c.sender_last_read_at));
   }).length;
   renderBottom();
 }
@@ -8979,8 +8975,8 @@ async function renderMe() {
           if((c.deleted_by||[]).includes(ST.user.id)) return false;
           const replies = c.message_replies || [];
           if(replies.length === 0) return false;
-          const latestReply = replies.reduce((max,r) => new Date(r.created_at) > new Date(max.created_at) ? r : max, replies[0]);
-          return !c.sender_last_read_at || new Date(latestReply.created_at) > new Date(c.sender_last_read_at);
+          const latestReplyAt = latestOtherReplyAt(replies, 'customer');
+          return !!latestReplyAt && (!c.sender_last_read_at || new Date(latestReplyAt) > new Date(c.sender_last_read_at));
         }).length;
       } catch(e) { console.warn('Could not load shopper unread count:', e); }
     }
@@ -10046,8 +10042,8 @@ async function renderVendorDash() {
           if((c.deleted_by||[]).includes(ST.user?.id)) return false;
           const reps = c.message_replies||[];
           if(!reps.length) return false;
-          const latest = reps.reduce((mx,r)=> new Date(r.created_at)>new Date(mx.created_at)?r:mx, reps[0]);
-          return !c.sender_last_read_at || new Date(latest.created_at) > new Date(c.sender_last_read_at);
+          const latestReplyAt = latestOtherReplyAt(reps, 'vendor');
+          return !!latestReplyAt && (!c.sender_last_read_at || new Date(latestReplyAt) > new Date(c.sender_last_read_at));
         }).length;
         unreadMsgCount = (shopperUnread.count||0) + supportUnreadCount;
       } catch(e) { console.warn('Could not load vendor unread count:', e); }
@@ -12185,6 +12181,17 @@ async function dbSaveMessage(msg) {
   }
 }
 
+// Latest reply NOT authored by the viewer — so sending your own reply never
+// marks your own conversation unread. ownRole is the viewer's role (lowercase).
+function latestOtherReplyAt(replies, ownRole) {
+  let t = null;
+  (replies||[]).forEach(r => {
+    if((r.role||'').toLowerCase() === ownRole) return;
+    if(r.created_at && (!t || new Date(r.created_at) > new Date(t))) t = r.created_at;
+  });
+  return t;
+}
+
 // Latest activity time for a conversation = newest of its own date or any reply.
 function msgLastActivity(m) {
   let t = new Date(m.created_at || 0).getTime();
@@ -13799,7 +13806,7 @@ function renderVendorInboxList(conversations) {
   list.innerHTML = conversations.map(convo => {
     const replies = convo.message_replies || [];
     const isSupportThread = convo.recipient_type === 'admin';
-    const _latestReplyAt = replies.length ? replies[replies.length-1].created_at : null;
+    const _latestReplyAt = latestOtherReplyAt(replies, 'vendor');
     // Support thread: vendor is the SENDER → their read state lives in
     // sender_last_read_at, isolated from the admin's `read` flag. Shopper
     // threads: vendor is the recipient → the recipient `read` flag applies.
@@ -13899,7 +13906,7 @@ async function vendorToggleMsgRead(convoId) {
     // Support thread: vendor is the sender → toggle the sender-side marker so it
     // never touches the admin's read flag.
     const reps = convo.message_replies || [];
-    const latestReplyAt = reps.length ? reps[reps.length-1].created_at : null;
+    const latestReplyAt = latestOtherReplyAt(reps, 'vendor');
     const isCurrentlyUnread = !!latestReplyAt && (!convo.sender_last_read_at || new Date(latestReplyAt) > new Date(convo.sender_last_read_at));
     const newValue = isCurrentlyUnread ? new Date().toISOString() : null; // read = now, unread = clear
     convo.sender_last_read_at = newValue;
