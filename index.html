@@ -9,6 +9,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
 <!-- v1.74.8 — hid the Reviews section (and its nav-bar link) on both vendor and market profile pages; was a "No reviews yet" placeholder with a "Write a review" button that dead-ended into sign-in with no real system behind it. Original markup preserved in comments for both pages — market reviews planned to come back first as a lower-stakes test before vendor reviews. -->
+<!-- v1.74.9 — fixed market claim approval and onboarding market-tagging: both updated operator_id/operators but never set markets.claimed = true, leaving approved market listings permanently stuck showing as unclaimed. Also fixed (separately, DB-side) the claims_vendor_id_fkey constraint that was silently blocking every market claim insert. -->
+<!-- v1.74.10 — fixed two 406 console errors on login (.single() → .maybeSingle() for the users profile lookup and the vendor claimed-status check, both of which legitimately return zero rows for shopper/new accounts). Also fixed follow buttons (vendor + market) not reflecting followed state after a hard refresh — onAuthSuccess loaded follows correctly but never re-rendered the current page, so pages drawn before the delayed session/follows callback fired stayed stuck showing "unfollowed" until the user navigated away and back. -->
+<!-- v1.74.11 — (1) Fixed product Edit button SyntaxError: an already-escaped pJson variable existed but wasn't actually being used in the onclick handler, so any product with an apostrophe in its name/description/price broke the button entirely. (2) Fixed password-recovery links not showing the "set new password" screen: the onAuthStateChange listener was attached too late (after all app data finished loading), so the PASSWORD_RECOVERY event — which Supabase fires almost immediately on client creation — was frequently missed; listener now attaches immediately when the Supabase client is created. (3) Fixed attendance confirmation silently failing: the attendance table was missing the unique constraint the upsert's onConflict clause depended on, so every save failed and was swallowed by a catch block while the UI still showed a false "success" toast (DB fix applied directly via SQL). (4) Fixed the "✓ This week" attendance badge on a vendor's public profile not showing for first-time/cold visitors — attendance data was loaded after the schedule section was already drawn; now loaded before. (5) Attendance save toast now only shows success when the save actually succeeds, and reverts the checkbox with an error toast if it doesn't. -->
 <!-- v1.74.7 — added real, working "Email updates & newsletters" toggle to Notifications & Alerts page, saving email_marketing_opt_in to shopper_profiles (new column, added directly in Supabase). Positioned above the existing "text alerts coming soon" placeholder rather than replacing it. Notifications menu subtitle updated to reflect the real feature. -->
 <!-- v1.74.6 — correction to v1.74.5: restored the phone field on the profile edit form as general optional contact info (was wrongly removed entirely, not just disconnected from the broken SMS feature). Also fixes a bug my v1.74.5 change introduced: submitShopperProfile() was still reading the now-removed SMS toggle element, which would have silently reset every shopper's sms_opt_in to false on their next profile save. -->
 <!-- v1.74.5 — hid the market-day text-alerts toggle (profile edit + notifications settings) and its phone field; feature was fully wired to save sms_opt_in/phone to Supabase but no SMS actually sends (no backend built), which was misleading real shoppers. Original markup preserved in comments for later restore when the SMS-sending Edge Function is built. Notifications menu subtitle updated to "Coming soon". -->
@@ -1096,6 +1099,18 @@ const SUPABASE_KEY = 'sb_publishable_-7UcJwmFHya0mOXcAkD7og_yPKv9-YO';
 let supabaseClient = null;
 try {
   supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
+  if(supabaseClient) {
+    // Attach this listener immediately on client creation — not later during app init.
+    // Supabase detects a recovery/magic-link token in the URL and can fire PASSWORD_RECOVERY
+    // almost instantly after the client exists. If we wait until checkExistingSession() (which
+    // runs after all app data finishes loading), that event can fire and be missed entirely,
+    // silently dropping the user into a normal signed-in session with no "set new password" screen.
+    supabaseClient.auth.onAuthStateChange(async (event, session) => {
+      if(event === 'PASSWORD_RECOVERY') { showSetNewPasswordModal(); return; }
+      if(event === 'SIGNED_IN' && session?.user) await onAuthSuccess(session.user);
+      if(event === 'SIGNED_OUT') { ST.user = null; ST.follows = []; renderBottom(); }
+    });
+  }
 } catch(e) {
   console.warn('Supabase init failed, using local data:', e);
 }
@@ -5422,6 +5437,13 @@ async function renderVendorProfile(id) {
     } catch(e) { console.warn('Could not fetch vendor from Supabase:', e); }
   }
 
+  // Load attendance data BEFORE building the schedule section below, so the
+  // "✓ This week" badge is correct on first paint for any visitor — previously
+  // this loaded after the page was already drawn, so a shopper visiting cold
+  // (without having just come from a dashboard where it was already loaded)
+  // would never see the badge even when attendance was correctly confirmed.
+  await loadAttendanceData();
+
   if(!v) { document.getElementById('scrollBody').innerHTML='<div style="padding:24px;text-align:center;color:var(--text2)">Vendor not found.</div>'; return; }
 
   const slug = v.slug || v.id;
@@ -5664,7 +5686,6 @@ async function renderVendorProfile(id) {
   }
   if(isPro) loadVendorProductsDisplay(v.id);
   renderAlsoAtStrip(v);
-  loadAttendanceData().then(() => { renderAlsoAtStrip(v); });
 }
 
 /* ── MARKET DETAIL TEMPLATE ── */
@@ -9888,10 +9909,10 @@ async function operatorOnboardingNext(step) {
     const checked = Array.from(document.querySelectorAll('.opOnboardMarketChk:checked')).map(el => el.value);
     if(supabaseClient && opId && checked.length > 0) {
       try {
-        await supabaseClient.from('markets').update({ operator_id: opId }).in('id', checked);
+        await supabaseClient.from('markets').update({ operator_id: opId, claimed: true }).in('id', checked);
         checked.forEach(id => {
           const m = DATA.markets.find(x => x.id === id);
-          if(m) m.operator_id = opId;
+          if(m) { m.operator_id = opId; m.claimed = true; }
         });
       } catch(e) { console.warn('Market tag update failed:', e); }
     }
@@ -11848,7 +11869,7 @@ async function authSignOut() {
 async function onAuthSuccess(user) {
   if(!user) return;
   // Load user profile from database
-  const { data: profile } = await supabaseClient.from('users').select('*').eq('id', user.id).single();
+  const { data: profile } = await supabaseClient.from('users').select('*').eq('id', user.id).maybeSingle();
 
   // Figure out their real name — prefer an existing saved name, then their approved claim
   // (where they typed their real name when claiming their listing), then fall back to their email
@@ -11875,7 +11896,7 @@ async function onAuthSuccess(user) {
         .select('id, claimed, pro, trial_start')
         .eq('email', user.email)
         .eq('claimed', true)
-        .single();
+        .maybeSingle();
       if(vendorRecord) {
         role = 'vendor';
         vendorId = vendorRecord.id;
@@ -11972,6 +11993,11 @@ async function onAuthSuccess(user) {
   renderBottom();
   renderFilterStrip();
   renderSidebar();
+  // Redraw whatever page is currently showing — follows may have loaded after
+  // the initial page render (e.g. on a hard refresh), so without this, follow
+  // buttons on an already-rendered vendor/market page stay stuck showing
+  // "unfollowed" even though the data is correct.
+  renderCurrentPage();
 
   // Update desktop sign-in button
   const btn = document.getElementById('desktopSigninBtn');
@@ -12056,13 +12082,6 @@ async function checkExistingSession() {
   } catch(err) {
     console.warn('Session check failed:', err);
   }
-
-  // Listen for auth state changes (magic link, OAuth callback)
-  supabaseClient.auth.onAuthStateChange(async (event, session) => {
-    if(event === 'PASSWORD_RECOVERY') { showSetNewPasswordModal(); return; }
-    if(event === 'SIGNED_IN' && session?.user) await onAuthSuccess(session.user);
-    if(event === 'SIGNED_OUT') { ST.user = null; ST.follows = []; renderBottom(); }
-  });
 }
 
 /* ── AUTH-GATED ACTIONS ── */
@@ -12760,6 +12779,10 @@ async function adminApproveClaimFinalize(claimId, resolvedEmail) {
             if(c.phone && !opRecord.phone) opUpdate.phone = c.phone;
             await supabaseClient.from('operators').update(opUpdate).eq('id', operatorId);
           }
+          // Mark the market itself as claimed — separate from the operator record being claimed
+          await supabaseClient.from('markets').update({ claimed: true }).eq('id', c.vendorId);
+          const mLocal = DATA.markets.find(x => x.id === c.vendorId);
+          if(mLocal) mLocal.claimed = true;
           await supabaseClient.from('claims').update({status:'approved'}).eq('id', claimId);
           // Update user record if exists — sync personal name + link to operator
           const { data: userRecord } = await supabaseClient
@@ -14725,16 +14748,18 @@ async function loadAttendanceData() {
 }
 
 async function saveAttendance(vendorId, marketId, confirmed) {
-  if(!supabaseClient) return;
+  if(!supabaseClient) return false;
   const weekOf = getWeekOf();
   try {
     if(confirmed) {
-      await supabaseClient.from('attendance').upsert(
+      const res = await supabaseClient.from('attendance').upsert(
         {vendor_id:vendorId,market_id:marketId,week_of:weekOf,confirmed:true},
         {onConflict:'vendor_id,market_id,week_of'}
       );
+      if(res.error) throw res.error;
     } else {
-      await supabaseClient.from('attendance').delete().eq('vendor_id',vendorId).eq('market_id',marketId).eq('week_of',weekOf);
+      const res = await supabaseClient.from('attendance').delete().eq('vendor_id',vendorId).eq('market_id',marketId).eq('week_of',weekOf);
+      if(res.error) throw res.error;
     }
     ST.attendanceData = ST.attendanceData || [];
     if(confirmed) {
@@ -14743,7 +14768,8 @@ async function saveAttendance(vendorId, marketId, confirmed) {
     } else {
       ST.attendanceData = ST.attendanceData.filter(a=>!(a.vendor_id===vendorId&&a.market_id===marketId&&a.week_of===weekOf));
     }
-  } catch(e) { console.warn('Attendance save failed',e); }
+    return true;
+  } catch(e) { console.warn('Attendance save failed',e); return false; }
 }
 
 function buildMoreVendorsStrip(v) {
@@ -14975,10 +15001,19 @@ async function handleAttendanceToggle(checkbox, vendorId, marketId) {
   var confirmed = checkbox.checked;
   var label = checkbox.closest('label');
   if(label) label.style.borderColor = confirmed?'var(--green)':'var(--border)';
-  await saveAttendance(vendorId, marketId, confirmed);
+  var ok = await saveAttendance(vendorId, marketId, confirmed);
   var toast = document.createElement('div');
-  toast.textContent = confirmed ? '✓ Attendance confirmed' : 'Attendance removed';
-  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#2C2016;color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;z-index:9999;font-family:var(--font-sans);white-space:nowrap';
+  var bg = '#2C2016';
+  if(ok) {
+    toast.textContent = confirmed ? '✓ Attendance confirmed' : 'Attendance removed';
+  } else {
+    // Save failed — revert the checkbox/border so the UI doesn't lie about what saved
+    checkbox.checked = !confirmed;
+    if(label) label.style.borderColor = !confirmed?'var(--green)':'var(--border)';
+    toast.textContent = '⚠ Could not save — please try again';
+    bg = 'var(--terra)';
+  }
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:'+bg+';color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;z-index:9999;font-family:var(--font-sans);white-space:nowrap';
   document.body.appendChild(toast);
   setTimeout(function(){toast.remove();},2200);
 }
@@ -15101,7 +15136,7 @@ async function renderVendorProducts() {
         products.forEach(function(p){
           var pJson = JSON.stringify(p).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
           html += '<div class="product-card">'
-            +'<button class="product-edit-btn" onclick=\'openProductModal('+JSON.stringify(p)+',\''+vendorId+'\','+isTrial+')\'>Edit</button>'
+            +'<button class="product-edit-btn" onclick=\'openProductModal('+pJson+',\''+vendorId+'\','+isTrial+')\'>Edit</button>'
             +'<div class="product-img">'+(p.photo?'<img src="'+p.photo+'" style="width:100%;height:100%;object-fit:cover">':'📦')+'</div>'
             +'<div class="product-body"><div class="product-name">'+p.name+'</div>'
             +(p.description?'<div class="product-desc">'+p.description+'</div>':'')
