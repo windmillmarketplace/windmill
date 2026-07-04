@@ -8,10 +8,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
+<!-- v1.74.16 — Fixed follow buttons never showing "Following" (green) anywhere except the Favorites/Following tab. Root cause: several isFollowing() calls on vendor/market cards and the vendor/market profile pages had the vendor/market id wrapped in single quotes inside a nested template expression — e.g. isFollowing('vendor','${v.id}') — which JS does NOT interpolate inside single quotes, so the literal 8-character string "${v.id}" was being passed as the id instead of the real value. isFollowing() therefore always returned false in those spots, regardless of actual follow state. Fixed all 6 occurrences (4 on vendor/market cards, 2 on the vendor/market profile pages) to pass the real id directly. This bug predates all of today's changes and is unrelated to the login issue. -->
+<!-- v1.74.15 — Attempted fix for the original password-recovery-link bug (the one v1.74.11 tried to fix by breaking login instead). Added a SECOND, separate onAuthStateChange listener that is attached immediately on client creation but does nothing except watch for the PASSWORD_RECOVERY event and pop up the "set new password" modal — no async work, no database calls, no touching ST/DATA. The original sign-in/sign-out listener is completely untouched, still attached in its proven-safe late position (inside checkExistingSession, same as v1.74.8/v1.74.14). This isolates the one thing that genuinely needs to run early (catching the recovery event) from the thing that broke login last time (the full sign-in flow running early). NOT YET LIVE-TESTED with an actual password reset email — needs a real reset link click to confirm before this goes to production. -->
+<!-- v1.74.14 — Rebuilt from live production (v1.74.8) with the six safe, verified fixes from the attempted v1.74.9/10/11 batch re-applied: (1) market claim approval and onboarding market-tagging now correctly set markets.claimed = true (previously only operators.claimed was set, leaving approved markets stuck showing unclaimed). (2) Fixed two 406 console errors on login (.single() → .maybeSingle() for the user profile lookup and the vendor claimed-status check — both legitimately return zero rows for shopper/new accounts). (3) Follow buttons (vendor + market) now correctly reflect followed state after a hard refresh — onAuthSuccess now re-renders the current page after follows load. (4) Attendance data now loads before the schedule section builds, so the "✓ This week" badge shows correctly for first-time/cold visitors, not just after a dashboard visit. (5) Attendance save now reports real success/failure instead of a false "success" toast, and reverts the checkbox with an error toast if the save actually fails. (6) Fixed product Edit button breaking on any product with an apostrophe in its name/description/price — an already-escaped pJson variable existed but wasn't being used in the onclick handler. DELIBERATELY NOT INCLUDED: the auth-listener timing change from v1.74.11 (attaching onAuthStateChange immediately on client creation) — confirmed via isolated single-variable testing to be the sole cause of the login outage that led to today's rollback. The listener remains in its original v1.74.8 position (attached after checkExistingSession's getSession() call). This means the original password-recovery-link display bug that change was meant to fix is still present and will be addressed separately, deliberately, once a fix is found that doesn't break normal login. -->
 <!-- v1.74.8 — hid the Reviews section (and its nav-bar link) on both vendor and market profile pages; was a "No reviews yet" placeholder with a "Write a review" button that dead-ended into sign-in with no real system behind it. Original markup preserved in comments for both pages — market reviews planned to come back first as a lower-stakes test before vendor reviews. -->
-<!-- v1.74.9 — fixed market claim approval and onboarding market-tagging: both updated operator_id/operators but never set markets.claimed = true, leaving approved market listings permanently stuck showing as unclaimed. Also fixed (separately, DB-side) the claims_vendor_id_fkey constraint that was silently blocking every market claim insert. -->
-<!-- v1.74.10 — fixed two 406 console errors on login (.single() → .maybeSingle() for the users profile lookup and the vendor claimed-status check, both of which legitimately return zero rows for shopper/new accounts). Also fixed follow buttons (vendor + market) not reflecting followed state after a hard refresh — onAuthSuccess loaded follows correctly but never re-rendered the current page, so pages drawn before the delayed session/follows callback fired stayed stuck showing "unfollowed" until the user navigated away and back. -->
-<!-- v1.74.11 — (1) Fixed product Edit button SyntaxError: an already-escaped pJson variable existed but wasn't actually being used in the onclick handler, so any product with an apostrophe in its name/description/price broke the button entirely. (2) Fixed password-recovery links not showing the "set new password" screen: the onAuthStateChange listener was attached too late (after all app data finished loading), so the PASSWORD_RECOVERY event — which Supabase fires almost immediately on client creation — was frequently missed; listener now attaches immediately when the Supabase client is created. (3) Fixed attendance confirmation silently failing: the attendance table was missing the unique constraint the upsert's onConflict clause depended on, so every save failed and was swallowed by a catch block while the UI still showed a false "success" toast (DB fix applied directly via SQL). (4) Fixed the "✓ This week" attendance badge on a vendor's public profile not showing for first-time/cold visitors — attendance data was loaded after the schedule section was already drawn; now loaded before. (5) Attendance save toast now only shows success when the save actually succeeds, and reverts the checkbox with an error toast if it doesn't. -->
 <!-- v1.74.7 — added real, working "Email updates & newsletters" toggle to Notifications & Alerts page, saving email_marketing_opt_in to shopper_profiles (new column, added directly in Supabase). Positioned above the existing "text alerts coming soon" placeholder rather than replacing it. Notifications menu subtitle updated to reflect the real feature. -->
 <!-- v1.74.6 — correction to v1.74.5: restored the phone field on the profile edit form as general optional contact info (was wrongly removed entirely, not just disconnected from the broken SMS feature). Also fixes a bug my v1.74.5 change introduced: submitShopperProfile() was still reading the now-removed SMS toggle element, which would have silently reset every shopper's sms_opt_in to false on their next profile save. -->
 <!-- v1.74.5 — hid the market-day text-alerts toggle (profile edit + notifications settings) and its phone field; feature was fully wired to save sms_opt_in/phone to Supabase but no SMS actually sends (no backend built), which was misleading real shoppers. Original markup preserved in comments for later restore when the SMS-sending Edge Function is built. Notifications menu subtitle updated to "Coming soon". -->
@@ -1100,15 +1100,15 @@ let supabaseClient = null;
 try {
   supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_KEY);
   if(supabaseClient) {
-    // Attach this listener immediately on client creation — not later during app init.
-    // Supabase detects a recovery/magic-link token in the URL and can fire PASSWORD_RECOVERY
-    // almost instantly after the client exists. If we wait until checkExistingSession() (which
-    // runs after all app data finishes loading), that event can fire and be missed entirely,
-    // silently dropping the user into a normal signed-in session with no "set new password" screen.
-    supabaseClient.auth.onAuthStateChange(async (event, session) => {
-      if(event === 'PASSWORD_RECOVERY') { showSetNewPasswordModal(); return; }
-      if(event === 'SIGNED_IN' && session?.user) await onAuthSuccess(session.user);
-      if(event === 'SIGNED_OUT') { ST.user = null; ST.follows = []; renderBottom(); }
+    // Minimal, immediate listener — ONLY for PASSWORD_RECOVERY. Attached right away
+    // (unlike the main sign-in listener below, which stays in its original, proven-safe
+    // late position) because Supabase can fire this event almost instantly after the
+    // client is created, and missing it means a user clicking a reset-password link just
+    // gets silently signed in with no "set new password" screen. This handler does nothing
+    // async and touches no app state (ST/DATA) — it only pops up a self-contained modal —
+    // specifically to avoid the login hang that moving the FULL listener caused in v1.74.11.
+    supabaseClient.auth.onAuthStateChange((event) => {
+      if(event === 'PASSWORD_RECOVERY') showSetNewPasswordModal();
     });
   }
 } catch(e) {
@@ -3828,7 +3828,7 @@ function renderHome() {
           <div class="vendor-category">${v.category}${vendorSeasonPill(v)}</div>
           ${vendorNextLine(v)}
         </div>
-        <button class="follow-btn" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor','${v.id}')?t('following'):t('follow')}</button>
+        <button class="follow-btn" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor',v.id)?t('following'):t('follow')}</button>
       </div>`;
     });
   }
@@ -3916,7 +3916,7 @@ function renderVendorsList() {
           ${vendorNextLine(v)}
         </div>
         <div style="display:flex;flex-direction:column;gap:5px;align-self:flex-start;flex-shrink:0">
-          <button class="follow-btn" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor','${v.id}')?t('following'):t('follow')}</button>
+          <button class="follow-btn" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor',v.id)?t('following'):t('follow')}</button>
           <button onclick="event.stopPropagation();seeVendorOnMap('${v.id}')" style="font-size:10px;padding:4px 8px;border:0.5px solid var(--green-mid);border-radius:var(--r-pill);color:var(--green-dk);background:var(--green-lt);cursor:pointer;white-space:nowrap;font-family:var(--font-sans)">📍 Map</button>
         </div>
       </div>`;
@@ -5437,14 +5437,14 @@ async function renderVendorProfile(id) {
     } catch(e) { console.warn('Could not fetch vendor from Supabase:', e); }
   }
 
+  if(!v) { document.getElementById('scrollBody').innerHTML='<div style="padding:24px;text-align:center;color:var(--text2)">Vendor not found.</div>'; return; }
+
   // Load attendance data BEFORE building the schedule section below, so the
   // "✓ This week" badge is correct on first paint for any visitor — previously
   // this loaded after the page was already drawn, so a shopper visiting cold
   // (without having just come from a dashboard where it was already loaded)
   // would never see the badge even when attendance was correctly confirmed.
   await loadAttendanceData();
-
-  if(!v) { document.getElementById('scrollBody').innerHTML='<div style="padding:24px;text-align:center;color:var(--text2)">Vendor not found.</div>'; return; }
 
   const slug = v.slug || v.id;
   const marketNames = v.markets ? v.markets.map(mid => { const m = getMarket(mid); return m ? m.name : null; }).filter(Boolean) : [];
@@ -5481,7 +5481,7 @@ async function renderVendorProfile(id) {
         </div>
       </div>
       <div class="profile-actions">
-        <button class="btn-follow" onclick="handleFollow(event,'vendor','${v.id}',this)" style="${isFollowing('vendor','${v.id}')?'background:var(--green);color:#fff;border-color:var(--green)':''}">${isFollowing('vendor','${v.id}')?t('following'):t('follow')}</button>
+        <button class="btn-follow" onclick="handleFollow(event,'vendor','${v.id}',this)" style="${isFollowing('vendor',v.id)?'background:var(--green);color:#fff;border-color:var(--green)':''}">${isFollowing('vendor',v.id)?t('following'):t('follow')}</button>
         <button onclick="shareProfile('${v.id}','vendor')" style="padding:7px 14px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:transparent;color:var(--text2);font-family:var(--font-sans)">📤 ${t('share')}</button>
       </div>
       ${(!isClaimed && !ST.sandboxMode)?`<div style="margin-top:8px;font-size:11px;color:var(--terra);cursor:pointer" onclick="navigate('vendors-join','${v.id}')">Own this business? Manage your free listing →</div>`:''}
@@ -5921,7 +5921,7 @@ function renderMarketDetail(id) {
             <div class="market-subtitle">${m.venue} · ${m.city}, ${m.state}</div>
           </div>
           <div style="display:flex;gap:6px">
-            <button class="btn-follow" onclick="handleFollow(event,'market','${m.id}',this)" style="${isFollowing('market','${m.id}')?'background:var(--green);color:#fff;border-color:var(--green)':''}">${isFollowing('market','${m.id}')?t('following'):t('follow')}</button>
+            <button class="btn-follow" onclick="handleFollow(event,'market','${m.id}',this)" style="${isFollowing('market',m.id)?'background:var(--green);color:#fff;border-color:var(--green)':''}">${isFollowing('market',m.id)?t('following'):t('follow')}</button>
             <button onclick="openMessageModal('market','${m.id}')" style="padding:7px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-pill);font-size:12px;cursor:pointer;background:var(--surface2);font-family:var(--font-sans);white-space:nowrap">💬 Message</button>
           </div>
         </div>
@@ -12082,6 +12082,13 @@ async function checkExistingSession() {
   } catch(err) {
     console.warn('Session check failed:', err);
   }
+
+  // Listen for auth state changes (magic link, OAuth callback)
+  supabaseClient.auth.onAuthStateChange(async (event, session) => {
+    if(event === 'PASSWORD_RECOVERY') { showSetNewPasswordModal(); return; }
+    if(event === 'SIGNED_IN' && session?.user) await onAuthSuccess(session.user);
+    if(event === 'SIGNED_OUT') { ST.user = null; ST.follows = []; renderBottom(); }
+  });
 }
 
 /* ── AUTH-GATED ACTIONS ── */
@@ -12779,11 +12786,11 @@ async function adminApproveClaimFinalize(claimId, resolvedEmail) {
             if(c.phone && !opRecord.phone) opUpdate.phone = c.phone;
             await supabaseClient.from('operators').update(opUpdate).eq('id', operatorId);
           }
+          await supabaseClient.from('claims').update({status:'approved'}).eq('id', claimId);
           // Mark the market itself as claimed — separate from the operator record being claimed
           await supabaseClient.from('markets').update({ claimed: true }).eq('id', c.vendorId);
           const mLocal = DATA.markets.find(x => x.id === c.vendorId);
           if(mLocal) mLocal.claimed = true;
-          await supabaseClient.from('claims').update({status:'approved'}).eq('id', claimId);
           // Update user record if exists — sync personal name + link to operator
           const { data: userRecord } = await supabaseClient
             .from('users').select('id').eq('email', c.email).maybeSingle();
