@@ -8,6 +8,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
+<!-- v1.74.19 — Fixed silent save failures (data-loss risk class): (1) Root cause found for "market edits don't stick" bug — markets table was missing a 'phone' column that the edit form was already trying to save, causing Supabase to reject the entire update (400 PGRST204); column added directly in Supabase, confirmed fixed. (2) dbSaveVendor and dbSaveMarket previously swallowed all write failures into console.warn only, with no return value — any caller had no way to know if a save actually worked. Both now return true/false and show a visible on-screen error via new notifySaveError() helper on failure, covering every vendor/market save path (admin edits, vendor self-serve profile edits, gallery uploads, onboarding). (3) All 6 operator onboarding save steps (contact info, tagged markets, cover photo, description, links, setup-complete flag) now show a visible error on failure instead of failing silently. (4) sendShopperReply (shopper replying inline to an existing inbox thread) did not check whether the reply actually saved before clearing the input and showing success — three sibling reply functions already had this check, this one was the outlier; now fixed to match. (5) toggleFollowDB (follow/unfollow vendor or market) previously had zero error handling — a failed database write left the follow button showing the wrong state with no indication of failure; now rolls back the optimistic UI change and shows a visible error if the write fails. Left untouched: background reads/lookups (unread counts, session checks, search-as-you-type, email status polling) where silent failure causes no data loss. -->
+<!-- v1.74.20 — Fixed vendor dashboard product Edit button doing nothing on click. Root cause: the Edit button's onclick attribute was delimited with single quotes, but embedded the vendor ID using raw, unescaped single quotes inside that same attribute — the browser read the first of those as the end of the attribute value, so the onclick handler never actually attached (invalid markup, no console error). Fixed by having the button pass only the product ID and look the full product record up from a small in-memory map (ST._dashProductsById) built when the product grid renders, instead of embedding the whole product object as inline JSON inside an HTML attribute — this also removes any future risk of the same class of bug from product names/descriptions containing quotes or ampersands. Also fixed: deleteProduct() previously had an empty catch block and no return value, so a failed delete looked identical to a successful one (modal closes, grid refreshes, product could still exist in the database). It now returns true/false, and confirmDeleteProduct shows a visible on-screen error via notifySaveError() and leaves the modal open if the delete fails, instead of silently proceeding as if it worked. -->
+<!-- v1.74.18 — Two more fixes, verified before shipping: (1) Follow buttons on vendor cards (home page, category pages, "more like this" strips) correctly showed "Following" as text but never actually turned green — the CSS rule for it already existed but the button never got the class applied. Fixed all 6 card instances to add the class when following. (2) Product Edit button apostrophe bug — the v1.74.14 "fix" for this used backslash-escaping, which does not work: tested against a real HTML parser (jsdom) and confirmed browsers do not treat backslash as an escape character inside an HTML attribute, so the onclick attribute still broke and corrupted the button's markup on any product with an apostrophe. Replaced it with proper HTML-entity escaping (&#39;), which was verified end-to-end with the same real parser to produce a complete, valid, clickable button. -->
+<!-- v1.74.17 — Two fixes: (1) Shopper "Forgot password?" was wired to send a magic (passwordless sign-in) link instead of an actual password-reset link — it now sends a real reset email via resetPasswordForEmail, matching what vendor/operator "Forgot password" already correctly did. The separate "Send me a magic link instead" option is untouched and still works as its own legitimate passwordless sign-in path. (2) Vendor and operator "Sign out" always sent users to the generic shopper home page — authSignOut() now checks the role before clearing it and sends vendors to /vendors/login and operators to /markets/login instead. NOT YET LIVE-TESTED with a real reset email for the shopper flow — needs confirmation before this goes to production, same as the earlier v1.74.15 recovery-modal fix. -->
 <!-- v1.74.16 — Fixed follow buttons never showing "Following" (green) anywhere except the Favorites/Following tab. Root cause: several isFollowing() calls on vendor/market cards and the vendor/market profile pages had the vendor/market id wrapped in single quotes inside a nested template expression — e.g. isFollowing('vendor','${v.id}') — which JS does NOT interpolate inside single quotes, so the literal 8-character string "${v.id}" was being passed as the id instead of the real value. isFollowing() therefore always returned false in those spots, regardless of actual follow state. Fixed all 6 occurrences (4 on vendor/market cards, 2 on the vendor/market profile pages) to pass the real id directly. This bug predates all of today's changes and is unrelated to the login issue. -->
 <!-- v1.74.15 — Attempted fix for the original password-recovery-link bug (the one v1.74.11 tried to fix by breaking login instead). Added a SECOND, separate onAuthStateChange listener that is attached immediately on client creation but does nothing except watch for the PASSWORD_RECOVERY event and pop up the "set new password" modal — no async work, no database calls, no touching ST/DATA. The original sign-in/sign-out listener is completely untouched, still attached in its proven-safe late position (inside checkExistingSession, same as v1.74.8/v1.74.14). This isolates the one thing that genuinely needs to run early (catching the recovery event) from the thing that broke login last time (the full sign-in flow running early). NOT YET LIVE-TESTED with an actual password reset email — needs a real reset link click to confirm before this goes to production. -->
 <!-- v1.74.14 — Rebuilt from live production (v1.74.8) with the six safe, verified fixes from the attempted v1.74.9/10/11 batch re-applied: (1) market claim approval and onboarding market-tagging now correctly set markets.claimed = true (previously only operators.claimed was set, leaving approved markets stuck showing unclaimed). (2) Fixed two 406 console errors on login (.single() → .maybeSingle() for the user profile lookup and the vendor claimed-status check — both legitimately return zero rows for shopper/new accounts). (3) Follow buttons (vendor + market) now correctly reflect followed state after a hard refresh — onAuthSuccess now re-renders the current page after follows load. (4) Attendance data now loads before the schedule section builds, so the "✓ This week" badge shows correctly for first-time/cold visitors, not just after a dashboard visit. (5) Attendance save now reports real success/failure instead of a false "success" toast, and reverts the checkbox with an error toast if the save actually fails. (6) Fixed product Edit button breaking on any product with an apostrophe in its name/description/price — an already-escaped pJson variable existed but wasn't being used in the onclick handler. DELIBERATELY NOT INCLUDED: the auth-listener timing change from v1.74.11 (attaching onAuthStateChange immediately on client creation) — confirmed via isolated single-variable testing to be the sole cause of the login outage that led to today's rollback. The listener remains in its original v1.74.8 position (attached after checkExistingSession's getSession() call). This means the original password-recovery-link display bug that change was meant to fix is still present and will be addressed separately, deliberately, once a fix is found that doesn't break normal login. -->
@@ -3828,7 +3832,7 @@ function renderHome() {
           <div class="vendor-category">${v.category}${vendorSeasonPill(v)}</div>
           ${vendorNextLine(v)}
         </div>
-        <button class="follow-btn" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor',v.id)?t('following'):t('follow')}</button>
+        <button class="follow-btn${isFollowing('vendor',v.id)?' following':''}" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor',v.id)?t('following'):t('follow')}</button>
       </div>`;
     });
   }
@@ -3916,7 +3920,7 @@ function renderVendorsList() {
           ${vendorNextLine(v)}
         </div>
         <div style="display:flex;flex-direction:column;gap:5px;align-self:flex-start;flex-shrink:0">
-          <button class="follow-btn" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor',v.id)?t('following'):t('follow')}</button>
+          <button class="follow-btn${isFollowing('vendor',v.id)?' following':''}" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor',v.id)?t('following'):t('follow')}</button>
           <button onclick="event.stopPropagation();seeVendorOnMap('${v.id}')" style="font-size:10px;padding:4px 8px;border:0.5px solid var(--green-mid);border-radius:var(--r-pill);color:var(--green-dk);background:var(--green-lt);cursor:pointer;white-space:nowrap;font-family:var(--font-sans)">📍 Map</button>
         </div>
       </div>`;
@@ -4072,7 +4076,7 @@ function catShowMoreVendors(catId, offset) {
         <div class="vendor-category">${v.category}${vendorSeasonPill(v)}</div>
         ${vendorNextLine(v)}
       </div>
-      <button class="follow-btn" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor',v.id)?t('following'):t('follow')}</button>
+      <button class="follow-btn${isFollowing('vendor',v.id)?' following':''}" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor',v.id)?t('following'):t('follow')}</button>
     </div>`;
   });
   listEl.insertAdjacentHTML('beforeend', html);
@@ -4201,7 +4205,7 @@ function renderCategoryPage(catId) {
           <div class="vendor-category">${v.category}${vendorSeasonPill(v)}</div>
           ${vendorNextLine(v)}
         </div>
-        <button class="follow-btn" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor',v.id)?t('following'):t('follow')}</button>
+        <button class="follow-btn${isFollowing('vendor',v.id)?' following':''}" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor',v.id)?t('following'):t('follow')}</button>
       </div>`;
     });
   }
@@ -4279,7 +4283,7 @@ function renderCategoryPage(catId) {
           <div class="vendor-category">${v.category}${vendorSeasonPill(v)}</div>
           ${vendorNextLine(v)}
         </div>
-        <button class="follow-btn" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor',v.id)?t('following'):t('follow')}</button>
+        <button class="follow-btn${isFollowing('vendor',v.id)?' following':''}" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor',v.id)?t('following'):t('follow')}</button>
       </div>`;
     });
     h += `</div>`;
@@ -5292,7 +5296,7 @@ function noResultsSuggestions(type = 'markets') {
           <div class="vendor-category">${v.category}${vendorSeasonPill(v)}</div>
           ${vendorNextLine(v)}
         </div>
-        ${(v.tier==='pro'||v.tier==='pro-trial') ? `<button onclick="event.stopPropagation();navigate('vendor','${v.id}')" style="align-self:flex-start;font-size:10px;padding:4px 10px;background:var(--amber-lt);color:#7A4E08;border:0.5px solid #F0D090;border-radius:var(--r-pill);cursor:pointer;white-space:nowrap;font-family:var(--font-sans)">✉ Message</button>` : `<button class="follow-btn" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor',v.id)?t('following'):t('follow')}</button>`}
+        ${(v.tier==='pro'||v.tier==='pro-trial') ? `<button onclick="event.stopPropagation();navigate('vendor','${v.id}')" style="align-self:flex-start;font-size:10px;padding:4px 10px;background:var(--amber-lt);color:#7A4E08;border:0.5px solid #F0D090;border-radius:var(--r-pill);cursor:pointer;white-space:nowrap;font-family:var(--font-sans)">✉ Message</button>` : `<button class="follow-btn${isFollowing('vendor',v.id)?' following':''}" onclick="event.stopPropagation();handleFollow(event,'vendor','${v.id}',this)">${isFollowing('vendor',v.id)?t('following'):t('follow')}</button>`}
       </div>`;
     });
 
@@ -8979,7 +8983,8 @@ async function sendShopperReply(messageId, inputId, recipientType, recipientId) 
   if(btn) { btn.textContent = 'Sending...'; btn.disabled = true; }
 
   try {
-    await dbSaveReply(messageId, { from: ST.user?.name || 'Shopper', from_email: ST.user?.email || '', role: 'Customer', body: text });
+    const savedOk = await dbSaveReply(messageId, { from: ST.user?.name || 'Shopper', from_email: ST.user?.email || '', role: 'Customer', body: text });
+    if(!savedOk) throw new Error('Reply failed to save');
     if(input) input.value = '';
     if(btn) { btn.textContent = 'Send'; btn.disabled = false; }
 
@@ -9898,7 +9903,7 @@ async function operatorOnboardingNext(step) {
           const op = DATA.operators?.find(x => x.id === opId);
           if(op) Object.assign(op, opUpdates);
         }
-      } catch(e) { console.warn('Operator contact info save failed:', e); }
+      } catch(e) { console.warn('Operator contact info save failed:', e); notifySaveError('Your contact info could not be saved — please try again.'); }
     }
     showOperatorOnboarding(step + 1);
     return;
@@ -9914,7 +9919,7 @@ async function operatorOnboardingNext(step) {
           const m = DATA.markets.find(x => x.id === id);
           if(m) { m.operator_id = opId; m.claimed = true; }
         });
-      } catch(e) { console.warn('Market tag update failed:', e); }
+      } catch(e) { console.warn('Market tag update failed:', e); notifySaveError('Could not save your selected markets — please try again.'); }
     }
     ST.opOnboardShowAllRegions = false;
     showOperatorOnboarding(step + 1);
@@ -9933,7 +9938,7 @@ async function operatorOnboardingNext(step) {
         if(supabaseClient) await supabaseClient.from('operators').update({ photo: url }).eq('id', opId);
         const op = DATA.operators?.find(x => x.id === opId);
         if(op) op.photo = url;
-      } catch(e) { console.warn('Operator photo upload failed:', e); }
+      } catch(e) { console.warn('Operator photo upload failed:', e); notifySaveError('Your cover photo could not be saved — please try again.'); }
     }
     showOperatorOnboarding(step + 1);
     return;
@@ -9948,7 +9953,7 @@ async function operatorOnboardingNext(step) {
         await supabaseClient.from('operators').update({ description: desc }).eq('id', opId);
         const op = DATA.operators?.find(x => x.id === opId);
         if(op) op.description = desc;
-      } catch(e) { console.warn('Operator description save failed:', e); }
+      } catch(e) { console.warn('Operator description save failed:', e); notifySaveError('Your description could not be saved — please try again.'); }
     }
     showOperatorOnboarding(step + 1);
     return;
@@ -9971,7 +9976,7 @@ async function operatorOnboardingNext(step) {
         await supabaseClient.from('operators').update(links).eq('id', opId);
         const op = DATA.operators?.find(x => x.id === opId);
         if(op) Object.assign(op, links);
-      } catch(e) { console.warn('Operator links save failed:', e); }
+      } catch(e) { console.warn('Operator links save failed:', e); notifySaveError('Your links could not be saved — please try again.'); }
     }
     showOperatorOnboarding(step + 1);
     return;
@@ -9997,7 +10002,7 @@ async function completeOperatorOnboarding() {
     try {
       await supabaseClient.from('users').update({ profile_setup_complete: true }).eq('id', ST.user.id);
       if(opId) await supabaseClient.from('operators').update({ profile_setup_complete: true }).eq('id', opId);
-    } catch(e) { console.warn('Setup complete flag failed:', e); }
+    } catch(e) { console.warn('Setup complete flag failed:', e); notifySaveError('Could not finish setup — please try again.'); }
   }
   ST.opProfileSetupComplete = true;
   ST.opPendingCoverPhotoFile = null;
@@ -11648,6 +11653,21 @@ function renderAuthModal(mode, prefillRole) {
   const el = document.getElementById('authModalContent');
   if(!el) return;
 
+  if(ST.authMode === 'reset') {
+    el.innerHTML = `
+      <div class="modal-title">Reset your password</div>
+      <div class="modal-sub">We'll email you a link to set a new password.</div>
+      <div class="form-field"><label class="form-label">Email address</label>
+        <input class="form-input" type="email" id="authEmail" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div id="authError" style="color:var(--terra);font-size:12px;margin-bottom:8px;display:none"></div>
+      <button class="btn-primary" id="authSubmitBtn" onclick="authSendPasswordReset()">Send reset link</button>
+      <div style="text-align:center;margin-top:14px">
+        <span style="font-size:12px;color:var(--text3);cursor:pointer" onclick="renderAuthModal('signin')">← Back to sign in</span>
+      </div>`;
+    return;
+  }
+
   if(ST.authMode === 'magic') {
     el.innerHTML = `
       <div class="modal-title">Magic link sign in</div>
@@ -11719,7 +11739,7 @@ function renderAuthModal(mode, prefillRole) {
       <input class="form-input" type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password">
     </div>
     <div style="text-align:right;margin-bottom:14px">
-      <span style="font-size:11px;color:var(--terra);cursor:pointer" onclick="renderAuthModal('magic')">Forgot password?</span>
+      <span style="font-size:11px;color:var(--terra);cursor:pointer" onclick="renderAuthModal('reset')">Forgot password?</span>
     </div>
     <div id="authError" style="color:var(--terra);font-size:12px;margin-bottom:8px;display:none"></div>
     <button class="btn-primary" id="authSubmitBtn" onclick="authSignIn()">Sign in</button>
@@ -11806,6 +11826,29 @@ async function authSignUp() {
   }
 }
 
+async function authSendPasswordReset() {
+  if(!supabaseClient) { authShowError('Connection unavailable.'); return; }
+  const email = document.getElementById('authEmail')?.value?.trim();
+  if(!email) { authShowError('Please enter your email address.'); return; }
+
+  authSetLoading(true);
+  try {
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: 'https://shopwindmill.com/' });
+    if(error) throw error;
+    const el = document.getElementById('authModalContent');
+    if(el) el.innerHTML = `
+      <div style="text-align:center;padding:20px 0">
+        <div style="font-size:40px;margin-bottom:12px">✉️</div>
+        <div class="modal-title">Check your email</div>
+        <div class="modal-sub">We sent a password reset link to <strong>${email}</strong>. Click it to set a new password.</div>
+        <button class="btn-secondary" style="margin-top:16px" onclick="renderAuthModal('signin')">← Back</button>
+      </div>`;
+  } catch(err) {
+    authShowError(err.message || 'Could not send reset email. Please try again.');
+  }
+  authSetLoading(false);
+}
+
 async function authSendMagicLink() {
   if(!supabaseClient) { authShowError('Connection unavailable.'); return; }
   const email = document.getElementById('authEmail')?.value?.trim();
@@ -11844,6 +11887,8 @@ async function authGoogleSignIn() {
 
 async function authSignOut() {
   if(supabaseClient) await supabaseClient.auth.signOut();
+  // Capture role BEFORE resetting it, so we know where to send them after sign-out
+  const wasRole = ST.role;
   ST.user = null;
   ST.follows = [];
   ST.vendorId = null;
@@ -11863,7 +11908,10 @@ async function authSignOut() {
   renderBottom();
   renderFilterStrip();
   renderSidebar();
-  navigate('home');
+  // Send vendors/operators back to their own login page, not the generic shopper home
+  if(wasRole === 'vendor') navigate('vendors-login');
+  else if(wasRole === 'operator') navigate('markets-login');
+  else navigate('home');
 }
 
 async function onAuthSuccess(user) {
@@ -12057,19 +12105,38 @@ async function toggleFollowDB(type, id) {
     ? ST.follows.find(f => f.vendor_id === id)
     : ST.follows.find(f => f.market_id === id);
 
+  // v1.74.19: this previously had no error handling at all — a failed insert/delete
+  // left the button showing the wrong state with no indication anything went wrong.
+  // Now we roll back the optimistic local change and tell the user if the write fails.
   if(existing) {
     // Unfollow
     ST.follows = ST.follows.filter(f => f !== existing);
-    await supabaseClient.from('follows').delete()
-      .eq('user_id', ST.user.id)
-      .eq(type === 'vendor' ? 'vendor_id' : 'market_id', id);
+    try {
+      const { error } = await supabaseClient.from('follows').delete()
+        .eq('user_id', ST.user.id)
+        .eq(type === 'vendor' ? 'vendor_id' : 'market_id', id);
+      if(error) throw error;
+    } catch(e) {
+      console.warn('Unfollow failed:', e);
+      ST.follows.push(existing); // roll back
+      notifySaveError('Could not unfollow — please try again.');
+      renderBottom();
+    }
   } else {
     // Follow
     const row = { user_id: ST.user.id };
     if(type === 'vendor') row.vendor_id = id;
     else row.market_id = id;
     ST.follows.push(row);
-    await supabaseClient.from('follows').insert(row);
+    try {
+      const { error } = await supabaseClient.from('follows').insert(row);
+      if(error) throw error;
+    } catch(e) {
+      console.warn('Follow failed:', e);
+      ST.follows = ST.follows.filter(f => f !== row); // roll back
+      notifySaveError('Could not follow — please try again.');
+      renderBottom();
+    }
   }
 }
 
@@ -12168,13 +12235,13 @@ async function uploadToStorage(file, path) {
 }
 
 async function dbSaveVendor(vendor) {
-  if(!supabaseClient) return;
+  if(!supabaseClient) return false;
   // Sandbox mode — update local data only, don't write to Supabase
   if(ST.sandboxMode) {
     const idx = DATA.vendors.findIndex(x => x.id === vendor.id);
     if(idx !== -1) Object.assign(DATA.vendors[idx], vendor);
     console.log('🧪 Sandbox: vendor updated locally only (not saved to Supabase)');
-    return;
+    return true;
   }
   try {
     const { markets, ...vendorData } = vendor;
@@ -12196,19 +12263,29 @@ async function dbSaveVendor(vendor) {
       );
     }
     console.log('✓ Vendor saved to Supabase:', vendor.name);
+    return true;
   } catch(err) {
     console.warn('Failed to save vendor to Supabase:', err);
+    // v1.74.19: surface this instead of failing silently — same bug class as the
+    // markets 'phone' column issue (e.g. missing column, RLS block, etc.)
+    notifySaveError('Vendor changes could not be saved — please try again.');
+    return false;
   }
 }
 
 async function dbSaveMarket(market) {
-  if(!supabaseClient) return;
+  if(!supabaseClient) return false;
   try {
     const { error } = await supabaseClient.from('markets').upsert(market);
     if(error) throw error;
     console.log('✓ Market saved to Supabase:', market.name);
+    return true;
   } catch(err) {
     console.warn('Failed to save market to Supabase:', err);
+    // v1.74.19: surface this instead of failing silently (this exact bug hid the
+    // missing 'phone' column issue — see v1.74.19 notes)
+    notifySaveError('Market changes could not be saved — please try again.');
+    return false;
   }
 }
 
@@ -14136,6 +14213,13 @@ function showToast(msg, color) {
   setTimeout(() => toast.remove(), 3000);
 }
 
+// Centralized visible error for any save that silently failed in the background.
+// v1.74.19: added so failed saves (vendor/market/operator/follow/reply) are never
+// invisible to the user — see notes in dbSaveVendor/dbSaveMarket/etc.
+function notifySaveError(msg) {
+  showToast('⚠ ' + msg, 'var(--terra)');
+}
+
 function showWeeklyUpdateModal() {
   const vendorId = ST.vendorId;
   const v = vendorId ? DATA.vendors.find(x => x.id === vendorId) : null;
@@ -14918,9 +15002,18 @@ async function saveProduct(product) {
 async function deleteProduct(productId) {
   if(!supabaseClient || !DB_LOADED) {
     ST.localProducts = (ST.localProducts||[]).filter(p=>p.id!==productId);
-    return;
+    return true;
   }
-  try { await supabaseClient.from('products').delete().eq('id',productId); } catch(e){}
+  try {
+    const { error } = await supabaseClient.from('products').delete().eq('id',productId);
+    if(error) { console.warn('Product delete failed:', error); return false; }
+    return true;
+  } catch(e) { console.warn('Product delete failed:', e); return false; }
+}
+
+function openProductModalById(productId, vendorId, isTrial) {
+  var product = (ST._dashProductsById || {})[productId] || null;
+  openProductModal(product, vendorId, isTrial);
 }
 
 function openProductModal(product, vendorId, isTrial) {
@@ -14978,7 +15071,8 @@ async function submitProductModal(vendorId, existingId, isTrial, maxProducts) {
 
 async function confirmDeleteProduct(productId, vendorId, isTrial) {
   if(!confirm('Delete this product?')) return;
-  await deleteProduct(productId);
+  var ok = await deleteProduct(productId);
+  if(!ok) { notifySaveError('Could not delete this product — please try again.'); return; }
   var m = document.getElementById('productModal');
   if(m) m.remove();
   renderVendorProducts();
@@ -15139,11 +15233,16 @@ async function renderVendorProducts() {
         if(shareDiv) shareDiv.style.display = 'none';
       } else {
         if(shareDiv) shareDiv.style.display = 'flex';
+        // Keep the loaded products keyed by id so the Edit button can look the
+        // full record up by id instead of embedding raw JSON inside an HTML
+        // attribute (that approach broke the attribute on quotes/apostrophes —
+        // see v1.74.20 notes). Safer and avoids all attribute-escaping issues.
+        ST._dashProductsById = {};
+        products.forEach(function(p){ ST._dashProductsById[p.id] = p; });
         var html = '<div class="product-grid">';
         products.forEach(function(p){
-          var pJson = JSON.stringify(p).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
           html += '<div class="product-card">'
-            +'<button class="product-edit-btn" onclick=\'openProductModal('+pJson+',\''+vendorId+'\','+isTrial+')\'>Edit</button>'
+            +'<button class="product-edit-btn" onclick="openProductModalById(\''+p.id+'\',\''+vendorId+'\','+isTrial+')">Edit</button>'
             +'<div class="product-img">'+(p.photo?'<img src="'+p.photo+'" style="width:100%;height:100%;object-fit:cover">':'📦')+'</div>'
             +'<div class="product-body"><div class="product-name">'+p.name+'</div>'
             +(p.description?'<div class="product-desc">'+p.description+'</div>':'')
