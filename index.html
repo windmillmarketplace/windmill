@@ -12,6 +12,15 @@
 <!-- v1.74.20 — Fixed vendor dashboard product Edit button doing nothing on click. Root cause: the Edit button's onclick attribute was delimited with single quotes, but embedded the vendor ID using raw, unescaped single quotes inside that same attribute — the browser read the first of those as the end of the attribute value, so the onclick handler never actually attached (invalid markup, no console error). Fixed by having the button pass only the product ID and look the full product record up from a small in-memory map (ST._dashProductsById) built when the product grid renders, instead of embedding the whole product object as inline JSON inside an HTML attribute — this also removes any future risk of the same class of bug from product names/descriptions containing quotes or ampersands. Also fixed: deleteProduct() previously had an empty catch block and no return value, so a failed delete looked identical to a successful one (modal closes, grid refreshes, product could still exist in the database). It now returns true/false, and confirmDeleteProduct shows a visible on-screen error via notifySaveError() and leaves the modal open if the delete fails, instead of silently proceeding as if it worked. -->
 <!-- v1.74.21 — Security lockdown pass + pre-order interest now actually works: (1) Supabase RLS: markets/operators tables previously had a "Service write" policy with no role restriction and always-true USING/WITH CHECK — meaning any client, including unauthenticated, could insert/update/delete rows in either table. Replaced with is_admin()-only insert/delete and admin-or-owning-operator update, mirroring the existing vendors/products pattern. Same fix applied to cities/regions (previously any authenticated user, not just admin, could write). (2) preorder_interest table had RLS enabled with zero policies defined — meaning the "Notify me when pre-orders launch" button had been silently failing for every click since it was built; the insert was blocked, caught, and a false success toast shown anyway. Added an insert policy (logged-in users, own record only) and admin-only read/update/delete. (3) vendor-photos storage bucket had two redundant SELECT policies letting anyone list every file in the bucket via the API — not needed since the bucket's own "public" flag already handles direct-URL photo loading without any policy; removed both, upload policies untouched. (4) Revoked direct RPC-call access (anon + authenticated + PUBLIC) on two SECURITY DEFINER trigger-only functions (protect_sensitive_user_fields, rls_auto_enable) — nothing in the app calls these directly, they only fire as triggers, which is unaffected by this. Deliberately left is_admin() untouched despite being flagged by the same scanner category — it's called inside nearly every RLS policy in the database, and revoking direct-call access for a role also revokes that role's ability to have policies evaluate the function on their behalf, which would break RLS platform-wide for every non-admin user. (5) Pre-order interest, now that it actually saves: the public "Get notified" button (on a vendor's public profile page — reachable by shoppers, vendors, or operators browsing that page) was hardcoding role:'shopper' regardless of who was actually logged in; now passes the real ST.role. Added a live email notification to admin (via existing sendWindmillEmail helper) on every new interest submission, and a new "🛒 Pre-Orders" toggle inside the admin Claims tab (alongside the existing Vendors/Markets toggle) showing a read-only list of who's interested in what, with real account-type labels. While in this code: fixed the Vendors pill's "active" check, which previously read `!== 'market'` (so it would incorrectly show active when the new Pre-Orders pill was selected too) — now explicitly checks `=== 'vendor'`. -->
 <!-- v1.74.22 — Market Pro-status now correctly inherited live from its operator, fixing two confirmed go-to-market gaps at once: the Market Gallery and Facebook/Instagram links on a market's public page were gated on the market's own static pro column, which was never kept in sync with the actual operator's plan — meaning a Pro-trial operator's markets stayed locked out of Gallery and social links even though the operator was actively paying (or trialing). Replaced every such check in renderMarketDetail with a live-computed opIsPro, derived the same way vendor Pro status already is elsewhere in the app (operator.pro OR an active 6-month trial from operator.trial_start) — so a market's Pro features now turn on and off automatically and instantly whenever its operator's status changes, with no separate flag to keep in sync and no risk of drift. Also fixed the same underlying bug class in the nearby "Other markets from this operator" carousel, which checked a nonexistent operator.tier field (never a real column on operators) and had silently only ever worked when the operator was viewing their own page — now uses the same live pro/trial computation, so the carousel correctly groups a Pro-trial operator's other markets for every visitor, not just the operator themselves. NOT YET LIVE-TESTED against a real Pro-trial operator with populated Facebook/Instagram/gallery data — needs confirmation on a live market before considering this fully verified. -->
+<!-- v1.74.35 — Personal Info was missing any indication of a vendor's login email at all after v1.74.34 removed it from that section (it moved to Security, but a vendor landing on Personal Info first had no way to see it there). Added a greyed-out, read-only "Login email" field back to Personal Info, showing the current value with a "Change in Security →" link. Informational only — no save logic, no new column, doesn't touch the actual credential; Security remains the only place that can change it. -->
+<!-- v1.74.34 — Vendor contact info split cleanly into public vs. private, plus a Pro-only "hide from public view" option: (1) Renamed the vendor's main dashboard tab/page from "My Profile" to "Business Profile" (bottom-nav label shortened to "Profile" so it still fits at 9px) — this is the public-facing page shoppers see. Email and phone stay editable here (unchanged from pre-v1.74.34 behavior), each with a new "Hide from public view" checkbox next to it, backed by two new vendors columns (hide_email, hide_phone; added live in Supabase, default false — no existing vendor's public page changes until they actively check one). Checkbox is locked with an upgrade prompt for free tier, matching the existing gallery-lock pattern; fully functional for Pro/Pro-trial. Entitlement is re-checked at both save time and render time (not just trusted from the stored flag), so a lapsed Pro trial can't leave contact info hidden against the vendor's will. Also added a "Same as my login email" convenience checkbox next to the public email field — a one-time copy of their current login email into the field, not a permanent lock; public and login email are still free to drift apart afterward, by design. (2) Renamed Settings' "Your Profile" section to "Personal Info" and removed its email/phone fields entirely (they're edited only on Business Profile now) — Personal Info is now just personal name + business address, i.e. purely private/account-side, nothing public-facing. Settings > Security (login email + password) is unchanged and remains the only place to change the actual login credential. (3) Public vendor page's Contact section honors both hide flags — a hidden field renders exactly like an empty one ("Not provided"). Admin/Claims views are untouched, always show full info regardless of these flags. (4) Login-email sync: onAuthSuccess (shared by shoppers, vendors, and operators) now compares the confirmed Supabase Auth email against the internal users.email mirror on every login, and updates the mirror if a login-email change was confirmed since last login. Deliberately does NOT run at the moment "Change email" is submitted, since Supabase doesn't switch the credential over until the confirmation link is clicked — syncing at submit time would mirror an unconfirmed, possibly-never-confirmed address. Never touches vendors.email/operators.email/markets.email — those remain fully independent public-facing fields. (5) Added the missing 'address' column to vendors (added live in Supabase) — Settings' address field was already trying to save there and silently failing on every save, same bug class as the operators.address issue fixed in v1.74.32. Known follow-up, not addressed in this version: Business name is still independently editable from both Business Profile and Settings > Personal Info, writing to the same vendors.name column — same duplicate-edit pattern this version just fixed for email/phone, just not yet folded in. -->
+<!-- v1.74.32 — Restored 'address' to saveOperatorSettingsProfile()'s update payload now that the operators.address column exists (added live in Supabase, no code change needed for that part). Previously removed in v1.74.27 because the column didn't exist yet, which caused the whole update to be rejected if sent. Also fixed a leftover bug from that removal: the local ST.opAddress assignment checked updates.address, a key that was never actually present on the updates object, so address changes never reliably reflected in app state even before considering the DB save. Additionally replaced the save's silent console.warn-only catch with notifySaveError(), matching the pattern used everywhere else profile/vendor/market saves happen, so a failed save now shows a visible error instead of looking identical to success. -->
+<!-- v1.74.31 — Fixed the operator Settings > Profile form appearing to "forget" name/phone/address/contact_role after a hard refresh. Root cause: onAuthSuccess (the session-restore path used on page reload) only ever fetched id/pro/trial_start from the operators table and never populated ST.opOrgName/opPhone/opAddress/opContactRole — only the fresh-login path (onOperatorLoginSuccess) did that. So a save could succeed perfectly (confirmed via direct DB check) while the form still showed blank/placeholder values on next load, because the app simply never re-fetched those fields into memory after a refresh. Broadened the session-restore fetch to select('*') and populate the same ST fields as fresh login, so both paths now stay in sync. Client-side only, no Supabase changes. -->
+<!-- v1.74.30 — Fixed two gaps in the market's live Contact & Links section. (1) Added a missing Email row — m.email was already captured by the operator/admin edit forms and saved to a real column, but there was never a line item to display it on the live page. (2) Fixed the Phone row, which was showing the OPERATOR's contact phone (op.phone) instead of the market's own phone (m.phone) — meaning any market-specific phone number an operator entered was saved correctly but never actually shown anywhere. Now shows the market's own phone first, falling back to the operator's phone only if the market hasn't set one of its own, so markets that relied on the old fallback behavior don't go blank. -->
+<!-- v1.74.29 — Correction to v1.74.28: the Website field had the exact same missing-protocol bug as Facebook/Instagram (confirmed live — a bare "keithstestmarket.com" value resolved as a broken relative link, which is why it looked like a file download attempt when tested from a local file:// path). v1.74.28's normalizeSocialUrl() fix was written for all three fields but the Website line was missed in the operator form and never applied to the admin market-edit form (em_website/em_fb/em_ig) at all. Both forms now consistently normalize website, facebook, and instagram on save. -->
+<!-- v1.74.28 — Operator dashboard gaps #3 and #4. (1) Social links: found that the Pro-gated unlock logic from v1.74.22 was already correct, but operator-entered Facebook/Instagram values with no protocol (e.g. "facebook.com/mymarket") rendered as broken relative links on the live page. Added normalizeSocialUrl() to auto-prepend https:// on save from the operator market-edit form. (2) Add Vendor modal rebuilt with a "Select Existing" / "Create New" toggle (defaults to Select Existing). Select Existing searches vendors in the operator's own region(s), lets them pick one and choose which of their markets to attach it to, and only inserts the missing vendor_markets rows (skips markets the vendor's already on, never touches the vendor's other market links or profile — this is a roster assignment, NOT a claim; the vendor still owns and claims their own page separately). Create New is the original manual-entry form, now actually able to save (see Supabase note below), and its optimistic local push was also fixed to only happen after a confirmed successful save instead of before. REQUIRED SUPABASE POLICY CHANGES (already applied, tested with BEGIN/ROLLBACK first): discovered operators previously had NO path at all to create vendors or roster-link them — the existing vendors/vendor_markets RLS only ever allowed a vendor's own claimed account or admin. Added two new additive INSERT-only policies: "Operators create unclaimed vendor stubs" (vendors — only allows claimed:false rows), and "Operators add vendor_markets links for own markets" (vendor_markets — only allows linking to markets the operator actually operates). Existing vendor-self/admin policies untouched. -->
+<!-- v1.74.27 — Three small operator-facing fixes. (1) Market gallery thumbnails weren't rendering on the live public market page (lightbox already worked fine and is untouched) — the photo-strip container was missing id="photoStrip" and initPhotoStrip() (which swaps each thumbnail's data-src into a real src) was never called after the market page rendered; both fixed, same pattern already used on the vendor and demo-operator pages. (2) Operator "Organization name" changes in Settings > Profile were silently failing to save — saveOperatorSettingsProfile() sent an 'address' field alongside name/phone/contact_role, but 'address' isn't a real column on operators, so Postgrest rejected the entire update every time with no error surfaced (same "field that isn't a real column" bug class as earlier fixes). Removed address from the update payload; name/phone/contact_role now save correctly. Address input stays in the UI but doesn't persist yet — needs a real column if we want that data kept. (3) saveAddedMarkets() (the new "Add a Market" flow from v1.74.26) now adds .select('id') and verifies the returned row count matches what was selected, so a future RLS silent no-op shows a real error toast instead of a false success — closes the same gap that let the earlier "Keiths Testmarket" claim look successful while never actually writing to the database. -->
+<!-- v1.74.26 — Operator dashboard gap #5: added an "+ Add a Market" button to the My Markets tab, opening a searchable checkbox-list modal (same pattern as the onboarding market-tagging step) of published markets not yet tagged to the operator, excluding any market already claimed by someone else. Selecting and saving sets operator_id + claimed:true on the chosen market(s) via the same tested Supabase update pattern used in onboarding, updates DATA.markets locally, and re-renders My Markets — no page reload needed. Also added an admin email alert (via the existing sendWindmillEmail helper) that fires whenever a market is added this way, listing the operator's org name/email and which market(s) were claimed, so admin has visibility into claims happening outside the formal claim-request/approval flow. -->
 <!-- v1.74.25 — Fixed the next layer of the same Admin > Add Market bug: the fix in v1.74.24 corrected operator_id, but market creation still failed with a 400. Root cause: the new-market object included active:true, a field that isn't a real column on markets — it's leftover from the local hardcoded seed data and was never wired to an actual column or feature (confirmed unused anywhere else in the app). Removed it from the object being saved. Same "field that isn't a real column" bug class as the phone/email issues fixed earlier. -->
 <!-- v1.74.24 — Fixed Admin > Markets > Add: every new market created here was silently failing to save while still showing "✓ Market created successfully!" Root cause: new markets were given operator_id:'' for unclaimed markets, but markets.operator_id has a foreign key to operators(id) — an empty string matches no operator row, so the insert was rejected by the database every time. Changed to operator_id:null (the correct way to represent "unclaimed"), and adminCreateMarket now checks dbSaveMarket's actual return value before showing success — rolling back the optimistic local DATA.markets push if the save failed, instead of claiming success regardless. Same silent-failure pattern already fixed elsewhere in v1.74.19; this admin feature was added afterward and got missed. -->
 <!-- v1.74.23 — Market cover photo + real photo gallery, for operators, matching the vendor gallery pattern: (1) Added a gallery column to markets (text array, mirrors vendors.gallery) via Supabase migration, confirmed live. (2) Operator Edit Market form (My Markets tab) now has a working cover-photo uploader at the top — previously there was no way to set or change a market's cover photo at all; it uploads to the same vendor-photos storage bucket under market-covers/{id}/, compresses client-side first, and updates DATA.market_photos immediately so it shows everywhere else in the app without a reload. (3) Added a full gallery editor to the same form — add/delete photos, per-photo captions, 10-photo cap for full Pro / 5 for Pro-trial, locked with an upgrade prompt for anyone below Pro-trial — same UI and behavior as the existing vendor gallery editor, reusing the same parseGallery/compressImage/uploadToStorage helpers rather than duplicating logic. (4) dbSaveMarket now serializes the gallery array the same way dbSaveVendor already does, before upsert. (5) The live public market page's gallery section (fixed in v1.74.22 to unlock for Pro-trial operators) now actually renders the real gallery array with real captions, replacing the placeholder that faked a one-photo gallery out of the single cover-photo field. NOT YET LIVE-TESTED — needs a real upload attempt against Supabase storage to confirm the market-covers/ and market-gallery/ paths save and load correctly before considering this verified. -->
@@ -1807,7 +1816,7 @@ const T = {
     pets_welcome:"🐾 Pets welcome",no_pets:"🚫 No pets",
     see_market_details:"See market for details",
     /* vendor dashboard */
-    dashboard:"Dashboard",my_profile:"My Profile",my_schedule:"My Schedule",
+    dashboard:"Dashboard",my_profile:"Profile",my_schedule:"My Schedule",
     my_products:"My Products",settings:"Settings",
     profile_views:"Profile views",followers:"Followers",
     free_tier:"Free tier",upgrade_pro:"Upgrade to Pro",
@@ -1894,7 +1903,7 @@ const T = {
     claim_cta:"Reclamar mi listado — es gratis",
     pets_welcome:"🐾 Mascotas bienvenidas",no_pets:"🚫 No se permiten mascotas",
     see_market_details:"Consultar el mercado para detalles",
-    dashboard:"Panel",my_profile:"Mi Perfil",my_schedule:"Mi Horario",
+    dashboard:"Panel",my_profile:"Perfil",my_schedule:"Mi Horario",
     my_products:"Mis Productos",settings:"Configuración",
     profile_views:"Visitas al perfil",followers:"Seguidores",
     free_tier:"Plan gratuito",upgrade_pro:"Actualizar a Pro",
@@ -1976,7 +1985,7 @@ const T = {
     claim_cta:"Reivindicar meu perfil — é grátis",
     pets_welcome:"🐾 Animais de estimação bem-vindos",no_pets:"🚫 Sem animais de estimação",
     see_market_details:"Consulte o mercado para detalhes",
-    dashboard:"Painel",my_profile:"Meu Perfil",my_schedule:"Minha Agenda",
+    dashboard:"Painel",my_profile:"Perfil",my_schedule:"Minha Agenda",
     my_products:"Meus Produtos",settings:"Configurações",
     profile_views:"Visitas ao perfil",followers:"Seguidores",
     free_tier:"Plano gratuito",upgrade_pro:"Atualizar para Pro",
@@ -5570,8 +5579,8 @@ async function renderVendorProfile(id) {
     <div style="height:0;overflow:hidden;visibility:hidden" id="vnd-contact"></div>
     <div class="profile-section">
       <div class="profile-section-title">${t('contact_links')}</div>
-      <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg><div><div class="info-row-label">${t('email_label')}</div><div class="info-row-value">${v.email||t('not_provided')}</div></div></div>
-      <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.44 2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.95a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21.73 16.92z"/></svg><div><div class="info-row-label">Phone</div>${v.phone?`<a class="info-row-link" href="tel:${v.phone}">${v.phone}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
+      <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg><div><div class="info-row-label">${t('email_label')}</div><div class="info-row-value">${(isPro&&v.hide_email)?t('not_provided'):(v.email||t('not_provided'))}</div></div></div>
+      <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.44 2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.95a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21.73 16.92z"/></svg><div><div class="info-row-label">Phone</div>${(isPro&&v.hide_phone)?`<div class="info-row-value">${t('not_provided')}</div>`:(v.phone?`<a class="info-row-link" href="tel:${v.phone}">${v.phone}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`)}</div></div>
       <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><div><div class="info-row-label">${t('website_label')}</div>${v.website?`<a class="info-row-link" href="${v.website}" target="_blank">${v.website.replace(/https?:\/\//,'')}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
       ${isPro?`
       <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg><div><div class="info-row-label">Instagram</div>${v.instagram?`<a class="info-row-link" href="${v.instagram}" target="_blank">${v.instagram.replace(/https?:\/\//,'')}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
@@ -6013,7 +6022,8 @@ function renderMarketDetail(id) {
       <div class="profile-section-title">${t('contact_links')}</div>
       ${op?`<div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><div><div class="info-row-label">${t('operator_label')}</div><div class="info-row-value">${op.name}</div></div></div>`:''}
       <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><div><div class="info-row-label">${t('website_label')}</div>${m.website?`<a class="info-row-link" href="${m.website}" target="_blank">${m.website.replace('https://','').replace('http://','')}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
-      <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.44 2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.95a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21.73 16.92z"/></svg><div><div class="info-row-label">Phone</div>${op&&op.phone?`<a class="info-row-link" href="tel:${op.phone}">${op.phone}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
+      <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z" opacity="0"/><path d="M22 6c0-1.1-.9-2-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h16a2 2 0 0 0 2-2V6z"/><path d="m22 6-10 7L2 6"/></svg><div><div class="info-row-label">Email</div>${m.email?`<a class="info-row-link" href="mailto:${m.email}">${m.email}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
+      <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.44 2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.95a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21.73 16.92z"/></svg><div><div class="info-row-label">Phone</div>${(m.phone||(op&&op.phone))?`<a class="info-row-link" href="tel:${m.phone||op.phone}">${m.phone||op.phone}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
     </div>
 
     <!-- SOCIAL MEDIA — greyed out unless market is Pro AND has the link -->
@@ -6045,7 +6055,7 @@ function renderMarketDetail(id) {
         const allPhotos = (opIsPro && m.gallery) ? parseGallery(m.gallery).map(p => typeof p === 'object' ? p : {url:p,caption:m.name}) : [];
         if(opIsPro && allPhotos.length > 0) {
           ST.currentGallery = allPhotos;
-          return `<div class="photo-strip">${allPhotos.map((p,idx)=>`<div class="photo-thumb" onclick="openPhotoLightbox(${idx})" role="button" tabindex="0"><img class="lazy-pending" data-src="${p.url}" alt="${p.caption||('Market photo '+(idx+1))}"><div class="photo-thumb-overlay"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg></div></div>`).join('')}</div>`;
+          return `<div class="photo-strip" id="photoStrip">${allPhotos.map((p,idx)=>`<div class="photo-thumb" onclick="openPhotoLightbox(${idx})" role="button" tabindex="0"><img class="lazy-pending" data-src="${p.url}" alt="${p.caption||('Market photo '+(idx+1))}"><div class="photo-thumb-overlay"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg></div></div>`).join('')}</div>`;
         } else if(opIsPro) {
           return `<p style="font-size:13px;color:var(--text2);font-style:italic">No photos added yet.</p>`;
         } else {
@@ -6104,6 +6114,7 @@ function renderMarketDetail(id) {
   setTimeout(() => {
     initSectionNavObserver('marketSectionNav', ['mkt-about','mkt-social','mkt-info','mkt-gallery','mkt-vendors']);
     initMarketVendorGrid();
+    initPhotoStrip();
   }, 100);
 }
 
@@ -9493,6 +9504,14 @@ function parseGallery(raw){
   if(!Array.isArray(g)) g = [];
   return g.map(p => { if(typeof p === 'string' && p.startsWith('{')){ try { return JSON.parse(p); } catch(e){ return p; } } return p; });
 }
+// v1.74.28: operators were entering social links like "facebook.com/mymarket" with no protocol,
+// which renders as a broken relative link on the live page. Auto-prepend https:// if missing.
+function normalizeSocialUrl(val) {
+  const v = (val || '').trim();
+  if(!v) return '';
+  if(/^https?:\/\//i.test(v)) return v;
+  return 'https://' + v;
+}
 function refreshGalleryGrid(v) {
   if(!v) return;
   const isPro = v.pro || ST.isProTrial;
@@ -11965,6 +11984,15 @@ async function onAuthSuccess(user) {
   // Load user profile from database
   const { data: profile } = await supabaseClient.from('users').select('*').eq('id', user.id).maybeSingle();
 
+  // Keep the internal users.email mirror in sync with the real (confirmed) Supabase Auth email.
+  // Login-email changes only update Supabase Auth at the time they're confirmed — this catches
+  // that up on next login so the mirror never silently goes stale. Never touches vendors.email,
+  // operators.email, or markets.email — those are separate public-facing fields, untouched here.
+  if(profile && profile.email && profile.email !== user.email) {
+    try { await supabaseClient.from('users').update({ email: user.email }).eq('id', user.id); }
+    catch(e) { console.warn('users.email sync failed:', e); }
+  }
+
   // Figure out their real name — prefer an existing saved name, then their approved claim
   // (where they typed their real name when claiming their listing), then fall back to their email
   let name = profile?.name || user.user_metadata?.full_name || user.user_metadata?.name || null;
@@ -12027,12 +12055,19 @@ async function onAuthSuccess(user) {
     try {
       const { data: opRecord } = await supabaseClient
         .from('operators')
-        .select('id, pro, trial_start')
+        .select('*')
         .eq('id', ST.operatorId)
         .single();
       if(opRecord) {
         ST.opIsPro = opRecord.pro === true;
         ST.opTrialStart = opRecord.trial_start ? new Date(opRecord.trial_start) : null;
+        // v1.74.31: session-restore (hard refresh) previously only fetched id/pro/trial_start,
+        // so the Settings > Profile form appeared to "forget" name/phone/role/address after a
+        // refresh even though they were saved correctly — this now matches the fresh-login path.
+        ST.opOrgName = opRecord.name || '';
+        ST.opPhone = opRecord.phone || '';
+        ST.opAddress = opRecord.address || '';
+        ST.opContactRole = opRecord.contact_role || '';
         if(ST.opTrialStart && !ST.opIsPro) {
           const sixMonthsLater = new Date(ST.opTrialStart);
           sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
@@ -13404,9 +13439,9 @@ function adminSaveMarket(id) {
   m.description = document.getElementById('em_desc').value.trim();
   m.parking_notes = document.getElementById('em_parking').value.trim();
   m.special_notes = document.getElementById('em_notes').value.trim();
-  m.website = document.getElementById('em_website').value.trim();
-  m.facebook = document.getElementById('em_fb').value.trim();
-  m.instagram = document.getElementById('em_ig').value.trim();
+  m.website = normalizeSocialUrl(document.getElementById('em_website').value);
+  m.facebook = normalizeSocialUrl(document.getElementById('em_fb').value);
+  m.instagram = normalizeSocialUrl(document.getElementById('em_ig').value);
   m.phone = document.getElementById('em_phone').value.trim();
   m.pet_friendly = document.getElementById('em_pet').checked;
   m.published = document.getElementById('em_pub').checked;
@@ -14753,8 +14788,32 @@ function renderVendorProfileEdit() {
     <div style="padding:0 0 12px">
       <div class="form-field"><label class="form-label">Business name</label><input class="form-input" id="ve_name" value="${v?.name||''}" placeholder="Your business name"></div>
       <div class="form-field"><label class="form-label">Category</label><select class="form-input" id="ve_category" style="cursor:pointer">${categories.map(cat=>`<option value="${cat}" ${v?.category===cat?'selected':''}>${cat}</option>`).join('')}</select></div>
-      <div class="form-field"><label class="form-label">Public email</label><input class="form-input" id="ve_public_email" value="${v?.email||''}" placeholder="shown on your public profile" type="email"></div>
-      <div class="form-field"><label class="form-label">Phone</label><input class="form-input" id="ve_phone" value="${v?.phone||''}" placeholder="+1 (239) 000-0000" type="tel"></div>
+      <div class="form-field">
+        <label class="form-label">Public email</label>
+        <input class="form-input" id="ve_public_email" value="${v?.email||''}" placeholder="Shown on your public profile" type="email">
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:6px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:${isPro?'var(--text2)':'var(--text3)'};cursor:${isPro?'pointer':'not-allowed'}" ${isPro?'':'onclick="return false;" title="Upgrade to Pro to hide your email from public view"'}>
+            <input type="checkbox" id="ve_hide_email" ${v?.hide_email?'checked':''} ${isPro?'':'disabled'}>
+            Hide from public view${isPro?'':' 🔒'}
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer">
+            <input type="checkbox" id="ve_same_as_login" ${(v?.email && ST.user?.email && v.email.toLowerCase()===ST.user.email.toLowerCase())?'checked':''} onchange="if(this.checked){document.getElementById('ve_public_email').value=ST.user?.email||'';}">
+            Same as my login email
+          </label>
+        </div>
+        ${!isPro?`<div style="font-size:11px;color:var(--text3);margin-top:4px">Upgrade to Pro to hide your email from public view</div>`:''}
+      </div>
+      <div class="form-field">
+        <label class="form-label">Phone</label>
+        <input class="form-input" id="ve_phone" value="${v?.phone||''}" placeholder="+1 (239) 000-0000" type="tel">
+        <div style="margin-top:6px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:${isPro?'var(--text2)':'var(--text3)'};cursor:${isPro?'pointer':'not-allowed'}" ${isPro?'':'onclick="return false;" title="Upgrade to Pro to hide your phone from public view"'}>
+            <input type="checkbox" id="ve_hide_phone" ${v?.hide_phone?'checked':''} ${isPro?'':'disabled'}>
+            Hide from public view${isPro?'':' 🔒'}
+          </label>
+        </div>
+        ${!isPro?`<div style="font-size:11px;color:var(--text3);margin-top:4px">Upgrade to Pro to hide your phone from public view</div>`:''}
+      </div>
       <div class="form-field"><label class="form-label">Your story</label><textarea class="form-textarea" id="ve_description" placeholder="Tell customers about your business, your story, what makes you special...">${v?.description||''}</textarea></div>
     </div>`;
 
@@ -14802,7 +14861,7 @@ function renderVendorProfileEdit() {
 
   document.getElementById('scrollBody').innerHTML = `<div class="vendor-dash">
     ${!isPro ? freePageHeader() : ''}
-    <div class="dash-title">My Profile</div>
+    <div class="dash-title">Business Profile</div>
     <div class="dash-sub">How customers see you on Windmill</div>
 
     ${collapsibleSection('photo','Profile Photo', photoContent, '', true)}
@@ -14850,6 +14909,10 @@ async function saveVendorProfile() {
   v.email = document.getElementById('ve_public_email')?.value?.trim() || v.email;
   v.phone = document.getElementById('ve_phone')?.value?.trim() || '';
   v.description = document.getElementById('ve_description')?.value?.trim() || '';
+  // Hide-from-public-view is a Pro/trial-only feature — force false for anyone not entitled,
+  // regardless of checkbox state in the DOM (defends against a stale checked box surviving a downgrade).
+  v.hide_email = isPro ? !!document.getElementById('ve_hide_email')?.checked : false;
+  v.hide_phone = isPro ? !!document.getElementById('ve_hide_phone')?.checked : false;
 
   // Social links
   if(isPro) {
@@ -15384,7 +15447,7 @@ function renderVendorSettings() {
       <div onclick="renderVendorSettingsSection('profile')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid var(--border);cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
         <div style="display:flex;align-items:center;gap:12px">
           <span style="font-size:18px">👤</span>
-          <div><div style="font-size:14px;font-weight:500;color:var(--text)">Your Profile</div><div style="font-size:11px;color:var(--text3)">Name, email, phone, address</div></div>
+          <div><div style="font-size:14px;font-weight:500;color:var(--text)">Personal Info</div><div style="font-size:11px;color:var(--text3)">Your name and address — kept private</div></div>
         </div>${chevron}
       </div>
       <div onclick="renderVendorSettingsSection('security')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid var(--border);cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
@@ -15431,12 +15494,15 @@ function renderVendorSettingsSection(section) {
 
   if(section === 'profile') {
     sb.innerHTML = backBtn + `<div style="padding:16px">
-      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:4px">Your Profile</div>
-      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Contact info shown on your public profile</div>
-      <div class="form-field"><label class="form-label">Your name <span style="color:var(--text3);font-weight:400">(private — never shown publicly)</span></label><input class="form-input" id="vsp_personal_name" value="${ST.user?.name||''}" placeholder="Your full name"></div>
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:4px">Personal Info</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Kept private — never shown to shoppers</div>
+      <div class="form-field"><label class="form-label">Your name</label><input class="form-input" id="vsp_personal_name" value="${ST.user?.name||''}" placeholder="Your full name"></div>
+      <div class="form-field">
+        <label class="form-label">Login email</label>
+        <input class="form-input" value="${ST.user?.email||''}" disabled style="opacity:.55;cursor:not-allowed">
+        <div style="margin-top:6px"><span onclick="renderVendorSettingsSection('security')" style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500">Change in Security →</span></div>
+      </div>
       <div class="form-field"><label class="form-label">Business name</label><input class="form-input" id="vsp_name" value="${v?.name||''}" placeholder="Your business name"></div>
-      <div class="form-field"><label class="form-label">Contact email</label><input class="form-input" id="vsp_email" value="${v?.email||''}" placeholder="shown on your public profile" type="email"></div>
-      <div class="form-field"><label class="form-label">Phone</label><input class="form-input" id="vsp_phone" value="${v?.phone||''}" placeholder="+1 (239) 000-0000" type="tel"></div>
       <div class="form-field"><label class="form-label">Address</label><input class="form-input" id="vsp_address" value="${v?.address||''}" placeholder="Business address (optional)"></div>
       <button onclick="saveVendorSettingsProfile()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-top:8px">Save changes</button>
     </div>`;
@@ -15533,8 +15599,8 @@ function renderVendorSettingsSection(section) {
           <div style="font-size:12px;color:var(--text2);margin-top:2px">Your home base — see your stats and jump to anything else from here. <span style="color:var(--terra)">Go →</span></div>
         </div>
         <div onclick="navigate('explore')" style="border:0.5px solid var(--border);border-radius:var(--r-md);padding:12px;cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
-          <div style="font-size:13px;font-weight:600;color:var(--text)">👤 My Profile</div>
-          <div style="font-size:12px;color:var(--text2);margin-top:2px">Add your cover photo, write your story, upload gallery photos, and add your social links — this is everything shoppers see when they find you. <span style="color:var(--terra)">Go →</span></div>
+          <div style="font-size:13px;font-weight:600;color:var(--text)">👤 Business Profile</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">Add your cover photo, write your story, upload gallery photos, contact info, and social links — this is everything shoppers see when they find you. <span style="color:var(--terra)">Go →</span></div>
         </div>
         <div onclick="navigate('markets')" style="border:0.5px solid var(--border);border-radius:var(--r-md);padding:12px;cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
           <div style="font-size:13px;font-weight:600;color:var(--text)">📅 My Schedule</div>
@@ -15542,7 +15608,7 @@ function renderVendorSettingsSection(section) {
         </div>
         <div onclick="renderVendorProducts()" style="border:0.5px solid var(--border);border-radius:var(--r-md);padding:12px;cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
           <div style="font-size:13px;font-weight:600;color:var(--text)">📦 My Products</div>
-          <div style="font-size:12px;color:var(--text2);margin-top:2px">Add a name, description, and price for what you sell — like a menu for your stand. This is different from your Photo Gallery, which lives in My Profile. <span style="color:var(--terra)">Go →</span></div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">Add a name, description, and price for what you sell — like a menu for your stand. This is different from your Photo Gallery, which lives in Business Profile. <span style="color:var(--terra)">Go →</span></div>
         </div>
         <div onclick="renderVendorSettings()" style="border:0.5px solid var(--border);border-radius:var(--r-md);padding:12px;cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
           <div style="font-size:13px;font-weight:600;color:var(--text)">⚙️ Settings</div>
@@ -15560,8 +15626,6 @@ async function saveVendorSettingsProfile() {
   let v = DATA.vendors.find(x=>x.id===vendorId);
   if(!v) return;
   v.name = document.getElementById('vsp_name')?.value?.trim() || v.name;
-  v.email = document.getElementById('vsp_email')?.value?.trim() || v.email;
-  v.phone = document.getElementById('vsp_phone')?.value?.trim() || '';
   v.address = document.getElementById('vsp_address')?.value?.trim() || '';
   if(supabaseClient) { try { await dbSaveVendor(v); } catch(e) { console.warn('Save failed:', e); } }
   // Personal name is account-level (private), saved to the users table, not the vendor's public record
@@ -15709,7 +15773,10 @@ function renderOperatorMarkets() {
   const opId = ST.operatorId || 'local-roots';
   const myMarkets = DATA.markets.filter(m=>m.operator_id===opId);
   document.getElementById('scrollBody').innerHTML=`<div class="operator-dash">
-    <div class="dash-title">My Markets</div><div class="dash-sub">${myMarkets.length} market${myMarkets.length!==1?'s':''}</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <div><div class="dash-title">My Markets</div><div class="dash-sub">${myMarkets.length} market${myMarkets.length!==1?'s':''}</div></div>
+      <button onclick="openAddMarketModal()" style="flex-shrink:0;padding:9px 14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:600;font-family:var(--font-sans);white-space:nowrap">+ Add a Market</button>
+    </div>
     ${myMarkets.map((m,i)=>`<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-bottom:10px">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
         <div style="width:44px;height:44px;background:${mbg(i)};border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
@@ -15727,6 +15794,109 @@ function renderOperatorMarkets() {
       </div>
     </div>`).join('')}
   </div>`;
+}
+
+function openAddMarketModal() {
+  const opId = ST.operatorId || 'local-roots';
+  const myMarketIds = new Set(DATA.markets.filter(m=>m.operator_id===opId).map(m=>m.id));
+  const overlay = document.createElement('div');
+  overlay.id = 'addMarketOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+  overlay.innerHTML = `<div style="background:var(--surface);border-radius:var(--r-lg);width:100%;max-width:440px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden">
+    <div style="padding:20px 20px 12px;flex-shrink:0">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text)">Add a Market</div>
+        <button onclick="document.getElementById('addMarketOverlay').remove()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3);line-height:1">×</button>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Select any market you operate. You can add more than one.</div>
+      <input type="text" id="addMarketSearch" placeholder="Search by market name or city..." oninput="filterAddMarketList()" style="width:100%;padding:10px 12px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;font-family:var(--font-sans);background:var(--bg);color:var(--text);box-sizing:border-box;outline:none">
+    </div>
+    <div id="addMarketList" style="overflow-y:auto;padding:0 20px;flex:1"></div>
+    <div style="padding:14px 20px 20px;flex-shrink:0;border-top:0.5px solid var(--border)">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Don't see your market? <a href="#" onclick="document.getElementById('addMarketOverlay').remove();openContactWindmill();return false;" style="color:var(--terra)">Contact us</a> and we'll add it.</div>
+      <button onclick="saveAddedMarkets()" style="width:100%;padding:13px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Add Selected Markets</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  ST._addMarketCandidates = DATA.markets.filter(m => m.published !== false && !myMarketIds.has(m.id) && m.claimed !== true);
+  renderAddMarketList(ST._addMarketCandidates);
+}
+
+function renderAddMarketList(list) {
+  const el = document.getElementById('addMarketList');
+  if(!el) return;
+  if(list.length === 0) {
+    el.innerHTML = `<div style="padding:24px 0;text-align:center;font-size:12px;color:var(--text3)">No matching markets found.</div>`;
+    return;
+  }
+  el.innerHTML = list.map(m => `
+    <label style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--border);cursor:pointer">
+      <input type="checkbox" class="addMarketChk" value="${m.id}" style="width:16px;height:16px;accent-color:var(--green);cursor:pointer;flex-shrink:0">
+      <div>
+        <div style="font-size:13px;font-weight:500;color:var(--text)">${m.name}</div>
+        <div style="font-size:11px;color:var(--text3)">${m.city||''}${m.day_of_week?' · '+m.day_of_week:''}${m.start_time?' · '+m.start_time:''}</div>
+      </div>
+    </label>`).join('');
+}
+
+function filterAddMarketList() {
+  const q = (document.getElementById('addMarketSearch')?.value || '').trim().toLowerCase();
+  const source = ST._addMarketCandidates || [];
+  const filtered = !q ? source : source.filter(m =>
+    (m.name||'').toLowerCase().includes(q) || (m.city||'').toLowerCase().includes(q));
+  renderAddMarketList(filtered);
+}
+
+async function saveAddedMarkets() {
+  const opId = ST.operatorId || 'local-roots';
+  const checked = Array.from(document.querySelectorAll('.addMarketChk:checked')).map(el => el.value);
+  if(checked.length === 0) { document.getElementById('addMarketOverlay')?.remove(); return; }
+  const chosenMarkets = checked.map(id => DATA.markets.find(m => m.id === id)).filter(Boolean);
+
+  if(supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient.from('markets').update({ operator_id: opId, claimed: true }).in('id', checked).select('id');
+      if(error) { notifySaveError('Could not add the selected market(s) — please try again.'); return; }
+      // v1.74.27: RLS can silently filter out rows it won't allow, returning success with 0 rows changed
+      // and no error object — so we also verify the affected-row count actually matches what was selected.
+      if(!data || data.length !== checked.length) {
+        notifySaveError('Could not add the selected market(s) — please try again or contact support.');
+        return;
+      }
+    } catch(e) {
+      console.warn('Add market save failed:', e);
+      notifySaveError('Could not add the selected market(s) — please try again.');
+      return;
+    }
+  }
+
+  checked.forEach(id => {
+    const m = DATA.markets.find(x => x.id === id);
+    if(m) { m.operator_id = opId; m.claimed = true; }
+  });
+
+  // Admin alert — a market was just claimed via the operator dashboard
+  const op = DATA.operators?.find(x => x.id === opId);
+  const opName = op?.name || 'Unknown operator';
+  const opEmail = ST.user?.email || op?.email || 'Unknown email';
+  sendWindmillEmail(
+    '🏪 Market' + (chosenMarkets.length > 1 ? 's' : '') + ' claimed via dashboard — ' + chosenMarkets.map(m=>m.name).join(', '),
+    '<h2>Market Added via Operator Dashboard</h2>' +
+    '<p><strong>Operator:</strong> ' + opName + '</p>' +
+    '<p><strong>Operator email:</strong> ' + opEmail + '</p>' +
+    '<p><strong>Market' + (chosenMarkets.length > 1 ? 's' : '') + ':</strong></p>' +
+    '<ul>' + chosenMarkets.map(m => '<li>' + m.name + ' (' + (m.city||'') + ')</li>').join('') + '</ul>' +
+    '<p><a href="https://shopwindmill.com" style="background:#5C7A4E;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:12px">Review in Admin Dashboard →</a></p>'
+  );
+
+  document.getElementById('addMarketOverlay')?.remove();
+  const toast = document.createElement('div');
+  toast.textContent = chosenMarkets.length > 1 ? `${chosenMarkets.length} markets added ✓` : 'Market added ✓';
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+
+  renderOperatorMarkets();
 }
 
 function openOperatorMarketEdit(id) {
@@ -15821,9 +15991,9 @@ async function saveOperatorMarketEdit(id) {
   m.season_dates = document.getElementById('ome_season_dates')?.value?.trim() || '';
   m.email = document.getElementById('ome_email')?.value?.trim() || '';
   m.phone = document.getElementById('ome_phone')?.value?.trim() || '';
-  m.website = document.getElementById('ome_website')?.value?.trim() || '';
-  m.facebook = document.getElementById('ome_facebook')?.value?.trim() || '';
-  m.instagram = document.getElementById('ome_instagram')?.value?.trim() || '';
+  m.website = normalizeSocialUrl(document.getElementById('ome_website')?.value);
+  m.facebook = normalizeSocialUrl(document.getElementById('ome_facebook')?.value);
+  m.instagram = normalizeSocialUrl(document.getElementById('ome_instagram')?.value);
   m.pet_friendly = document.getElementById('ome_pet')?.checked;
 
   const pendingFile = (ST._pendingMarketCoverFiles || {})[id];
@@ -16058,7 +16228,8 @@ async function saveVendorRosterMarkets(vendorId) {
   renderOperatorVendors();
 }
 
-function openAddVendorModal() {
+function openAddVendorModal(mode) {
+  mode = mode || 'existing';
   const opId = ST.operatorId || 'local-roots';
   const myMarkets = DATA.markets.filter(m=>m.operator_id===opId);
   const categories = ['Arts & Crafts','Baked Goods','Candy & Sweets','Clothing & Accessories','Coffee & Drinks','Dairy & Eggs','Food Trucks','Health & Wellness','Home & Candles','Honey & Preserves','Jewelry','Meat & Seafood','Pet Products','Plants & Flowers','Prepared Food','Produce','Recreation & Hobbies','Sauces & Pantry','Soaps & Body Care'];
@@ -16069,41 +16240,135 @@ function openAddVendorModal() {
   const overlay = document.createElement('div');
   overlay.id = 'addVendorRosterModal';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(44,32,22,.5);z-index:3000;display:flex;align-items:flex-end;justify-content:center';
+
+  const marketCheckboxes = `
+    <div class="form-label" style="margin-bottom:8px">Markets * <span style="font-size:10px;color:var(--text3);font-weight:400">(select at least one)</span></div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
+      ${myMarkets.map(m=>`
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;background:var(--surface2);border:0.5px solid var(--border);border-radius:var(--r-md)">
+          <input type="checkbox" id="avr_m_${m.id}" style="width:16px;height:16px;accent-color:var(--green);cursor:pointer">
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:500;color:var(--text)">${m.name}</div>
+            <div style="font-size:11px;color:var(--text3)">${getMarketScheduleLabel(m)} · ${m.city}</div>
+          </div>
+        </label>`).join('')}
+    </div>`;
+
   overlay.innerHTML = `
     <div style="background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-width:600px;padding:20px 20px 40px;max-height:90vh;overflow-y:auto">
       <div style="width:36px;height:4px;background:var(--border-med);border-radius:2px;margin:0 auto 16px"></div>
-      <div style="font-family:var(--font-serif);font-size:17px;font-weight:600;color:var(--text);margin-bottom:4px">Add New Vendor</div>
-      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Name, category and at least one market are required</div>
+      <div style="font-family:var(--font-serif);font-size:17px;font-weight:600;color:var(--text);margin-bottom:4px">Add a Vendor</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:16px">Add a vendor to your roster, or create a brand new listing</div>
 
-      <div class="form-field"><label class="form-label">Vendor name *</label><input class="form-input" id="avr_name" placeholder="e.g. Sunshine Honey Co."></div>
-      <div class="form-field"><label class="form-label">Category *</label>
-        <select class="form-input" id="avr_cat" style="cursor:pointer">
-          <option value="">Select a category</option>
-          ${categories.map(c=>`<option value="${c}">${c}</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-field"><label class="form-label">Email</label><input class="form-input" id="avr_email" placeholder="vendor@email.com" type="email"></div>
-      <div class="form-field"><label class="form-label">Phone</label><input class="form-input" id="avr_phone" placeholder="+1 (239) 000-0000" type="tel"></div>
-      <div class="form-field"><label class="form-label">Website</label><input class="form-input" id="avr_website" placeholder="https://"></div>
-      <div class="form-field"><label class="form-label">Description</label><textarea class="form-textarea" id="avr_desc" placeholder="Brief description of this vendor..."></textarea></div>
-
-      <div class="form-label" style="margin-bottom:8px">Markets * <span style="font-size:10px;color:var(--text3);font-weight:400">(select at least one)</span></div>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
-        ${myMarkets.map(m=>`
-          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;background:var(--surface2);border:0.5px solid var(--border);border-radius:var(--r-md)">
-            <input type="checkbox" id="avr_m_${m.id}" style="width:16px;height:16px;accent-color:var(--green);cursor:pointer">
-            <div style="flex:1">
-              <div style="font-size:13px;font-weight:500;color:var(--text)">${m.name}</div>
-              <div style="font-size:11px;color:var(--text3)">${getMarketScheduleLabel(m)} · ${m.city}</div>
-            </div>
-          </label>`).join('')}
+      <div style="display:flex;gap:8px;margin-bottom:20px;background:var(--surface2);padding:4px;border-radius:var(--r-pill)">
+        <button onclick="openAddVendorModal('existing')" style="flex:1;padding:9px;border:none;border-radius:var(--r-pill);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-sans);background:${mode==='existing'?'var(--green)':'transparent'};color:${mode==='existing'?'#fff':'var(--text2)'}">Select Existing</button>
+        <button onclick="openAddVendorModal('new')" style="flex:1;padding:9px;border:none;border-radius:var(--r-pill);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-sans);background:${mode==='new'?'var(--green)':'transparent'};color:${mode==='new'?'#fff':'var(--text2)'}">Create New</button>
       </div>
 
-      <div id="avr_error" style="font-size:12px;color:var(--terra);margin-bottom:12px;display:none"></div>
-      <button onclick="submitAddVendorRoster()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:10px">Add vendor</button>
+      ${mode === 'existing' ? `
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px">This adds an existing vendor to your roster. It doesn't claim their page for them — vendors still manage and claim their own profile.</div>
+        <div class="form-field"><label class="form-label">Search vendors</label><input class="form-input" id="avr_search" placeholder="Search by name or category..." oninput="filterExistingVendorList()"></div>
+        <div id="avr_existing_list" style="border:0.5px solid var(--border-med);border-radius:var(--r-md);max-height:220px;overflow-y:auto;margin-bottom:16px"></div>
+        ${marketCheckboxes}
+        <div id="avr_error" style="font-size:12px;color:var(--terra);margin-bottom:12px;display:none"></div>
+        <button onclick="submitAddExistingVendor()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:10px">Add to roster</button>
+      ` : `
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px">Use this only if the vendor isn't already listed on Windmill. This creates a brand new, unclaimed listing.</div>
+        <div class="form-field"><label class="form-label">Vendor name *</label><input class="form-input" id="avr_name" placeholder="e.g. Sunshine Honey Co."></div>
+        <div class="form-field"><label class="form-label">Category *</label>
+          <select class="form-input" id="avr_cat" style="cursor:pointer">
+            <option value="">Select a category</option>
+            ${categories.map(c=>`<option value="${c}">${c}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-field"><label class="form-label">Email</label><input class="form-input" id="avr_email" placeholder="vendor@email.com" type="email"></div>
+        <div class="form-field"><label class="form-label">Phone</label><input class="form-input" id="avr_phone" placeholder="+1 (239) 000-0000" type="tel"></div>
+        <div class="form-field"><label class="form-label">Website</label><input class="form-input" id="avr_website" placeholder="https://"></div>
+        <div class="form-field"><label class="form-label">Description</label><textarea class="form-textarea" id="avr_desc" placeholder="Brief description of this vendor..."></textarea></div>
+        ${marketCheckboxes}
+        <div id="avr_error" style="font-size:12px;color:var(--terra);margin-bottom:12px;display:none"></div>
+        <button onclick="submitAddVendorRoster()" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:10px">Create vendor</button>
+      `}
       <button onclick="document.getElementById('addVendorRosterModal').remove()" style="width:100%;padding:10px;background:transparent;border:none;font-size:13px;cursor:pointer;color:var(--text3);font-family:var(--font-sans)">Cancel</button>
     </div>`;
   document.body.appendChild(overlay);
+
+  if(mode === 'existing') {
+    const myRegions = new Set(myMarkets.map(m=>m.region).filter(Boolean));
+    ST._avrCandidates = DATA.vendors.filter(v => v.published !== false && (myRegions.size === 0 || myRegions.has(v.region)));
+    ST._avrSelectedVendorId = null;
+    renderExistingVendorList(ST._avrCandidates);
+  }
+}
+
+function renderExistingVendorList(list) {
+  const el = document.getElementById('avr_existing_list');
+  if(!el) return;
+  if(list.length === 0) {
+    el.innerHTML = `<div style="padding:20px;text-align:center;font-size:12px;color:var(--text3)">No matching vendors found.</div>`;
+    return;
+  }
+  el.innerHTML = list.map(v => `
+    <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:0.5px solid var(--border);cursor:pointer;background:${ST._avrSelectedVendorId===v.id?'var(--green-lt)':'transparent'}">
+      <input type="radio" name="avr_existing_pick" value="${v.id}" ${ST._avrSelectedVendorId===v.id?'checked':''} onchange="ST._avrSelectedVendorId='${v.id}';renderExistingVendorList(ST._avrCandidates)" style="width:16px;height:16px;accent-color:var(--green);cursor:pointer;flex-shrink:0">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500;color:var(--text)">${v.name}</div>
+        <div style="font-size:11px;color:var(--text3)">${v.category||''}${v.claimed?' · <span style="color:var(--green-dk)">✓ Claimed</span>':' · Unclaimed'}</div>
+      </div>
+    </label>`).join('');
+}
+
+function filterExistingVendorList() {
+  const q = (document.getElementById('avr_search')?.value || '').trim().toLowerCase();
+  const source = ST._avrCandidates || [];
+  const filtered = !q ? source : source.filter(v =>
+    (v.name||'').toLowerCase().includes(q) || (v.category||'').toLowerCase().includes(q));
+  renderExistingVendorList(filtered);
+}
+
+async function submitAddExistingVendor() {
+  const opId = ST.operatorId || 'local-roots';
+  const myMarkets = DATA.markets.filter(m=>m.operator_id===opId);
+  const errEl = document.getElementById('avr_error');
+  const showErr = msg => { errEl.textContent = msg; errEl.style.display = 'block'; };
+  errEl.style.display = 'none';
+
+  const vendorId = ST._avrSelectedVendorId;
+  const selectedMarketIds = myMarkets.filter(m=>document.getElementById('avr_m_'+m.id)?.checked).map(m=>m.id);
+  const vendor = DATA.vendors.find(v=>v.id===vendorId);
+
+  if(!vendor) { showErr('Please select a vendor.'); return; }
+  if(selectedMarketIds.length === 0) { showErr('Please select at least one market.'); return; }
+
+  const existingMarketIds = new Set(vendor.markets || []);
+  const newMarketIds = selectedMarketIds.filter(id => !existingMarketIds.has(id));
+  if(newMarketIds.length === 0) { showErr(vendor.name + ' is already on all the selected market(s).'); return; }
+
+  if(supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient.from('vendor_markets')
+        .insert(newMarketIds.map(mid => ({ vendor_id: vendor.id, market_id: mid })))
+        .select('vendor_id, market_id');
+      if(error || !data || data.length !== newMarketIds.length) {
+        notifySaveError('Could not add ' + vendor.name + ' to the selected market(s) — please try again.');
+        return;
+      }
+    } catch(e) {
+      console.warn('Add existing vendor to roster failed:', e);
+      notifySaveError('Could not add ' + vendor.name + ' to the selected market(s) — please try again.');
+      return;
+    }
+  }
+
+  vendor.markets = [...(vendor.markets || []), ...newMarketIds];
+
+  document.getElementById('addVendorRosterModal')?.remove();
+  const toast = document.createElement('div');
+  toast.textContent = vendor.name + ' added to your roster ✓';
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+  renderOperatorVendors();
 }
 
 async function submitAddVendorRoster() {
@@ -16136,12 +16401,15 @@ async function submitAddVendorRoster() {
     facebook: '', instagram: '', tagline: '', photo: null
   };
 
-  DATA.vendors.push(vendor);
+  let saveOk = true;
   if(supabaseClient) {
-    try { await dbSaveVendor(vendor); } catch(e) { console.warn('Save failed:', e); }
+    saveOk = await dbSaveVendor(vendor);
   }
+  if(!saveOk) return; // dbSaveVendor already surfaces its own error toast
 
-  document.getElementById('addVendorRosterModal').remove();
+  DATA.vendors.push(vendor);
+
+  document.getElementById('addVendorRosterModal')?.remove();
   const toast = document.createElement('div');
   toast.textContent = name + ' added ✓';
   toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
@@ -16587,18 +16855,25 @@ function renderOperatorSettingsSection(section) {
 }
 
 async function saveOperatorSettingsProfile() {
+  const addressVal = document.getElementById('osp_address')?.value?.trim();
   const updates = {
     name: document.getElementById('osp_name')?.value?.trim(),
     phone: document.getElementById('osp_phone')?.value?.trim(),
-    address: document.getElementById('osp_address')?.value?.trim(),
-    contact_role: document.getElementById('osp_contact_role')?.value || ''
+    contact_role: document.getElementById('osp_contact_role')?.value || '',
+    address: addressVal || null
   };
+  // v1.74.32: 'address' column now exists on operators (added live in Supabase) — restored
+  // to the update payload. Previously removed in v1.74.27 because the column didn't exist yet,
+  // which also meant ST.opAddress was only ever set from the raw input value, never confirmed saved.
   if(updates.name) ST.opOrgName = updates.name;
   if(updates.phone) ST.opPhone = updates.phone;
-  if(updates.address) ST.opAddress = updates.address;
+  if(addressVal) ST.opAddress = addressVal;
   ST.opContactRole = updates.contact_role;
   if(supabaseClient && ST.operatorId) {
-    try { await supabaseClient.from('operators').update(updates).eq('id', ST.operatorId); } catch(e) { console.warn('Save failed:', e); }
+    try {
+      const { error } = await supabaseClient.from('operators').update(updates).eq('id', ST.operatorId);
+      if(error) { notifySaveError('Failed to save profile changes. Please try again.'); return; }
+    } catch(e) { notifySaveError('Failed to save profile changes. Please try again.'); return; }
   }
   // Personal name is account-level (private), saved to the users table, not the organization's public record
   const personalName = document.getElementById('osp_personal_name')?.value?.trim();
