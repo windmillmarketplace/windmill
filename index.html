@@ -10,6 +10,11 @@
 <title>Windmill — Discover Local Markets & Vendors</title>
 <!-- v1.74.19 — Fixed silent save failures (data-loss risk class): (1) Root cause found for "market edits don't stick" bug — markets table was missing a 'phone' column that the edit form was already trying to save, causing Supabase to reject the entire update (400 PGRST204); column added directly in Supabase, confirmed fixed. (2) dbSaveVendor and dbSaveMarket previously swallowed all write failures into console.warn only, with no return value — any caller had no way to know if a save actually worked. Both now return true/false and show a visible on-screen error via new notifySaveError() helper on failure, covering every vendor/market save path (admin edits, vendor self-serve profile edits, gallery uploads, onboarding). (3) All 6 operator onboarding save steps (contact info, tagged markets, cover photo, description, links, setup-complete flag) now show a visible error on failure instead of failing silently. (4) sendShopperReply (shopper replying inline to an existing inbox thread) did not check whether the reply actually saved before clearing the input and showing success — three sibling reply functions already had this check, this one was the outlier; now fixed to match. (5) toggleFollowDB (follow/unfollow vendor or market) previously had zero error handling — a failed database write left the follow button showing the wrong state with no indication of failure; now rolls back the optimistic UI change and shows a visible error if the write fails. Left untouched: background reads/lookups (unread counts, session checks, search-as-you-type, email status polling) where silent failure causes no data loss. -->
 <!-- v1.74.20 — Fixed vendor dashboard product Edit button doing nothing on click. Root cause: the Edit button's onclick attribute was delimited with single quotes, but embedded the vendor ID using raw, unescaped single quotes inside that same attribute — the browser read the first of those as the end of the attribute value, so the onclick handler never actually attached (invalid markup, no console error). Fixed by having the button pass only the product ID and look the full product record up from a small in-memory map (ST._dashProductsById) built when the product grid renders, instead of embedding the whole product object as inline JSON inside an HTML attribute — this also removes any future risk of the same class of bug from product names/descriptions containing quotes or ampersands. Also fixed: deleteProduct() previously had an empty catch block and no return value, so a failed delete looked identical to a successful one (modal closes, grid refreshes, product could still exist in the database). It now returns true/false, and confirmDeleteProduct shows a visible on-screen error via notifySaveError() and leaves the modal open if the delete fails, instead of silently proceeding as if it worked. -->
+<!-- v1.74.21 — Security lockdown pass + pre-order interest now actually works: (1) Supabase RLS: markets/operators tables previously had a "Service write" policy with no role restriction and always-true USING/WITH CHECK — meaning any client, including unauthenticated, could insert/update/delete rows in either table. Replaced with is_admin()-only insert/delete and admin-or-owning-operator update, mirroring the existing vendors/products pattern. Same fix applied to cities/regions (previously any authenticated user, not just admin, could write). (2) preorder_interest table had RLS enabled with zero policies defined — meaning the "Notify me when pre-orders launch" button had been silently failing for every click since it was built; the insert was blocked, caught, and a false success toast shown anyway. Added an insert policy (logged-in users, own record only) and admin-only read/update/delete. (3) vendor-photos storage bucket had two redundant SELECT policies letting anyone list every file in the bucket via the API — not needed since the bucket's own "public" flag already handles direct-URL photo loading without any policy; removed both, upload policies untouched. (4) Revoked direct RPC-call access (anon + authenticated + PUBLIC) on two SECURITY DEFINER trigger-only functions (protect_sensitive_user_fields, rls_auto_enable) — nothing in the app calls these directly, they only fire as triggers, which is unaffected by this. Deliberately left is_admin() untouched despite being flagged by the same scanner category — it's called inside nearly every RLS policy in the database, and revoking direct-call access for a role also revokes that role's ability to have policies evaluate the function on their behalf, which would break RLS platform-wide for every non-admin user. (5) Pre-order interest, now that it actually saves: the public "Get notified" button (on a vendor's public profile page — reachable by shoppers, vendors, or operators browsing that page) was hardcoding role:'shopper' regardless of who was actually logged in; now passes the real ST.role. Added a live email notification to admin (via existing sendWindmillEmail helper) on every new interest submission, and a new "🛒 Pre-Orders" toggle inside the admin Claims tab (alongside the existing Vendors/Markets toggle) showing a read-only list of who's interested in what, with real account-type labels. While in this code: fixed the Vendors pill's "active" check, which previously read `!== 'market'` (so it would incorrectly show active when the new Pre-Orders pill was selected too) — now explicitly checks `=== 'vendor'`. -->
+<!-- v1.74.22 — Market Pro-status now correctly inherited live from its operator, fixing two confirmed go-to-market gaps at once: the Market Gallery and Facebook/Instagram links on a market's public page were gated on the market's own static pro column, which was never kept in sync with the actual operator's plan — meaning a Pro-trial operator's markets stayed locked out of Gallery and social links even though the operator was actively paying (or trialing). Replaced every such check in renderMarketDetail with a live-computed opIsPro, derived the same way vendor Pro status already is elsewhere in the app (operator.pro OR an active 6-month trial from operator.trial_start) — so a market's Pro features now turn on and off automatically and instantly whenever its operator's status changes, with no separate flag to keep in sync and no risk of drift. Also fixed the same underlying bug class in the nearby "Other markets from this operator" carousel, which checked a nonexistent operator.tier field (never a real column on operators) and had silently only ever worked when the operator was viewing their own page — now uses the same live pro/trial computation, so the carousel correctly groups a Pro-trial operator's other markets for every visitor, not just the operator themselves. NOT YET LIVE-TESTED against a real Pro-trial operator with populated Facebook/Instagram/gallery data — needs confirmation on a live market before considering this fully verified. -->
+<!-- v1.74.25 — Fixed the next layer of the same Admin > Add Market bug: the fix in v1.74.24 corrected operator_id, but market creation still failed with a 400. Root cause: the new-market object included active:true, a field that isn't a real column on markets — it's leftover from the local hardcoded seed data and was never wired to an actual column or feature (confirmed unused anywhere else in the app). Removed it from the object being saved. Same "field that isn't a real column" bug class as the phone/email issues fixed earlier. -->
+<!-- v1.74.24 — Fixed Admin > Markets > Add: every new market created here was silently failing to save while still showing "✓ Market created successfully!" Root cause: new markets were given operator_id:'' for unclaimed markets, but markets.operator_id has a foreign key to operators(id) — an empty string matches no operator row, so the insert was rejected by the database every time. Changed to operator_id:null (the correct way to represent "unclaimed"), and adminCreateMarket now checks dbSaveMarket's actual return value before showing success — rolling back the optimistic local DATA.markets push if the save failed, instead of claiming success regardless. Same silent-failure pattern already fixed elsewhere in v1.74.19; this admin feature was added afterward and got missed. -->
+<!-- v1.74.23 — Market cover photo + real photo gallery, for operators, matching the vendor gallery pattern: (1) Added a gallery column to markets (text array, mirrors vendors.gallery) via Supabase migration, confirmed live. (2) Operator Edit Market form (My Markets tab) now has a working cover-photo uploader at the top — previously there was no way to set or change a market's cover photo at all; it uploads to the same vendor-photos storage bucket under market-covers/{id}/, compresses client-side first, and updates DATA.market_photos immediately so it shows everywhere else in the app without a reload. (3) Added a full gallery editor to the same form — add/delete photos, per-photo captions, 10-photo cap for full Pro / 5 for Pro-trial, locked with an upgrade prompt for anyone below Pro-trial — same UI and behavior as the existing vendor gallery editor, reusing the same parseGallery/compressImage/uploadToStorage helpers rather than duplicating logic. (4) dbSaveMarket now serializes the gallery array the same way dbSaveVendor already does, before upsert. (5) The live public market page's gallery section (fixed in v1.74.22 to unlock for Pro-trial operators) now actually renders the real gallery array with real captions, replacing the placeholder that faked a one-photo gallery out of the single cover-photo field. NOT YET LIVE-TESTED — needs a real upload attempt against Supabase storage to confirm the market-covers/ and market-gallery/ paths save and load correctly before considering this verified. -->
 <!-- v1.74.18 — Two more fixes, verified before shipping: (1) Follow buttons on vendor cards (home page, category pages, "more like this" strips) correctly showed "Following" as text but never actually turned green — the CSS rule for it already existed but the button never got the class applied. Fixed all 6 card instances to add the class when following. (2) Product Edit button apostrophe bug — the v1.74.14 "fix" for this used backslash-escaping, which does not work: tested against a real HTML parser (jsdom) and confirmed browsers do not treat backslash as an escape character inside an HTML attribute, so the onclick attribute still broke and corrupted the button's markup on any product with an apostrophe. Replaced it with proper HTML-entity escaping (&#39;), which was verified end-to-end with the same real parser to produce a complete, valid, clickable button. -->
 <!-- v1.74.17 — Two fixes: (1) Shopper "Forgot password?" was wired to send a magic (passwordless sign-in) link instead of an actual password-reset link — it now sends a real reset email via resetPasswordForEmail, matching what vendor/operator "Forgot password" already correctly did. The separate "Send me a magic link instead" option is untouched and still works as its own legitimate passwordless sign-in path. (2) Vendor and operator "Sign out" always sent users to the generic shopper home page — authSignOut() now checks the role before clearing it and sends vendors to /vendors/login and operators to /markets/login instead. NOT YET LIVE-TESTED with a real reset email for the shopper flow — needs confirmation before this goes to production, same as the earlier v1.74.15 recovery-modal fix. -->
 <!-- v1.74.16 — Fixed follow buttons never showing "Following" (green) anywhere except the Favorites/Following tab. Root cause: several isFollowing() calls on vendor/market cards and the vendor/market profile pages had the vendor/market id wrapped in single quotes inside a nested template expression — e.g. isFollowing('vendor','${v.id}') — which JS does NOT interpolate inside single quotes, so the literal 8-character string "${v.id}" was being passed as the id instead of the real value. isFollowing() therefore always returned false in those spots, regardless of actual follow state. Fixed all 6 occurrences (4 on vendor/market cards, 2 on the vendor/market profile pages) to pass the real id directly. This bug predates all of today's changes and is unrelated to the login issue. -->
@@ -1250,6 +1255,19 @@ async function loadFromSupabase() {
         }
       } catch(e) { console.warn('Claims load failed:', e); }
 
+      // Load pre-order interest for admin (RLS restricts this to admin — returns
+      // empty for everyone else, which is fine, no error).
+      try {
+        const { data: preorders } = await supabaseClient.from('preorder_interest').select('*').order('created_at', {ascending: false});
+        ST.adminPreorders = (preorders || []).map(p => ({
+          id: p.id,
+          vendorId: p.vendor_id,
+          email: p.email || '',
+          role: p.role || '',
+          date: p.created_at ? new Date(p.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : ''
+        }));
+      } catch(e) { console.warn('Pre-order interest load failed:', e); }
+
       return true;
     }
     return false;
@@ -1683,6 +1701,7 @@ let ST = {
     {city:'Naples, FL',zip:'34102',markets:'Third Street South Farmers Market, Cambier Park Market',contact:'Mike Chen · mike@email.com',date:'May 23, 2026'}
   ],
   adminMessages:[],
+  adminPreorders:[],
   adminClaims:[
     {id:'c1',vendorId:'the-empanada-queen',vendorName:'The Empanada Queen',claimant:'Maria Gonzalez',email:'maria@empanadaqueen.com',phone:'239-555-0182',message:'This is my business — I have been selling at Lakes Park for 3 years.',date:'May 28, 2026',status:'pending'},
     {id:'c2',vendorId:'suncoast-honey-co',vendorName:'Suncoast Honey Co.',claimant:'David Park',email:'david@suncoasthoney.com',phone:'239-555-0247',message:'I am the owner of Suncoast Honey and want to manage my listing.',date:'May 27, 2026',status:'pending'},
@@ -5655,7 +5674,7 @@ async function renderVendorProfile(id) {
           <div style="font-size:13px;font-weight:600;color:#7A4E08;margin-bottom:2px">Pre-order pickup — coming soon</div>
           <div style="font-size:12px;color:#A06820;line-height:1.5">Order ahead online and pick up at the market. No more missing out on your favorites.</div>
         </div>
-        <button onclick="${ST.user ? `savePreOrderInterest('${v.id}','shopper')` : `openSignIn('signup')`}" style="flex-shrink:0;padding:6px 12px;background:var(--amber);color:#fff;border:none;border-radius:var(--r-pill);font-size:11px;cursor:pointer;font-weight:600;font-family:var(--font-sans);white-space:nowrap">Get notified</button>
+        <button onclick="${ST.user ? `savePreOrderInterest('${v.id}','${ST.role||'customer'}')` : `openSignIn('signup')`}" style="flex-shrink:0;padding:6px 12px;background:var(--amber);color:#fff;border:none;border-radius:var(--r-pill);font-size:11px;cursor:pointer;font-weight:600;font-family:var(--font-sans);white-space:nowrap">Get notified</button>
       </div>
     </div>
 
@@ -5822,10 +5841,12 @@ function renderOtherMarketsCarousel(currentId, region) {
   const operator = opId ? DATA.operators?.find(o=>o.id===opId) : null;
 
   // For Pro/Trial operators: show only their other markets; hide section if only 1 market
-  // Determine if this market's operator has Pro or Trial status
-  // We check ST.opIsPro/ST.opIsProTrial if logged in as that operator, otherwise check operator tier field
-  const isProOp = operator?.tier === 'pro' || operator?.tier === 'pro_trial' ||
-    (ST.operatorId === opId && (ST.opIsPro || ST.opIsProTrial));
+  // Determine if this market's operator has Pro or Trial status — computed live
+  // from the operator's own pro/trial_start fields (there is no stored "tier"
+  // column on operators; a prior version of this check referenced one that
+  // never existed, so it silently only ever worked for the operator's own
+  // logged-in session, never for anyone else viewing the page).
+  const isProOp = !!(operator && (operator.pro || (operator.trial_start && (() => { const exp = new Date(operator.trial_start); exp.setMonth(exp.getMonth()+6); return new Date() < exp; })())));
 
   let others, sectionTitle;
   if(isProOp && opId) {
@@ -5898,6 +5919,11 @@ function renderMarketDetail(id) {
   const metaDesc = `${m.name} — ${getMarketScheduleLabel(m)} ${formatTimeRange(m.start_time, m.end_time)} in ${m.city}, FL. Fresh produce, artisan goods and local vendors at Windmill.`;
   updatePageMeta(`${m.name} — ${m.city}, FL | Windmill`, metaDesc, `/markets/${slug}`, 'market', m.id);
   const op = getOperator(m.operator_id);
+  // A market's Pro status is inherited live from its operator — never stored
+  // separately, so it can never drift out of sync when the operator's plan
+  // or trial status changes. Mirrors the same pro-or-active-trial check used
+  // for vendors throughout the app.
+  const opIsPro = !!(op && (op.pro || (op.trial_start && (() => { const exp = new Date(op.trial_start); exp.setMonth(exp.getMonth()+6); return new Date() < exp; })())));
   const mvs = DATA.vendors.filter(v=>v.markets.includes(m.id)&&v.published);
   const photo = DATA.market_photos[m.id];
 
@@ -5920,7 +5946,7 @@ function renderMarketDetail(id) {
           <div style="margin-bottom:6px">
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px">
               <div class="market-name-lg" style="margin:0;word-break:break-word">${m.name}</div>
-              ${m.pro ? `<span style="font-size:10px;padding:2px 7px;background:var(--green);color:#fff;border-radius:var(--r-pill);font-weight:500;flex-shrink:0;white-space:nowrap">✓ Pro</span>` : ''}
+              ${opIsPro ? `<span style="font-size:10px;padding:2px 7px;background:var(--green);color:#fff;border-radius:var(--r-pill);font-weight:500;flex-shrink:0;white-space:nowrap">✓ Pro</span>` : ''}
             </div>
             <div class="market-subtitle">${m.venue} · ${m.city}, ${m.state}</div>
           </div>
@@ -5960,7 +5986,7 @@ function renderMarketDetail(id) {
 
     ${(()=>{
       const mOp = getOperator(m.operator_id);
-      if(m.pro && mOp && mOp.announcement) {
+      if(opIsPro && mOp && mOp.announcement) {
         return `<div style="background:var(--surface);border-bottom:0.5px solid var(--border);padding:14px 16px">
           <div style="font-size:10px;font-weight:600;color:var(--green-dk);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📣 Announcement</div>
           <p style="font-size:13px;color:var(--text);line-height:1.5;margin:0 0 6px">${mOp.announcement.text}</p>
@@ -5994,10 +6020,10 @@ function renderMarketDetail(id) {
     <div class="profile-section">
       <div class="profile-section-title">${t('social_media')}</div>
       <div class="social-row">
-        ${m.pro && m.facebook
+        ${opIsPro && m.facebook
           ? `<a href="${m.facebook}" target="_blank" class="social-chip">👍 Facebook</a>`
           : `<span class="social-chip empty">👍 Facebook ${!m.claimed?'('+t('claim_to_add')+')':''}</span>`}
-        ${m.pro && m.instagram
+        ${opIsPro && m.instagram
           ? `<a href="${m.instagram}" target="_blank" class="social-chip">📸 Instagram</a>`
           : `<span class="social-chip empty">📸 Instagram ${!m.claimed?'('+t('claim_to_add')+')':''}</span>`}
       </div>
@@ -6016,12 +6042,11 @@ function renderMarketDetail(id) {
     <div class="profile-section">
       <div class="profile-section-title">Market Gallery</div>
       ${(()=>{
-        const mPhotos = DATA.market_photos[m.id] ? [DATA.market_photos[m.id]] : [];
-        const allPhotos = (m.pro && mPhotos.length > 0) ? mPhotos.map(u=>({url:u,caption:m.name})) : [];
-        if(m.pro && allPhotos.length > 0) {
+        const allPhotos = (opIsPro && m.gallery) ? parseGallery(m.gallery).map(p => typeof p === 'object' ? p : {url:p,caption:m.name}) : [];
+        if(opIsPro && allPhotos.length > 0) {
           ST.currentGallery = allPhotos;
-          return `<div class="photo-strip">${allPhotos.map((p,idx)=>`<div class="photo-thumb" onclick="openPhotoLightbox(${idx})" role="button" tabindex="0"><img class="lazy-pending" data-src="${p.url}" alt="Market photo ${idx+1}"><div class="photo-thumb-overlay"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg></div></div>`).join('')}</div>`;
-        } else if(m.pro) {
+          return `<div class="photo-strip">${allPhotos.map((p,idx)=>`<div class="photo-thumb" onclick="openPhotoLightbox(${idx})" role="button" tabindex="0"><img class="lazy-pending" data-src="${p.url}" alt="${p.caption||('Market photo '+(idx+1))}"><div class="photo-thumb-overlay"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg></div></div>`).join('')}</div>`;
+        } else if(opIsPro) {
           return `<p style="font-size:13px;color:var(--text2);font-style:italic">No photos added yet.</p>`;
         } else {
           return `<div style="background:var(--amber-lt);border:0.5px solid #F0D090;border-radius:var(--r-md);padding:10px 12px;display:flex;align-items:center;gap:10px">
@@ -10740,51 +10765,72 @@ function renderAdminPanel() {
     const pending = pendingAll;
     const history = activeList.filter(c=>c.status!=='pending');
 
-    // Type toggle: Vendors / Markets
+    // Type toggle: Vendors / Markets / Pre-Orders
     h += `<div style="display:flex;gap:6px;margin-bottom:10px">
-      <button onclick="ST.adminClaimsType='vendor';ST.adminClaimsTab='pending';renderAdminPanel()" style="flex:1;padding:8px;border-radius:var(--r-pill);border:0.5px solid ${ST.adminClaimsType!=='market'?'var(--green)':'var(--border)'};background:${ST.adminClaimsType!=='market'?'var(--green-lt)':'var(--surface)'};color:${ST.adminClaimsType!=='market'?'var(--green-dk)':'var(--text2)'};font-size:12px;cursor:pointer;font-weight:${ST.adminClaimsType!=='market'?'600':'400'}">🌾 Vendors (${vendorClaims.length})</button>
+      <button onclick="ST.adminClaimsType='vendor';ST.adminClaimsTab='pending';renderAdminPanel()" style="flex:1;padding:8px;border-radius:var(--r-pill);border:0.5px solid ${ST.adminClaimsType==='vendor'?'var(--green)':'var(--border)'};background:${ST.adminClaimsType==='vendor'?'var(--green-lt)':'var(--surface)'};color:${ST.adminClaimsType==='vendor'?'var(--green-dk)':'var(--text2)'};font-size:12px;cursor:pointer;font-weight:${ST.adminClaimsType==='vendor'?'600':'400'}">🌾 Vendors (${vendorClaims.length})</button>
       <button onclick="ST.adminClaimsType='market';ST.adminClaimsTab='pending';renderAdminPanel()" style="flex:1;padding:8px;border-radius:var(--r-pill);border:0.5px solid ${ST.adminClaimsType==='market'?'var(--green)':'var(--border)'};background:${ST.adminClaimsType==='market'?'var(--green-lt)':'var(--surface)'};color:${ST.adminClaimsType==='market'?'var(--green-dk)':'var(--text2)'};font-size:12px;cursor:pointer;font-weight:${ST.adminClaimsType==='market'?'600':'400'}">🏪 Markets (${marketClaims.length})</button>
+      <button onclick="ST.adminClaimsType='preorders';renderAdminPanel()" style="flex:1;padding:8px;border-radius:var(--r-pill);border:0.5px solid ${ST.adminClaimsType==='preorders'?'var(--green)':'var(--border)'};background:${ST.adminClaimsType==='preorders'?'var(--green-lt)':'var(--surface)'};color:${ST.adminClaimsType==='preorders'?'var(--green-dk)':'var(--text2)'};font-size:12px;cursor:pointer;font-weight:${ST.adminClaimsType==='preorders'?'600':'400'}">🛒 Pre-Orders (${ST.adminPreorders.length})</button>
     </div>`;
 
-    h += `<div class="admin-subtabs">
-      <button class="admin-subtab ${ST.adminClaimsTab!=='history'?'active':''}" onclick="ST.adminClaimsTab='pending';renderAdminPanel()">Pending (${pending.length})</button>
-      <button class="admin-subtab ${ST.adminClaimsTab==='history'?'active':''}" onclick="ST.adminClaimsTab='history';renderAdminPanel()">History (${history.length})</button>
-    </div>`;
-    const showList = ST.adminClaimsTab==='history' ? history : pending;
-    if(showList.length===0) {
-      h += `<div style="text-align:center;padding:32px;color:var(--text2);font-size:13px">${ST.adminClaimsTab==='history'?'No claim history yet':'No pending claims 🎉'}</div>`;
-    } else {
-      h += `<div class="admin-table">`;
-      showList.forEach(c => {
-        const isMarketClaim = c.claim_type === 'market';
-        h += `<div class="request-row">
-          <div class="request-info">
-            <div style="display:flex;align-items:center;gap:6px">
-              <div class="request-city">${c.vendorName}</div>
-              ${isMarketClaim ? `<span style="font-size:10px;padding:1px 6px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill);border:0.5px solid var(--green-mid)">Market</span>` : ''}
-              ${c.message&&c.message.includes('Manages additional markets') ? `<span style="font-size:10px;padding:1px 6px;background:var(--amber-lt);color:#7A4E08;border-radius:var(--r-pill);border:0.5px solid #F0D090">Multi-market</span>` : ''}
-              ${c.isDuplicate ? `<span style="font-size:10px;padding:1px 6px;background:#FEE2E2;color:#B91C1C;border-radius:var(--r-pill);border:0.5px solid #FECACA">⚠ Duplicate</span>` : ''}
-              ${c.emailStatus==='matching' ? `<span style="font-size:10px;padding:1px 6px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill);border:0.5px solid var(--green-mid)">🟢 Requestor email matches listing</span>` : ''}
-              ${c.emailStatus==='new' ? `<span style="font-size:10px;padding:1px 6px;background:#E0F2FE;color:#075985;border-radius:var(--r-pill);border:0.5px solid #BAE6FD">🆕 Requestor email — none on file</span>` : ''}
-              ${c.emailStatus==='conflict' ? `<span style="font-size:10px;padding:1px 6px;background:#FEE2E2;color:#B91C1C;border-radius:var(--r-pill);border:0.5px solid #FECACA">🔴 Requestor email differs from listing</span>` : ''}
+    if(ST.adminClaimsType==='preorders') {
+      // Read-only interest list — no approve/deny workflow, just an FYI feed
+      if(ST.adminPreorders.length===0) {
+        h += `<div style="text-align:center;padding:32px;color:var(--text2);font-size:13px">No pre-order interest yet</div>`;
+      } else {
+        const roleLabels = { customer:'Shopper', vendor:'Vendor account', operator:'Operator account', admin:'Admin account' };
+        h += `<div class="admin-table">`;
+        ST.adminPreorders.forEach(p => {
+          const v = DATA.vendors.find(x => x.id === p.vendorId);
+          h += `<div class="admin-row">
+            <div class="admin-row-info">
+              <div class="admin-row-name">${v?.name || p.vendorId}</div>
+              <div class="admin-row-meta">${p.email || 'No email on file'} · ${roleLabels[p.role] || p.role || 'Unknown'} · ${p.date}</div>
             </div>
-            <div class="request-markets">Claimed by: ${c.claimant} · ${c.email}</div>
-            ${c.emailStatus==='conflict' ? `<div style="font-size:11px;color:#B91C1C;margin-top:2px">Listing email on file: ${c.listingEmailAtSubmission||c.listing_email_at_submission||'—'}</div>` : ''}
-            <div class="request-contact">${c.phone||''}${c.phone&&c.role?' · ':''}${c.role||''} · ${c.date}</div>
-            ${c.message?`<div style="font-size:11px;color:var(--text);margin-top:4px;font-style:italic">"${c.message}"</div>`:''}
-            ${c.status==='denied'&&c.denyReason?`<div style="font-size:11px;color:var(--terra);margin-top:2px">Denied: ${c.denyReason}</div>`:''}
-          </div>
-          <div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0">
-            ${c.status==='pending' ? `
-              <button class="action-btn publish" onclick="adminApproveClaim('${c.id}')">✓ Approve</button>
-              <button class="action-btn edit" style="color:var(--terra);border-color:var(--terra)" onclick="adminDenyClaim('${c.id}')">✗ Deny</button>
-              <button class="action-btn preview" onclick="navigate('${isMarketClaim?'market':'vendor'}','${c.vendorId}')">View</button>
-              <a class="action-btn" style="text-align:center;text-decoration:none;display:block" href="mailto:${c.email}?subject=${encodeURIComponent('Windmill — verifying your claim request for '+c.vendorName)}">✉️ Contact</a>
-            ` : `<span class="status-pill ${c.status==='approved'?'claimed':'draft'}">${c.status==='approved'?'Approved':'Denied'}</span>`}
-          </div>
-        </div>`;
-      });
-      h += `</div>`;
+          </div>`;
+        });
+        h += `</div>`;
+      }
+    } else {
+      h += `<div class="admin-subtabs">
+        <button class="admin-subtab ${ST.adminClaimsTab!=='history'?'active':''}" onclick="ST.adminClaimsTab='pending';renderAdminPanel()">Pending (${pending.length})</button>
+        <button class="admin-subtab ${ST.adminClaimsTab==='history'?'active':''}" onclick="ST.adminClaimsTab='history';renderAdminPanel()">History (${history.length})</button>
+      </div>`;
+      const showList = ST.adminClaimsTab==='history' ? history : pending;
+      if(showList.length===0) {
+        h += `<div style="text-align:center;padding:32px;color:var(--text2);font-size:13px">${ST.adminClaimsTab==='history'?'No claim history yet':'No pending claims 🎉'}</div>`;
+      } else {
+        h += `<div class="admin-table">`;
+        showList.forEach(c => {
+          const isMarketClaim = c.claim_type === 'market';
+          h += `<div class="request-row">
+            <div class="request-info">
+              <div style="display:flex;align-items:center;gap:6px">
+                <div class="request-city">${c.vendorName}</div>
+                ${isMarketClaim ? `<span style="font-size:10px;padding:1px 6px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill);border:0.5px solid var(--green-mid)">Market</span>` : ''}
+                ${c.message&&c.message.includes('Manages additional markets') ? `<span style="font-size:10px;padding:1px 6px;background:var(--amber-lt);color:#7A4E08;border-radius:var(--r-pill);border:0.5px solid #F0D090">Multi-market</span>` : ''}
+                ${c.isDuplicate ? `<span style="font-size:10px;padding:1px 6px;background:#FEE2E2;color:#B91C1C;border-radius:var(--r-pill);border:0.5px solid #FECACA">⚠ Duplicate</span>` : ''}
+                ${c.emailStatus==='matching' ? `<span style="font-size:10px;padding:1px 6px;background:var(--green-lt);color:var(--green-dk);border-radius:var(--r-pill);border:0.5px solid var(--green-mid)">🟢 Requestor email matches listing</span>` : ''}
+                ${c.emailStatus==='new' ? `<span style="font-size:10px;padding:1px 6px;background:#E0F2FE;color:#075985;border-radius:var(--r-pill);border:0.5px solid #BAE6FD">🆕 Requestor email — none on file</span>` : ''}
+                ${c.emailStatus==='conflict' ? `<span style="font-size:10px;padding:1px 6px;background:#FEE2E2;color:#B91C1C;border-radius:var(--r-pill);border:0.5px solid #FECACA">🔴 Requestor email differs from listing</span>` : ''}
+              </div>
+              <div class="request-markets">Claimed by: ${c.claimant} · ${c.email}</div>
+              ${c.emailStatus==='conflict' ? `<div style="font-size:11px;color:#B91C1C;margin-top:2px">Listing email on file: ${c.listingEmailAtSubmission||c.listing_email_at_submission||'—'}</div>` : ''}
+              <div class="request-contact">${c.phone||''}${c.phone&&c.role?' · ':''}${c.role||''} · ${c.date}</div>
+              ${c.message?`<div style="font-size:11px;color:var(--text);margin-top:4px;font-style:italic">"${c.message}"</div>`:''}
+              ${c.status==='denied'&&c.denyReason?`<div style="font-size:11px;color:var(--terra);margin-top:2px">Denied: ${c.denyReason}</div>`:''}
+            </div>
+            <div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0">
+              ${c.status==='pending' ? `
+                <button class="action-btn publish" onclick="adminApproveClaim('${c.id}')">✓ Approve</button>
+                <button class="action-btn edit" style="color:var(--terra);border-color:var(--terra)" onclick="adminDenyClaim('${c.id}')">✗ Deny</button>
+                <button class="action-btn preview" onclick="navigate('${isMarketClaim?'market':'vendor'}','${c.vendorId}')">View</button>
+                <a class="action-btn" style="text-align:center;text-decoration:none;display:block" href="mailto:${c.email}?subject=${encodeURIComponent('Windmill — verifying your claim request for '+c.vendorName)}">✉️ Contact</a>
+              ` : `<span class="status-pill ${c.status==='approved'?'claimed':'draft'}">${c.status==='approved'?'Approved':'Denied'}</span>`}
+            </div>
+          </div>`;
+        });
+        h += `</div>`;
+      }
     }
   }
 
@@ -12276,7 +12322,15 @@ async function dbSaveVendor(vendor) {
 async function dbSaveMarket(market) {
   if(!supabaseClient) return false;
   try {
-    const { error } = await supabaseClient.from('markets').upsert(market);
+    const marketData = { ...market };
+    if(marketData.gallery) {
+      marketData.gallery = marketData.gallery.map(p => {
+        if(typeof p === 'string' && p.startsWith('{')) { try { return JSON.parse(p); } catch(e) { return {url:p,caption:''}; } }
+        if(typeof p === 'string') return { url: p, caption: '' };
+        return p;
+      });
+    }
+    const { error } = await supabaseClient.from('markets').upsert(marketData);
     if(error) throw error;
     console.log('✓ Market saved to Supabase:', market.name);
     return true;
@@ -13523,10 +13577,9 @@ async function adminCreateMarket() {
     photo: photoUrl,
     pet_friendly: document.getElementById('nm_pet').checked,
     published: document.getElementById('nm_pub').checked,
-    active: true,
     lat: window._nm_lat || 26.5629,
     lng: window._nm_lng || -81.8723,
-    operator_id: ''
+    operator_id: null // v1.74.24: was '' — markets.operator_id has a foreign key to operators(id), and an empty string matches no operator row, so every unclaimed market creation was silently failing at the database step. null means "unclaimed" and passes the FK check.
   };
   window._nm_lat = null; window._nm_lng = null;
 
@@ -13540,7 +13593,15 @@ async function adminCreateMarket() {
 
   DATA.markets.push(market);
   if(photoUrl) DATA.market_photos[id] = photoUrl;
-  await dbSaveMarket(market);
+  const saved = await dbSaveMarket(market);
+  if(!saved) {
+    // v1.74.24: dbSaveMarket already shows its own error toast on failure — just
+    // stop here instead of also claiming success. Roll back the optimistic local
+    // push so the admin markets list doesn't show a market that isn't really saved.
+    DATA.markets.pop();
+    if(photoUrl) delete DATA.market_photos[id];
+    return;
+  }
 
   // Save updated vendor market assignments
   for(const vid of selectedVendorIds) {
@@ -14175,12 +14236,32 @@ async function savePreOrderInterest(vendorId, role) {
   document.getElementById('preOrderModal')?.remove();
   if(!supabaseClient) return;
   try {
-    await supabaseClient.from('preorder_interest').insert({
+    const { error } = await supabaseClient.from('preorder_interest').insert({
       vendor_id: vendorId,
       user_id: ST.user?.id || null,
       email: ST.user?.email || null,
       role: role
     });
+    if(!error) {
+      const v = DATA.vendors.find(x => x.id === vendorId);
+      const roleLabels = { customer:'Shopper', vendor:'Vendor account', operator:'Operator account', admin:'Admin account' };
+      const roleLabel = roleLabels[role] || role || 'Unknown';
+      ST.adminPreorders.unshift({
+        id: 'po' + Date.now(),
+        vendorId: vendorId,
+        email: ST.user?.email || '',
+        role: role,
+        date: new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})
+      });
+      sendWindmillEmail(
+        '🛒 New pre-order interest — ' + (v?.name || vendorId),
+        '<h2>New Pre-Order Interest</h2>' +
+        '<p><strong>Vendor:</strong> ' + (v?.name || vendorId) + '</p>' +
+        '<p><strong>Requested by:</strong> ' + (ST.user?.email || 'Unknown') + '</p>' +
+        '<p><strong>Account type:</strong> ' + roleLabel + '</p>' +
+        '<p><a href="https://shopwindmill.com" style="background:#5C7A4E;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:12px">View in Admin Dashboard →</a></p>'
+      );
+    }
   } catch(e) { /* non-fatal — table may not exist yet */ }
   const toast = document.createElement('div');
   toast.textContent = "You're on the list! We'll notify you when pre-orders launch. 🛒";
@@ -15663,6 +15744,12 @@ function openOperatorMarketEdit(id) {
     <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:4px">${m.name}</div>
     <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Edit your market's public listing</div>
 
+    <div style="font-size:12px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:0 0 10px">Cover Photo</div>
+    <div style="position:relative;height:120px;border-radius:var(--r-md);overflow:hidden;margin-bottom:16px;cursor:pointer;${m.photo?`background:url(${m.photo}) center/cover no-repeat`:'background:var(--surface2);border:0.5px dashed var(--border-med);display:flex;align-items:center;justify-content:center'}" onclick="document.getElementById('marketCoverPhotoInput').click()">
+      ${m.photo ? `<div style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.5);color:#fff;font-size:11px;padding:4px 8px;border-radius:var(--r-pill)">Change photo</div>` : `<div style="text-align:center;color:var(--text3)"><div style="font-size:24px;margin-bottom:4px">📷</div><div style="font-size:12px">Add a cover photo</div></div>`}
+    </div>
+    <input type="file" id="marketCoverPhotoInput" accept="image/jpeg,image/png,image/webp,image/heic" style="display:none" onchange="previewMarketCoverPhoto(this,'${id}')">
+
     <div style="font-size:12px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:0 0 10px">Basic Info</div>
     <div class="form-field"><label class="form-label">Market name</label><input class="form-input" id="ome_name" value="${m.name||''}"></div>
     <div class="form-field"><label class="form-label">Description</label><textarea class="form-textarea" id="ome_desc" style="min-height:100px">${m.description||''}</textarea></div>
@@ -15707,8 +15794,12 @@ function openOperatorMarketEdit(id) {
       </label>
     </div>
 
-    <button onclick="saveOperatorMarketEdit('${id}')" style="width:100%;padding:14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:15px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Save changes</button>
+    <div style="font-size:12px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:20px 0 10px">Photo Gallery</div>
+    <div id="marketGalleryGrid_${id}"></div>
+
+    <button onclick="saveOperatorMarketEdit('${id}')" style="width:100%;padding:14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:15px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-top:20px">Save changes</button>
   </div>`;
+  refreshMarketGalleryGrid(id);
 }
 
 async function saveOperatorMarketEdit(id) {
@@ -15735,6 +15826,20 @@ async function saveOperatorMarketEdit(id) {
   m.instagram = document.getElementById('ome_instagram')?.value?.trim() || '';
   m.pet_friendly = document.getElementById('ome_pet')?.checked;
 
+  const pendingFile = (ST._pendingMarketCoverFiles || {})[id];
+  if(pendingFile && supabaseClient) {
+    try {
+      const compressed = await compressImage(pendingFile, 1200, 0.80);
+      const path = `market-covers/${id}/${Date.now()}.jpg`;
+      m.photo = await uploadToStorage(compressed, path);
+      DATA.market_photos[id] = m.photo;
+      delete ST._pendingMarketCoverFiles[id];
+    } catch(e) {
+      console.warn('Cover photo upload failed:', e);
+      notifySaveError('Cover photo could not be uploaded — please try again.');
+    }
+  }
+
   if(supabaseClient) {
     try { await dbSaveMarket(m); } catch(e) { console.warn('Save failed:', e); }
   }
@@ -15744,6 +15849,112 @@ async function saveOperatorMarketEdit(id) {
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 3000);
   renderOperatorMarkets();
+}
+
+function previewMarketCoverPhoto(input, marketId) {
+  const file = input.files[0];
+  if(!file) return;
+  if(file.size > 5 * 1024 * 1024) { alert('Photo must be under 5MB'); return; }
+  ST._pendingMarketCoverFiles = ST._pendingMarketCoverFiles || {};
+  ST._pendingMarketCoverFiles[marketId] = file;
+  const previewUrl = URL.createObjectURL(file);
+  const container = input.previousElementSibling;
+  if(container) {
+    container.style.background = `url(${previewUrl}) center/cover no-repeat`;
+    container.innerHTML = `<div style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.5);color:#fff;font-size:11px;padding:4px 8px;border-radius:var(--r-pill)">Change photo</div>`;
+  }
+}
+
+async function addMarketGalleryPhoto(input, marketId) {
+  const file = input.files[0];
+  if(!file) return;
+  if(file.size > 5 * 1024 * 1024) { alert('Photo must be under 5MB'); return; }
+  const m = DATA.markets.find(x => x.id === marketId);
+  if(!m) return;
+  m.gallery = parseGallery(m.gallery);
+  const isPro = ST.opIsPro || ST.opIsProTrial;
+  const maxPhotos = ST.opIsPro ? 10 : 5;
+  if(!isPro) { alert('Upgrade to Pro to add gallery photos.'); return; }
+  if(m.gallery.length >= maxPhotos) { alert(`Maximum ${maxPhotos} photos reached`); return; }
+  const btn = document.querySelector(`button[onclick*="marketGalleryPhotoInput_${marketId}"]`);
+  if(btn) { btn.textContent = 'Uploading...'; btn.disabled = true; }
+  try {
+    let photoUrl;
+    if(supabaseClient) {
+      const compressed = await compressImage(file, 1200, 0.80);
+      const path = `market-gallery/${marketId}/${Date.now()}.jpg`;
+      photoUrl = await uploadToStorage(compressed, path);
+    } else {
+      photoUrl = URL.createObjectURL(file);
+    }
+    m.gallery.push({ url: photoUrl, caption: '' });
+    if(supabaseClient) await dbSaveMarket(m);
+    refreshMarketGalleryGrid(marketId);
+  } catch(e) {
+    console.warn('Market gallery upload failed:', e);
+    alert('Upload failed — please try again');
+    refreshMarketGalleryGrid(marketId);
+  }
+}
+
+function refreshMarketGalleryGrid(marketId) {
+  const m = DATA.markets.find(x => x.id === marketId);
+  if(!m) return;
+  m.gallery = parseGallery(m.gallery);
+  const gallery = m.gallery || [];
+  const isPro = ST.opIsPro || ST.opIsProTrial;
+  const maxPhotos = ST.opIsPro ? 10 : 5;
+
+  const gridEl = document.getElementById('marketGalleryGrid_' + marketId);
+  if(!gridEl) return;
+
+  if(!isPro) {
+    gridEl.innerHTML = `<div class="pro-lock"><span style="font-size:20px">🔒</span><div class="pro-lock-text"><div class="pro-lock-title">Photo Gallery is a Pro feature</div><div class="pro-lock-sub">Upgrade to add photos of your market.</div></div><button class="pro-lock-btn" onclick="openUpgradeFlow()">Upgrade</button></div>`;
+    return;
+  }
+
+  const tilesHtml = gallery.map((photo,idx) => {
+    const url = typeof photo === 'object' ? photo.url : photo;
+    const cap = typeof photo === 'object' ? (photo.caption || '') : '';
+    return `<div style="border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden;background:var(--surface)">
+      <div style="height:100px;background:var(--surface2);position:relative;display:flex;align-items:center;justify-content:center">
+        <img src="${url}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">
+        <button onclick="deleteMarketGalleryPhoto('${marketId}',${idx})" style="position:absolute;top:4px;right:4px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);padding:3px 8px;font-size:11px;cursor:pointer;font-weight:500;z-index:2;font-family:var(--font-sans)">Delete</button>
+      </div>
+      <div style="padding:6px 8px">
+        <input type="text" value="${cap}" placeholder="Add a caption..." onchange="updateMarketGalleryCaption('${marketId}',${idx},this.value)" style="width:100%;border:none;background:transparent;font-size:11px;color:var(--text2);font-family:var(--font-sans);outline:none;box-sizing:border-box">
+      </div>
+    </div>`;
+  }).join('');
+
+  const addBtn = gallery.length < maxPhotos
+    ? `<button onclick="document.getElementById('marketGalleryPhotoInput_${marketId}').click()" style="width:100%;padding:10px;background:var(--surface2);color:var(--text2);border:0.5px dashed var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans)">+ Add photo (${gallery.length}/${maxPhotos})</button><input type="file" id="marketGalleryPhotoInput_${marketId}" accept="image/jpeg,image/png,image/webp,image/heic" style="display:none" onchange="addMarketGalleryPhoto(this,'${marketId}')">`
+    : `<div style="text-align:center;font-size:12px;color:var(--text3);padding:8px">Maximum ${maxPhotos} photos reached</div>`;
+
+  gridEl.innerHTML = `<div style="padding:0 0 12px">
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px">${gallery.length} of ${maxPhotos} photos · Shown on your market's public page</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">${tilesHtml}</div>
+    ${addBtn}
+  </div>`;
+}
+
+function deleteMarketGalleryPhoto(marketId, idx) {
+  const m = DATA.markets.find(x => x.id === marketId);
+  if(!m || !m.gallery) return;
+  m.gallery = parseGallery(m.gallery);
+  m.gallery.splice(idx, 1);
+  if(supabaseClient) dbSaveMarket(m);
+  refreshMarketGalleryGrid(marketId);
+}
+
+function updateMarketGalleryCaption(marketId, idx, caption) {
+  const m = DATA.markets.find(x => x.id === marketId);
+  if(!m || !m.gallery) return;
+  m.gallery = parseGallery(m.gallery);
+  if(!m.gallery[idx]) return;
+  m.gallery[idx].caption = caption;
+  clearTimeout(ST._marketCaptionSaveTimer);
+  ST._marketCaptionSaveTimer = setTimeout(() => { if(supabaseClient) dbSaveMarket(m); }, 2000);
 }
 
 function renderOperatorVendors() {
