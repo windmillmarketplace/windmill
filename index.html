@@ -18,6 +18,8 @@
 <!-- v1.74.43 — Hotfix: vendor AND operator onboarding wizards rendering raw HTML as visible text (regression introduced in v1.74.39, present in .39-.42). Root cause: the v1.74.39 XSS pass wrapped the ENTIRE step template in esc() at the two wizard render sites (${esc(s.content)} in showVendorOnboarding and showOperatorOnboarding) — but s.content is trusted app-authored HTML markup, so escaping it displayed the markup as text. All user-entered data inside those templates (name, email, phone, website, etc.) was ALREADY individually escaped at the field level (value="${esc(...)}"), so the outer wrap added no protection — it only broke rendering. Fix: outer esc() removed from both sites (${s.content}); field-level escaping inside is untouched, step titles/subtitles remain escaped (plain text, correct). XSS posture unchanged. LESSON for future escaping passes: esc() belongs at the individual user-data interpolation, never around an app-built HTML template — if a template renders as visible tags, look for a wholesale esc() wrap at the render site. -->
 <!-- v1.74.44 — Backlog build (paired with Supabase changes, all approved: migration add_nudge_columns_and_pg_net, Edge Function nudge-unread v1, migration schedule_daily_nudge_unread). (1) SHOPPER NOTIFICATION TOAST REFACTOR (closes the known leftover from v1.74.38): the My Account notification toggles built their toast inside a huge inline onclick with `const t` shadowing the translation function — which is why those strings couldn't be translated. Refactored into a named notifPrefToggle() helper using showToast + t(); both the live email-updates toggle and the hidden SMS toggle (inside the v1.74.5 preserved-markup comment, so restoring it later brings the fixed version) now use it. Four new trilingual keys: ms_email_on/off, ms_sms_on/off (EN/ES/PT, dictionary parity maintained). (2) 24-HOUR UNREAD MESSAGE NUDGE (closes a long-standing backlog item): new nudge-unread Edge Function runs daily at 13:00 UTC (9am EDT) via pg_cron + pg_net (pg_net enabled this session; pg_cron was already installed), finds message threads with unread activity older than 24h, and sends ONE reminder email per activity burst via the existing send-email/Resend pipeline. Covers BOTH directions: vendor/admin hasn't read a customer message (read=false + latest customer-side activity >24h old), and shopper hasn't read a vendor/admin reply (sender_last_read_at predates the latest non-customer reply by >24h). Dedupe via two new columns, messages.nudge_sent_at (recipient side) and messages.sender_nudge_sent_at (shopper side) — a nudge is only sent if the last nudge predates the newest qualifying activity, so nobody is ever nudged twice for the same message; instant new-message emails (last_emailed_at) are untouched and separate. Threads deleted/hidden by a side (deleted_by user ids) are skipped for that side; 50-email safety cap per run; supports POST {"dry":true} for a no-send preview. Dry run against live data matched exactly 2 threads — both Keith's own test accounts with old unread support replies — validating the logic; each will receive one reminder on the first scheduled run. The cron job authenticates with the publishable anon key (already public in this page's source; the function's dedupe makes extra invocations harmless). NO changes to app behavior in this file for item 2 — it is entirely server-side; this file's changes are item 1 only. -->
 <!-- v1.74.45 — Quick fix: operator dashboard URL. The operator dashboard never updated the browser URL (unlike the vendor dashboard, which sets /vendors/dashboard via replaceState) — so after operator sign-in the URL stayed at /markets/login, and after viewing a public market/vendor page and returning to the dashboard, the URL stayed stuck on that public page's path (a refresh there would deep-link back onto that public page instead of the dashboard). Fix: renderOperatorDash now mirrors the vendor dashboard pattern — replaceState to /markets/dashboard plus document.title, skipped on file:// for local testing. Code only, no Supabase changes. Bug present in all prior versions incl. live v1.74.38. -->
+<!-- v1.74.47 — Code-only build (no Supabase changes). (1) VENDOR PAGE RENDER CRASH / DEAD BUTTONS (Sentry: TypeError undefined is not an object evaluating 'c.c', renderVendorProfile, WebKit/iOS): race condition — the initial background data load REPLACES the whole DATA.vendors array (DATA.vendors = vendors) and can complete while renderVendorProfile is awaiting its fresh-vendor fetch / loadAttendanceData; the captured v then belongs to the discarded old array, DATA.vendors.indexOf(v) returns -1, CLRS[-1] is undefined, and c.c throws — an UNHANDLED error that aborted the render mid-page, leaving buttons (incl. Change photo / gallery Add photo) dead until another navigation re-rendered. Most likely on cold deep-links over slower mobile connections, which is why it looked phone-specific and self-healed. Fixed two ways: (a) after the awaits, v is re-resolved from the CURRENT DATA.vendors (getVendor(id)), pushed if genuinely missing; (b) vc() is now negative-safe via ((i % len) + len) % len so an indexOf -1 can never crash ANY render (defense in depth). (2) SEARCH DROPDOWN VENDOR PHOTO: vendor results in the global search dropdown always rendered initials — the icon never checked v.photo (markets already checked DATA.market_photos, which is why market cover photos showed). Now uses the same v.photo ? <img> : initials pattern as every other vendor card. (3) PROFILE PHOTO CACHE-BUSTING: photo overwrites upsert to a constant storage path (profile/<id>/photo.jpg), so the URL never changed and browsers kept serving the stale cached image after an update (confirmed via DevTools disable-cache test). v.photo now gets ?v=<timestamp> appended on upload, so every new upload is a fresh URL everywhere. (4) FILE INPUT RESET: previewCoverPhoto now clears input.value after storing the file, so re-selecting the SAME photo still fires onchange instead of silently doing nothing. -->
+<!-- v1.74.46 — Code-only build (no Supabase changes). (1) VENDOR-PAGE SOCIAL LINKS FIX: vendor Facebook/Instagram/Website links opened to a Windmill page instead of the external site. Root cause: normalizeSocialUrl() (auto-prepends https://) was wired into MARKET saves back in v1.74.28/29 but never into any VENDOR path, so a vendor who entered a bare 'facebook.com/x' had it stored bare and rendered as href="facebook.com/x" — a RELATIVE link resolving to shopwindmill.com/vendors/facebook.com/x. Fixed on BOTH sides: (a) render — vendor public page now wraps the website/instagram/facebook hrefs in normalizeSocialUrl(), which instantly fixes every EXISTING vendor with no data migration; (b) save — normalizeSocialUrl now applied on admin vendor edit, vendor self-serve save (Pro + free single-link branches), and vendor onboarding (Pro + free branches), so new/edited links store clean. normalizeSocialUrl is idempotent (leaves good http/https URLs untouched, handles empty). Note: Facebook/Instagram apps opening vs browser is an OS-level decision (iOS Universal Links / Android App Links) once links are valid https — not controlled here; test on a real phone, not desktop. (2) SHARE MESSAGE TEXT: shareProfile() (public page Share button) previously passed navigator.share a separate {text, url}; iOS Messages tends to drop the separate text field and show only the link card, so shares arrived as a bare card with no words. Now the message and link are combined into ONE text field ('I wanted to share <Name> with you on Windmill: <url>'), so the words appear AND the URL still unfurls to the existing (unchanged) share card. Also: the shared URL now uses the vendor's clean slug (via the resolved record) instead of the raw id passed in, giving shopwindmill.com/vendors/<slug>. Desktop clipboard fallback unchanged. Applies to vendor/market/operator shares alike. NOT in this build (tracked separately): the admin active/inactive toggle honesty fix (toggle works — it was the two-step ✓ confirm; optional cleanup pending), and the protect_sensitive_user_fields → login_email trigger fix (needs a DB change, awaiting go). -->
 <!-- v1.74.39 — Security hardening build (paired with a Supabase migration applied this session). (1) XSS protection: new esc() helper HTML-escapes user-entered content before it is interpolated into innerHTML templates — applied to ~315 interpolation sites covering vendor/market/operator names, descriptions, taglines, products, photo captions, weekly updates, inbox thread names and message bodies, claims, area requests, page-view analytics names, and reflected search text. Previously any vendor/operator/shopper could put live HTML/script in a text field (e.g. their business name) and it would execute in every visitor's browser — including the admin dashboard (session-hijack risk via a malicious claim or message). New escJs() helper protects the handful of places where user text is embedded inside inline onclick handler strings (HTML-entity escaping is NOT safe there — entities decode before JS parses — so backslash-hex escaping is used instead); this also inherently fixes the apostrophe-in-name breakage class (same bug family as the v1.74.14 product-edit fix) at those call sites. Deliberately NOT escaped: alert()/toast/clipboard/document.title/email-body/textContent contexts (plain text — escaping would show literal &amp;-entities). (2) Breached-password protection (free replacement for Supabase's Pro-only leaked-password feature): new checkPwnedPassword() checks new passwords against HaveIBeenPwned via its k-anonymity API — the password never leaves the browser, only the first 5 hex chars of its SHA-1 hash are sent, response is padded. Wired into all five password flows: shopper signup, vendor signup, market/operator signup, Settings change-password, and password-recovery set-new-password. Fails open if the API is unreachable so a third-party outage can never block signups. New trilingual error key vl_err_pw_breached (EN/ES/PT). (3) Fixed live-site "vendor Pro dashboard shows Upgrade lock" bug in admin view-as: Supabase re-fires SIGNED_IN on tab refocus/token refresh, and the auth handler re-ran the full admin login routine mid-impersonation, wiping ST.vendorId/isProTrial/trialStart — the dashboard then re-evaluated as free tier. Guard added: repeat SIGNED_IN events are ignored while sandbox/overwrite mode or the test-vendor role switcher is active. Local file:// was unaffected (no real session = no repeat events), which is why it only reproduced on the live site. SUPABASE MIGRATION (security_cleanup_storage_and_function_hygiene, applied with approval after BEGIN/ROLLBACK test): dropped two legacy storage INSERT policies that let any logged-in user upload files to ANY bucket ("Authenticated upload storage objects", "authenticated_upload 1yg665i_0") — the properly scoped vendor-photos upload policy remains; pinned search_path on handle_updated_at(). Deliberately KEPT the vendor-photos SELECT and UPDATE policies despite the advisor's listing warning — photo uploads use upsert:true on fixed paths and Supabase storage overwrites require SELECT+UPDATE; this is why the SELECT policy reappeared after the v1.74.21 removal. Remaining advisor warnings are all documented-intentional: claims public INSERT (pre-signup claim flow), page_views public INSERT (analytics), is_admin() executable (RLS-load-bearing, see v1.74.21), vendor-photos listing (upsert requirement above), and the leaked-password toggle (now solved client-side by item 2). -->
 <!-- v1.74.38 — Shopper surface translated (Session 3 of translation effort): (1) Shopper auth modal fully wired to t() — sign in, create account (incl. role picker and marketing opt-in), password reset, and magic-link flows. (2) Shared credential modals translated (Change Password, Set New Password, Change Login Email) — these are reached from both the shopper Security section and the vendor Settings > Security section, closing the last gap from Session 2. (3) My Account area translated: menu (renderMe), Security/Notifications/App Settings sections (renderMeSection), and the profile card with its edit form (renderShopperProfileCard). (4) Shopper inbox and the message-vendor modal translated, including the Pro-gate and messages-paused states. (5) Public pages: market detail (section nav, contact rows, gallery incl. Operator-Pro lock, reviews, "Get directions", claim prompt), category pages, home hero + section headers, map empty-state, Following tab (signed-out and empty states), privacy policy chrome. (6) Weekly Update modal (vendor Pro feature behind My Schedule) fully translated incl. duration chips and badge label. (7) Vendors Join page demo-card labels ("See a real Pro page" / "Tap to explore this Pro page"). Approx. 145 new keys (am_/cm_/me_/ms_/sp_/sh_/fw_/md_/cp_/hm_/mp_/mm_/wu_/vj_/pp_ prefixes); dictionary now ~620 keys per language with full three-language parity. Known intentional leftovers: inline toggle toast messages in shopper notifications (local variable shadows t()), operator-side pages (login, pending, add-vendor/add-market modals) deferred to the operator session. -->
 <!-- v1.74.37 — Vendor dashboard fully translated (Session 2 of translation effort): (1) All five dashboard sub-pages wired to t() with ~150 new EN/ES/PT keys (vd_ prefix): Business Profile edit (photo/basic info/links/schedule/gallery sections, hide-from-public checkboxes, all placeholders), My Products (catalog page, add/edit product modal, product-limit alerts, delete confirmation), My Schedule (weekly update posts, attendance confirmation, Pro locks), Settings hub (plan cards, trial upsell, all five menu items) and every Settings section (Personal Info, Security, Notifications, About, Support, Help & Guide), vendor Inbox (thread list, reply box, read/unread, delete), and the pending-approval screen. (2) Save/validation feedback translated: saveVendorProfile and saveVendorSettingsProfile toasts and errors, product save/delete errors, free-tier upgrade banner (freePageHeader). (3) Dashboard trial banners translated: trial-ended card, days-left countdown (urgent/warning/normal variants). (4) Fixed a live shopper-facing bug: three places (home category rail, vendor-list category chips, filter chips) selected labels via cat.es / cat.pt, but DATA.categories never had those fields — so in ES/PT mode every category chip rendered the literal text "undefined". Added es/pt display names to all 19 categories in DATA.categories. The Business Profile Category dropdown now also shows translated names while still saving the canonical English value to vendors.category (no data change). Admin-facing views intentionally left in English. Dictionary now ~423 keys per language, full three-language parity. -->
@@ -2586,7 +2588,7 @@ const DISCLAIMER_HTML = `<div style="padding:16px;text-align:center;font-size:11
 const CLRS=[{bg:'#FDF3DC',c:'#7A4E08'},{bg:'#EEF2EB',c:'#3D5435'},{bg:'#FAEDE6',c:'#7A2E10'},{bg:'#F5F0EA',c:'#6B4F2A'},{bg:'#E8EFF6',c:'#2A4A6B'}];
 const MBG=['#EEF2EB','#FAEDE6','#FDF3DC','#F5F0EA','#E8EFF6'];
 const MICN=['#5C7A4E','#C4622D','#C8870A','#8B6F47','#2A6B5C'];
-const vc = i => CLRS[i % CLRS.length];
+const vc = i => CLRS[((i % CLRS.length) + CLRS.length) % CLRS.length]; // v1.74.47 negative-safe (indexOf -1 can never crash a render)
 const mbg = i => MBG[i % MBG.length];
 const micn = i => MICN[i % MICN.length];
 const initials = n => n.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
@@ -3183,8 +3185,8 @@ function showGlobalSearchDropdown(results, val) {
       results.vendors.forEach((v,i) => {
         const c = vc(i);
         html += `<div class="gs-item" onclick="globalSearchPick('vendor','${v.id}')">
-          <div class="gs-item-icon" style="background:${c.bg};color:${c.c};font-family:var(--font-serif);font-size:13px;font-weight:600">
-            ${initials(v.name)}
+          <div class="gs-item-icon" style="background:${c.bg};color:${c.c};font-family:var(--font-serif);font-size:13px;font-weight:600;overflow:hidden;border-radius:8px">
+            ${v.photo ? `<img src="${v.photo}" loading="lazy" style="width:100%;height:100%;object-fit:cover">` : initials(v.name)}
           </div>
           <div class="gs-item-info">
             <div class="gs-item-name">${esc(v.name)}</div>
@@ -6022,6 +6024,13 @@ async function renderVendorProfile(id) {
   // would never see the badge even when attendance was correctly confirmed.
   await loadAttendanceData();
 
+  // v1.74.47 — Re-resolve v from the CURRENT DATA.vendors after the awaits above.
+  // The initial background data load can replace the whole DATA.vendors array
+  // (DATA.vendors = vendors) while we were awaiting; if it did, our v points into
+  // the discarded old array and indexOf(v) below returns -1 -> CLRS[-1] -> crash.
+  const freshV = getVendor(id);
+  if(freshV) { v = freshV; } else if(!DATA.vendors.includes(v)) { DATA.vendors.push(v); }
+
   const slug = v.slug || v.id;
   const marketNames = v.markets ? v.markets.map(mid => { const m = getMarket(mid); return m ? m.name : null; }).filter(Boolean) : [];
   const metaDesc = `${esc(v.name)} — ${v.category}${marketNames.length ? ' at ' + marketNames.join(', ') : ''} in Southwest Florida. Find them on Windmill.${esc(v.tagline ? ' ' + v.tagline : '')}`;
@@ -6125,10 +6134,10 @@ async function renderVendorProfile(id) {
       <div class="profile-section-title">${t('contact_links')}</div>
       <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg><div><div class="info-row-label">${t('email_label')}</div><div class="info-row-value">${(isPro&&v.hide_email)?t('not_provided'):(v.email||t('not_provided'))}</div></div></div>
       <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.44 2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.95a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21.73 16.92z"/></svg><div><div class="info-row-label">Phone</div>${(isPro&&v.hide_phone)?`<div class="info-row-value">${t('not_provided')}</div>`:(v.phone?`<a class="info-row-link" href="tel:${esc(v.phone)}">${esc(v.phone)}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`)}</div></div>
-      <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><div><div class="info-row-label">${t('website_label')}</div>${v.website?`<a class="info-row-link" href="${esc(v.website)}" target="_blank">${esc(v.website.replace(/https?:\/\//,''))}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
+      <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><div><div class="info-row-label">${t('website_label')}</div>${v.website?`<a class="info-row-link" href="${esc(normalizeSocialUrl(v.website))}" target="_blank">${esc(v.website.replace(/https?:\/\//,''))}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
       ${isPro?`
-      <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg><div><div class="info-row-label">Instagram</div>${v.instagram?`<a class="info-row-link" href="${esc(v.instagram)}" target="_blank">${esc(v.instagram.replace(/https?:\/\//,''))}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
-      <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg><div><div class="info-row-label">Facebook</div>${v.facebook?`<a class="info-row-link" href="${esc(v.facebook)}" target="_blank">${esc(v.facebook.replace(/https?:\/\//,''))}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
+      <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg><div><div class="info-row-label">Instagram</div>${v.instagram?`<a class="info-row-link" href="${esc(normalizeSocialUrl(v.instagram))}" target="_blank">${esc(v.instagram.replace(/https?:\/\//,''))}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
+      <div class="info-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg><div><div class="info-row-label">Facebook</div>${v.facebook?`<a class="info-row-link" href="${esc(normalizeSocialUrl(v.facebook))}" target="_blank">${esc(v.facebook.replace(/https?:\/\//,''))}</a>`:`<div class="info-row-value">${t('not_provided')}</div>`}</div></div>
       <div style="margin-top:12px">
         <button onclick="openMessageModal('vendor','${v.id}')" style="width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">💬 Message via Windmill</button>
       </div>`:`
@@ -10190,15 +10199,15 @@ async function vendorOnboardingNext(step) {
 
   if(step === 6) {
     if(isPro) {
-      const website = document.getElementById('onboardWebsite')?.value?.trim() || '';
-      const instagram = document.getElementById('onboardInstagram')?.value?.trim() || '';
-      const facebook = document.getElementById('onboardFacebook')?.value?.trim() || '';
+      const website = normalizeSocialUrl(document.getElementById('onboardWebsite')?.value || '');
+      const instagram = normalizeSocialUrl(document.getElementById('onboardInstagram')?.value || '');
+      const facebook = normalizeSocialUrl(document.getElementById('onboardFacebook')?.value || '');
       if(v) { v.website = website; v.instagram = instagram; v.facebook = facebook; }
       ST.pendingOnboardLinks = { website, instagram, facebook };
     } else {
       const type = document.getElementById('onboardSocialType')?.value;
       const val = document.getElementById('onboardSocialValue')?.value?.trim() || '';
-      const links = { website: type==='website'?val:'', instagram: type==='instagram'?val:'', facebook: type==='facebook'?val:'' };
+      const links = { website: type==='website'?normalizeSocialUrl(val):'', instagram: type==='instagram'?normalizeSocialUrl(val):'', facebook: type==='facebook'?normalizeSocialUrl(val):'' };
       if(v) { v.website = links.website; v.instagram = links.instagram; v.facebook = links.facebook; }
       ST.pendingOnboardLinks = links;
     }
@@ -13891,9 +13900,9 @@ function adminSaveVendor(id) {
   v.category = document.getElementById('ef_cat').value.trim() || v.category;
   v.email = document.getElementById('ef_email').value.trim();
   v.phone = document.getElementById('ef_phone').value.trim();
-  v.website = document.getElementById('ef_website').value.trim();
-  v.facebook = document.getElementById('ef_facebook').value.trim();
-  v.instagram = document.getElementById('ef_instagram').value.trim();
+  v.website = normalizeSocialUrl(document.getElementById('ef_website').value);
+  v.facebook = normalizeSocialUrl(document.getElementById('ef_facebook').value);
+  v.instagram = normalizeSocialUrl(document.getElementById('ef_instagram').value);
   v.description = document.getElementById('ef_desc').value.trim();
   v.claimed = document.getElementById('ef_claimed').checked;
   v.pro = document.getElementById('ef_pro').checked;
@@ -15547,6 +15556,8 @@ function previewCoverPhoto(input) {
     container.innerHTML = `<div style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.5);color:#fff;font-size:11px;padding:4px 8px;border-radius:var(--r-pill)">Change photo</div>`;
   }
   ST.pendingCoverPhoto = previewUrl; // for immediate UI feedback
+  // v1.74.47 — clear the input so selecting the SAME file again still fires onchange
+  input.value = '';
 }
 
 async function saveVendorProfile() {
@@ -15569,15 +15580,15 @@ async function saveVendorProfile() {
 
   // Social links
   if(isPro) {
-    v.website = document.getElementById('ve_website')?.value?.trim() || '';
-    v.instagram = document.getElementById('ve_instagram')?.value?.trim() || '';
-    v.facebook = document.getElementById('ve_facebook')?.value?.trim() || '';
+    v.website = normalizeSocialUrl(document.getElementById('ve_website')?.value || '');
+    v.instagram = normalizeSocialUrl(document.getElementById('ve_instagram')?.value || '');
+    v.facebook = normalizeSocialUrl(document.getElementById('ve_facebook')?.value || '');
   } else {
     const socialType = document.getElementById('ve_social_type')?.value;
     const socialValue = document.getElementById('ve_social_value')?.value?.trim() || '';
-    v.website = socialType === 'website' ? socialValue : '';
-    v.instagram = socialType === 'instagram' ? socialValue : '';
-    v.facebook = socialType === 'facebook' ? socialValue : '';
+    v.website = socialType === 'website' ? normalizeSocialUrl(socialValue) : '';
+    v.instagram = socialType === 'instagram' ? normalizeSocialUrl(socialValue) : '';
+    v.facebook = socialType === 'facebook' ? normalizeSocialUrl(socialValue) : '';
   }
 
   // Market schedule
@@ -15589,7 +15600,10 @@ async function saveVendorProfile() {
       const compressed = await compressImage(ST.pendingCoverPhotoFile, 1200, 0.80);
       const path = `profile/${vendorId}/photo.jpg`;
       const url = await uploadToStorage(compressed, path);
-      v.photo = url;
+      // v1.74.47 — storage path is constant (upsert overwrite), so the URL never
+      // changes and browsers keep serving the cached old image. Append a version
+      // param so every new upload gets a fresh URL everywhere it renders.
+      v.photo = url + (url.includes('?') ? '&' : '?') + 'v=' + Date.now();
       ST.pendingCoverPhotoFile = null;
       ST.pendingCoverPhoto = null;
     } catch(e) {
@@ -17682,7 +17696,7 @@ async function downloadData() {
   const btn = document.getElementById('backupBtn');
   if(btn) { btn.disabled = true; btn.textContent = 'Exporting…'; }
   const TABLES = ['vendors','markets','operators','vendor_markets','users','claims','messages','message_replies','products','follows','attendance','announcements','preorder_interest','shopper_profiles','regions','cities','area_requests'];
-  const payload = { exported: new Date().toISOString(), app_version: '1.74.45', tables: {} };
+  const payload = { exported: new Date().toISOString(), app_version: '1.74.47', tables: {} };
   const failed = [];
   try {
     if(!supabaseClient) throw new Error('Supabase not connected');
@@ -17868,7 +17882,7 @@ function renderAdminSettings() {
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Platform Info</div>
-        <div class="admin-row-meta">Version 1.74.45 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
+        <div class="admin-row-meta">Version 1.74.47 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Coverage Area</div>
@@ -17891,13 +17905,18 @@ function renderAdminSettings() {
 
 /* ── SHARE HELPER ── */
 function shareProfile(slug, type) {
-  const url = `https://shopwindmill.com/${type}s/${slug}`;
-  let name = slug;
   const coll = type === 'operator' ? DATA.operators : type === 'market' ? DATA.markets : DATA.vendors;
   const found = (coll || []).find(x => x.slug === slug || x.id === slug);
-  if(found && found.name) name = found.name;
+  // Prefer the clean slug for the shared URL (falls back to whatever was passed if none found).
+  const urlSlug = (found && found.slug) ? found.slug : slug;
+  const url = `https://shopwindmill.com/${type}s/${urlSlug}`;
+  const name = (found && found.name) ? found.name : slug;
+  // Put the message and the link together in ONE text field. iOS Messages tends to drop a
+  // separate `url` field and show only the link card — embedding the URL in the text makes
+  // the words appear AND still unfurls the preview card.
+  const shareText = `I wanted to share ${name} with you on Windmill: ${url}`;
   if(navigator.share) {
-    navigator.share({title: name + ' on Windmill', text: `Check out ${name} on Windmill — your local market discovery app`, url});
+    navigator.share({title: name + ' on Windmill', text: shareText});
   } else {
     navigator.clipboard.writeText(url).then(()=>{
       const btn = document.getElementById('shareBtn');
