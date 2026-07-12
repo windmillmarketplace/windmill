@@ -18,6 +18,7 @@
 <!-- v1.74.43 — Hotfix: vendor AND operator onboarding wizards rendering raw HTML as visible text (regression introduced in v1.74.39, present in .39-.42). Root cause: the v1.74.39 XSS pass wrapped the ENTIRE step template in esc() at the two wizard render sites (${esc(s.content)} in showVendorOnboarding and showOperatorOnboarding) — but s.content is trusted app-authored HTML markup, so escaping it displayed the markup as text. All user-entered data inside those templates (name, email, phone, website, etc.) was ALREADY individually escaped at the field level (value="${esc(...)}"), so the outer wrap added no protection — it only broke rendering. Fix: outer esc() removed from both sites (${s.content}); field-level escaping inside is untouched, step titles/subtitles remain escaped (plain text, correct). XSS posture unchanged. LESSON for future escaping passes: esc() belongs at the individual user-data interpolation, never around an app-built HTML template — if a template renders as visible tags, look for a wholesale esc() wrap at the render site. -->
 <!-- v1.74.44 — Backlog build (paired with Supabase changes, all approved: migration add_nudge_columns_and_pg_net, Edge Function nudge-unread v1, migration schedule_daily_nudge_unread). (1) SHOPPER NOTIFICATION TOAST REFACTOR (closes the known leftover from v1.74.38): the My Account notification toggles built their toast inside a huge inline onclick with `const t` shadowing the translation function — which is why those strings couldn't be translated. Refactored into a named notifPrefToggle() helper using showToast + t(); both the live email-updates toggle and the hidden SMS toggle (inside the v1.74.5 preserved-markup comment, so restoring it later brings the fixed version) now use it. Four new trilingual keys: ms_email_on/off, ms_sms_on/off (EN/ES/PT, dictionary parity maintained). (2) 24-HOUR UNREAD MESSAGE NUDGE (closes a long-standing backlog item): new nudge-unread Edge Function runs daily at 13:00 UTC (9am EDT) via pg_cron + pg_net (pg_net enabled this session; pg_cron was already installed), finds message threads with unread activity older than 24h, and sends ONE reminder email per activity burst via the existing send-email/Resend pipeline. Covers BOTH directions: vendor/admin hasn't read a customer message (read=false + latest customer-side activity >24h old), and shopper hasn't read a vendor/admin reply (sender_last_read_at predates the latest non-customer reply by >24h). Dedupe via two new columns, messages.nudge_sent_at (recipient side) and messages.sender_nudge_sent_at (shopper side) — a nudge is only sent if the last nudge predates the newest qualifying activity, so nobody is ever nudged twice for the same message; instant new-message emails (last_emailed_at) are untouched and separate. Threads deleted/hidden by a side (deleted_by user ids) are skipped for that side; 50-email safety cap per run; supports POST {"dry":true} for a no-send preview. Dry run against live data matched exactly 2 threads — both Keith's own test accounts with old unread support replies — validating the logic; each will receive one reminder on the first scheduled run. The cron job authenticates with the publishable anon key (already public in this page's source; the function's dedupe makes extra invocations harmless). NO changes to app behavior in this file for item 2 — it is entirely server-side; this file's changes are item 1 only. -->
 <!-- v1.74.45 — Quick fix: operator dashboard URL. The operator dashboard never updated the browser URL (unlike the vendor dashboard, which sets /vendors/dashboard via replaceState) — so after operator sign-in the URL stayed at /markets/login, and after viewing a public market/vendor page and returning to the dashboard, the URL stayed stuck on that public page's path (a refresh there would deep-link back onto that public page instead of the dashboard). Fix: renderOperatorDash now mirrors the vendor dashboard pattern — replaceState to /markets/dashboard plus document.title, skipped on file:// for local testing. Code only, no Supabase changes. Bug present in all prior versions incl. live v1.74.38. -->
+<!-- v1.74.48 — Code-only build (no Supabase changes; one read-only column-type check confirmed vendors.id/slug and markets.id/slug are all text). (1) SLUG RELOAD FIX ("Vendor not found" / market not-found shell on returning to a page): in-app navigation rewrites the address bar to the clean slug (/vendors/keiths-kookies) via updatePageMeta, but on a cold reload (mobile tab discard, Edge sleeping tabs, F5) routeFromURL passes that SLUG into renderVendorProfile/renderMarketDetail, where BOTH the local lookup (getVendor/getMarket match id only) and the vendor Supabase fallback (.eq('id', id)) fail -> not-found shell. Fixed: vendor + market local lookups now match id OR slug; vendor Supabase fallback now queries .or(id.eq.X,slug.eq.X).limit(1) (safe — both columns are text); the v1.74.47 post-await re-resolve also matches id OR slug. Pages reached by id-URLs are unaffected. (2) OPERATOR DASHBOARD RELOAD: routeFromURL had an exact handler for /vendors/dashboard but NOT /markets/dashboard, so an operator reloading their dashboard fell through to the market-page regex and got renderMarketDetail('dashboard') -> "market not found" shell. /markets/dashboard now routes to the dashboard like the vendor path. (3) DASHBOARD TAB PERSISTENCE: the active dashboard tab (Schedule/Inbox/etc = ST.tab) lived only in memory, so any cold reload dumped vendors/operators back on the default dashboard view. The tab is now saved to sessionStorage (wm_dash_tab) on every vendor/operator tab switch and restored on boot for /vendors/dashboard and /markets/dashboard, validated against the 5 known tabs with fallback to home (covers logout/role-switch/stale values). sessionStorage is per-tab and survives reload/discard but not closing the tab — intentional. -->
 <!-- v1.74.47 — Code-only build (no Supabase changes). (1) VENDOR PAGE RENDER CRASH / DEAD BUTTONS (Sentry: TypeError undefined is not an object evaluating 'c.c', renderVendorProfile, WebKit/iOS): race condition — the initial background data load REPLACES the whole DATA.vendors array (DATA.vendors = vendors) and can complete while renderVendorProfile is awaiting its fresh-vendor fetch / loadAttendanceData; the captured v then belongs to the discarded old array, DATA.vendors.indexOf(v) returns -1, CLRS[-1] is undefined, and c.c throws — an UNHANDLED error that aborted the render mid-page, leaving buttons (incl. Change photo / gallery Add photo) dead until another navigation re-rendered. Most likely on cold deep-links over slower mobile connections, which is why it looked phone-specific and self-healed. Fixed two ways: (a) after the awaits, v is re-resolved from the CURRENT DATA.vendors (getVendor(id)), pushed if genuinely missing; (b) vc() is now negative-safe via ((i % len) + len) % len so an indexOf -1 can never crash ANY render (defense in depth). (2) SEARCH DROPDOWN VENDOR PHOTO: vendor results in the global search dropdown always rendered initials — the icon never checked v.photo (markets already checked DATA.market_photos, which is why market cover photos showed). Now uses the same v.photo ? <img> : initials pattern as every other vendor card. (3) PROFILE PHOTO CACHE-BUSTING: photo overwrites upsert to a constant storage path (profile/<id>/photo.jpg), so the URL never changed and browsers kept serving the stale cached image after an update (confirmed via DevTools disable-cache test). v.photo now gets ?v=<timestamp> appended on upload, so every new upload is a fresh URL everywhere. (4) FILE INPUT RESET: previewCoverPhoto now clears input.value after storing the file, so re-selecting the SAME photo still fires onchange instead of silently doing nothing. -->
 <!-- v1.74.46 — Code-only build (no Supabase changes). (1) VENDOR-PAGE SOCIAL LINKS FIX: vendor Facebook/Instagram/Website links opened to a Windmill page instead of the external site. Root cause: normalizeSocialUrl() (auto-prepends https://) was wired into MARKET saves back in v1.74.28/29 but never into any VENDOR path, so a vendor who entered a bare 'facebook.com/x' had it stored bare and rendered as href="facebook.com/x" — a RELATIVE link resolving to shopwindmill.com/vendors/facebook.com/x. Fixed on BOTH sides: (a) render — vendor public page now wraps the website/instagram/facebook hrefs in normalizeSocialUrl(), which instantly fixes every EXISTING vendor with no data migration; (b) save — normalizeSocialUrl now applied on admin vendor edit, vendor self-serve save (Pro + free single-link branches), and vendor onboarding (Pro + free branches), so new/edited links store clean. normalizeSocialUrl is idempotent (leaves good http/https URLs untouched, handles empty). Note: Facebook/Instagram apps opening vs browser is an OS-level decision (iOS Universal Links / Android App Links) once links are valid https — not controlled here; test on a real phone, not desktop. (2) SHARE MESSAGE TEXT: shareProfile() (public page Share button) previously passed navigator.share a separate {text, url}; iOS Messages tends to drop the separate text field and show only the link card, so shares arrived as a bare card with no words. Now the message and link are combined into ONE text field ('I wanted to share <Name> with you on Windmill: <url>'), so the words appear AND the URL still unfurls to the existing (unchanged) share card. Also: the shared URL now uses the vendor's clean slug (via the resolved record) instead of the raw id passed in, giving shopwindmill.com/vendors/<slug>. Desktop clipboard fallback unchanged. Applies to vendor/market/operator shares alike. NOT in this build (tracked separately): the admin active/inactive toggle honesty fix (toggle works — it was the two-step ✓ confirm; optional cleanup pending), and the protect_sensitive_user_fields → login_email trigger fix (needs a DB change, awaiting go). -->
 <!-- v1.74.39 — Security hardening build (paired with a Supabase migration applied this session). (1) XSS protection: new esc() helper HTML-escapes user-entered content before it is interpolated into innerHTML templates — applied to ~315 interpolation sites covering vendor/market/operator names, descriptions, taglines, products, photo captions, weekly updates, inbox thread names and message bodies, claims, area requests, page-view analytics names, and reflected search text. Previously any vendor/operator/shopper could put live HTML/script in a text field (e.g. their business name) and it would execute in every visitor's browser — including the admin dashboard (session-hijack risk via a malicious claim or message). New escJs() helper protects the handful of places where user text is embedded inside inline onclick handler strings (HTML-entity escaping is NOT safe there — entities decode before JS parses — so backslash-hex escaping is used instead); this also inherently fixes the apostrophe-in-name breakage class (same bug family as the v1.74.14 product-edit fix) at those call sites. Deliberately NOT escaped: alert()/toast/clipboard/document.title/email-body/textContent contexts (plain text — escaping would show literal &amp;-entities). (2) Breached-password protection (free replacement for Supabase's Pro-only leaked-password feature): new checkPwnedPassword() checks new passwords against HaveIBeenPwned via its k-anonymity API — the password never leaves the browser, only the first 5 hex chars of its SHA-1 hash are sent, response is padded. Wired into all five password flows: shopper signup, vendor signup, market/operator signup, Settings change-password, and password-recovery set-new-password. Fails open if the API is unreachable so a third-party outage can never block signups. New trilingual error key vl_err_pw_breached (EN/ES/PT). (3) Fixed live-site "vendor Pro dashboard shows Upgrade lock" bug in admin view-as: Supabase re-fires SIGNED_IN on tab refocus/token refresh, and the auth handler re-ran the full admin login routine mid-impersonation, wiping ST.vendorId/isProTrial/trialStart — the dashboard then re-evaluated as free tier. Guard added: repeat SIGNED_IN events are ignored while sandbox/overwrite mode or the test-vendor role switcher is active. Local file:// was unaffected (no real session = no repeat events), which is why it only reproduced on the live site. SUPABASE MIGRATION (security_cleanup_storage_and_function_hygiene, applied with approval after BEGIN/ROLLBACK test): dropped two legacy storage INSERT policies that let any logged-in user upload files to ANY bucket ("Authenticated upload storage objects", "authenticated_upload 1yg665i_0") — the properly scoped vendor-photos upload policy remains; pinned search_path on handle_updated_at(). Deliberately KEPT the vendor-photos SELECT and UPDATE policies despite the advisor's listing warning — photo uploads use upsert:true on fixed paths and Supabase storage overwrites require SELECT+UPDATE; this is why the SELECT policy reappeared after the v1.74.21 removal. Remaining advisor warnings are all documented-intentional: claims public INSERT (pre-signup claim flow), page_views public INSERT (analytics), is_admin() executable (RLS-load-bearing, see v1.74.21), vendor-photos listing (upsert requirement above), and the leaked-password toggle (now solved client-side by item 2). -->
@@ -3400,7 +3401,16 @@ function routeFromURL() {
   if(path === '/vendors/login') { ST.currentPage = 'vendors-login'; return; }
   if(path === '/markets/join') { ST.currentPage = 'markets-join'; return; }
   if(path === '/markets/login') { ST.currentPage = 'markets-login'; return; }
-  if(path === '/vendors/dashboard') { ST.currentPage = null; ST.tab = 'home'; return; }
+  if(path === '/vendors/dashboard' || path === '/markets/dashboard') {
+    // v1.74.48 — /markets/dashboard previously fell through to the market-page regex
+    // and rendered a "market not found" shell on any operator dashboard reload.
+    // Also restore the dashboard tab the user was on before the reload/tab-discard.
+    ST.currentPage = null;
+    let savedTab = null;
+    try { savedTab = sessionStorage.getItem('wm_dash_tab'); } catch(e) {}
+    ST.tab = ['home','explore','markets','following','me'].includes(savedTab) ? savedTab : 'home';
+    return;
+  }
   if(path === '/privacy') { ST.currentPage = 'privacy-policy'; return; }
   const marketMatch = path.match(/^\/markets\/([^/]+)\/?$/);
   const vendorMatch = path.match(/^\/vendors\/([^/]+)\/?$/);
@@ -3443,6 +3453,11 @@ function navigate(page, id) {
   const tabs = ['home','explore','markets','following','me','admin-ads','admin-settings'];
   if(tabs.includes(page)) {
     ST.tab = page;
+    // v1.74.48 — remember which dashboard tab a vendor/operator is on so a cold
+    // reload (mobile tab discard, Edge sleeping tabs, F5) returns them to it.
+    if((ST.role === 'vendor' || ST.role === 'operator') && ['home','explore','markets','following','me'].includes(page)) {
+      try { sessionStorage.setItem('wm_dash_tab', page); } catch(e) {}
+    }
   } else {
     // Non-tab page — don't let tab override the render
     ST.tab = 'home';
@@ -5992,16 +6007,19 @@ async function renderVendorProfile(id) {
   // Clear old content immediately so scroll-to-top shows a blank surface, not the previous page
   const sbVp = document.getElementById('scrollBody');
   if(sbVp) { sbVp.scrollTop = 0; sbVp.innerHTML = ''; }
-  let v = getVendor(id);
+  let v = DATA.vendors.find(x => x.id === id || x.slug === id); // v1.74.48 — URL may carry the slug
 
   // Always fetch fresh data from Supabase for the public profile — ensures pro/trial/photo are current
   if(supabaseClient) {
     try {
-      const { data } = await supabaseClient
+      // v1.74.48 — in-app navigation rewrites the URL to the clean slug, so a cold
+      // reload passes the SLUG here; query by id OR slug (both text columns).
+      const { data: rows } = await supabaseClient
         .from('vendors')
         .select('*')
-        .eq('id', id)
-        .single();
+        .or(`id.eq.${id},slug.eq.${id}`)
+        .limit(1);
+      const data = rows && rows[0];
       if(data) {
         if(v) {
           // Merge fresh data into local entry
@@ -6028,7 +6046,7 @@ async function renderVendorProfile(id) {
   // The initial background data load can replace the whole DATA.vendors array
   // (DATA.vendors = vendors) while we were awaiting; if it did, our v points into
   // the discarded old array and indexOf(v) below returns -1 -> CLRS[-1] -> crash.
-  const freshV = getVendor(id);
+  const freshV = DATA.vendors.find(x => x.id === id || x.slug === id); // v1.74.48 — id or slug
   if(freshV) { v = freshV; } else if(!DATA.vendors.includes(v)) { DATA.vendors.push(v); }
 
   const slug = v.slug || v.id;
@@ -6475,7 +6493,7 @@ function renderMarketDetail(id) {
   // Clear old content immediately so scroll-to-top shows a blank surface, not the previous page
   const sbMd = document.getElementById('scrollBody');
   if(sbMd) { sbMd.scrollTop = 0; sbMd.innerHTML = ''; }
-  const m = getMarket(id);
+  const m = DATA.markets.find(x => x.id === id || x.slug === id); // v1.74.48 — URL may carry the slug
   if(!m){ document.getElementById('scrollBody').innerHTML='<div style="padding:24px;text-align:center;color:var(--text2)">'+t('md_not_found')+'</div>'; return; }
   const slug = m.slug || m.id;
   const metaDesc = `${esc(m.name)} — ${getMarketScheduleLabel(m)} ${formatTimeRange(m.start_time, m.end_time)} in ${esc(m.city)}, FL. Fresh produce, artisan goods and local vendors at Windmill.`;
@@ -17696,7 +17714,7 @@ async function downloadData() {
   const btn = document.getElementById('backupBtn');
   if(btn) { btn.disabled = true; btn.textContent = 'Exporting…'; }
   const TABLES = ['vendors','markets','operators','vendor_markets','users','claims','messages','message_replies','products','follows','attendance','announcements','preorder_interest','shopper_profiles','regions','cities','area_requests'];
-  const payload = { exported: new Date().toISOString(), app_version: '1.74.47', tables: {} };
+  const payload = { exported: new Date().toISOString(), app_version: '1.74.48', tables: {} };
   const failed = [];
   try {
     if(!supabaseClient) throw new Error('Supabase not connected');
@@ -17882,7 +17900,7 @@ function renderAdminSettings() {
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Platform Info</div>
-        <div class="admin-row-meta">Version 1.74.47 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
+        <div class="admin-row-meta">Version 1.74.48 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Coverage Area</div>
