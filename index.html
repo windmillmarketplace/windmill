@@ -18,6 +18,9 @@
 <!-- v1.74.43 — Hotfix: vendor AND operator onboarding wizards rendering raw HTML as visible text (regression introduced in v1.74.39, present in .39-.42). Root cause: the v1.74.39 XSS pass wrapped the ENTIRE step template in esc() at the two wizard render sites (${esc(s.content)} in showVendorOnboarding and showOperatorOnboarding) — but s.content is trusted app-authored HTML markup, so escaping it displayed the markup as text. All user-entered data inside those templates (name, email, phone, website, etc.) was ALREADY individually escaped at the field level (value="${esc(...)}"), so the outer wrap added no protection — it only broke rendering. Fix: outer esc() removed from both sites (${s.content}); field-level escaping inside is untouched, step titles/subtitles remain escaped (plain text, correct). XSS posture unchanged. LESSON for future escaping passes: esc() belongs at the individual user-data interpolation, never around an app-built HTML template — if a template renders as visible tags, look for a wholesale esc() wrap at the render site. -->
 <!-- v1.74.44 — Backlog build (paired with Supabase changes, all approved: migration add_nudge_columns_and_pg_net, Edge Function nudge-unread v1, migration schedule_daily_nudge_unread). (1) SHOPPER NOTIFICATION TOAST REFACTOR (closes the known leftover from v1.74.38): the My Account notification toggles built their toast inside a huge inline onclick with `const t` shadowing the translation function — which is why those strings couldn't be translated. Refactored into a named notifPrefToggle() helper using showToast + t(); both the live email-updates toggle and the hidden SMS toggle (inside the v1.74.5 preserved-markup comment, so restoring it later brings the fixed version) now use it. Four new trilingual keys: ms_email_on/off, ms_sms_on/off (EN/ES/PT, dictionary parity maintained). (2) 24-HOUR UNREAD MESSAGE NUDGE (closes a long-standing backlog item): new nudge-unread Edge Function runs daily at 13:00 UTC (9am EDT) via pg_cron + pg_net (pg_net enabled this session; pg_cron was already installed), finds message threads with unread activity older than 24h, and sends ONE reminder email per activity burst via the existing send-email/Resend pipeline. Covers BOTH directions: vendor/admin hasn't read a customer message (read=false + latest customer-side activity >24h old), and shopper hasn't read a vendor/admin reply (sender_last_read_at predates the latest non-customer reply by >24h). Dedupe via two new columns, messages.nudge_sent_at (recipient side) and messages.sender_nudge_sent_at (shopper side) — a nudge is only sent if the last nudge predates the newest qualifying activity, so nobody is ever nudged twice for the same message; instant new-message emails (last_emailed_at) are untouched and separate. Threads deleted/hidden by a side (deleted_by user ids) are skipped for that side; 50-email safety cap per run; supports POST {"dry":true} for a no-send preview. Dry run against live data matched exactly 2 threads — both Keith's own test accounts with old unread support replies — validating the logic; each will receive one reminder on the first scheduled run. The cron job authenticates with the publishable anon key (already public in this page's source; the function's dedupe makes extra invocations harmless). NO changes to app behavior in this file for item 2 — it is entirely server-side; this file's changes are item 1 only. -->
 <!-- v1.74.45 — Quick fix: operator dashboard URL. The operator dashboard never updated the browser URL (unlike the vendor dashboard, which sets /vendors/dashboard via replaceState) — so after operator sign-in the URL stayed at /markets/login, and after viewing a public market/vendor page and returning to the dashboard, the URL stayed stuck on that public page's path (a refresh there would deep-link back onto that public page instead of the dashboard). Fix: renderOperatorDash now mirrors the vendor dashboard pattern — replaceState to /markets/dashboard plus document.title, skipped on file:// for local testing. Code only, no Supabase changes. Bug present in all prior versions incl. live v1.74.38. -->
+<!-- v1.74.51 — "Help us grow Windmill" hub (phase 2 of the report/referral system; paired Supabase migration add_market_referral_to_listing_reports already applied: type CHECK widened to include market_referral, three nullable columns added — referral_market_name / _city / _schedule). (1) ENTRY POINTS: signed-in shopper Me tab gets a "🌱 Help us grow Windmill" row directly under About Windmill, opening renderMeSection('grow') with three entry cards; signed-out Me view gets the same three cards in a card below the Contact us / Follow us blocks (per Keith — the natural closing beat after the mission content). Both entry points open the same modals, which already handle both auth states from v1.74.49 (prefilled fields + no CTA when signed in; manual name/email + one-click account CTA when signed out). Customer view only. (2) SUGGEST AN UPDATE (generic): typeahead (lrTaHTML/lrTaInput/lrTaPick) searching UNCLAIMED vendors + UNCLAIMED markets together (markets also match on city), results labeled Vendor/Market; picking a result hands off to the existing v1.74.49 correction form for that listing. Unclaimed-only is deliberate: claimed listings are managed by their owners — shoppers who disagree with a claimed listing's info can message the owner directly. Zero-results state doubles as lead capture: "Can't find it? → Refer this vendor / market instead" flips to the referral forms with the typed text carried over. (3) REFER A VENDOR (generic): vendor name required + OPTIONAL market typeahead over ALL markets (a missing vendor can sell at a claimed market) + sells/contact/notes; submits as vendor_referral with listing_id/name from the pick or null. (4) REFER A MARKET (new): market name + city required, schedule + notes optional; submits as market_referral into the new columns. All three reuse the shared contact tail (name/email/role, honeypot, and the full sgOpen/sgCheck spam-guard stack) via new lrContactTailHTML(); typeahead onclick handlers pass IDs only (names with apostrophes like "Keith's Kookies" never enter attribute strings). (5) ADMIN: reports queue now renders market referrals with a 🏪 badge and name/city/schedule line; vendor-referral badge relabeled "🌱 Vendor referral"; row title falls back to the referred market name or "(no market given)" for generic referrals; View button renders only when a listing_id exists; mailto subject handles null listing names. Admin load maps the three new columns. (6) ~20 new trilingual t() keys (grow_/lr_ prefixes), EN/ES/PT parity. -->
+<!-- v1.74.50 — Placement fix for the v1.74.49 report links (code-only, no Supabase changes). Both the "Suggest an update" link (vendor + market pages) and the "Refer a vendor" link (market pages) previously rendered near the very bottom of the page — after the "More vendors near you" / "Also at this market" strips on vendor pages and after the "Other markets in your area" carousel on market pages — where they visually read as belonging to those OTHER listings rather than the one being viewed. Moved both to sit directly under the DISCLAIMER_HTML block ("Market details may vary…"), which is right below the schedule (vendor pages) / vendor grid (market pages): the exact spot a shopper is looking when they notice something wrong or missing, and thematically paired with the accuracy disclaimer. Visibility rules unchanged: suggest-an-update on unclaimed listings only; refer-a-vendor on all market pages. -->
+<!-- v1.74.49 — "Suggest an update" + "Refer a vendor" (paired with one Supabase migration: create_listing_reports_table — BEGIN/ROLLBACK-tested; see delivery notes for apply status). (1) NEW TABLE listing_reports: public INSERT (anon + authenticated), admin-only read/update/delete via is_admin(), CHECK constraints on type (correction | vendor_referral) and listing_type (vendor | market); added to the full-backup table list. Inserts deliberately do NOT chain .select() — admin-only-read table, RETURNING would be RLS-blocked and fake-fail every real submission; error-check alone is reliable for INSERTs (same documented pattern as area_requests, v1.74.41). (2) PUBLIC PROMPTS: unclaimed vendor pages and unclaimed market pages get a low-key "See something wrong? Suggest an update" text link near the page bottom; ALL market pages (claimed or not) additionally get "Know a vendor here that's not on Windmill? Refer them" — referral is vendor acquisition, not error correction, and everything routes to admin only (deliberately NOT forwarded to operators: referrals are admin's GTM leads, and submitter info shouldn't be shared with third parties). (3) REPORT MODAL (listingReportModal, body rendered per-open): listing pre-filled read-only from the page (no "different listing" picker — report from that listing's page instead); correction form has a per-listing-type issue dropdown (vendor: wrong name / wrong-missing markets / wrong schedule / broken link-photo / no longer in business / other; market: wrong name / wrong-missing vendors / wrong schedule-hours / wrong location / broken link-photo / market closed / other) + required description; referral form has vendor name (required) / what they sell / contact if known / optional notes; both collect name + email (pre-filled when logged in) + shopper-vendor-operator role select. Full spam-guard stack (honeypot + 3s minimum-time + localStorage throttle via existing sgOpen/sgCheck; no CAPTCHA, consistent with v1.74.41 decision). (4) POST-SUBMIT FUNNEL: thank-you state offers one-click "Create my free account" reusing the just-entered name/email (opens the existing signup modal pre-filled — no re-typing; skipped when already logged in), plus a claim prompt when a self-identified vendor reports on a vendor page or operator on a market page ("Is this your business? / Do you run this market? Claim your free listing"). (5) ADMIN RECEIVE SIDE: new "📝 Reports" pill in the Claims tab (alongside Vendors / Markets / Pre-Orders; count shows NEW reports only) with New/History subtabs; each row shows referral-vs-report badge, listing type, category label, description, referred-vendor details, submitter info, View deep-link, mailto Reply, and status actions (New → Done / Reviewed / Dismissed, with Reopen from History) persisted via vUpdate. Admin also gets a per-submission email alert through the existing sendWindmillEmail helper (fire-and-forget — the table row is the source of truth; a Resend hiccup never loses a report). Reports load at admin login using the same admin-only-read pattern as pre-order interest. (6) ~35 new trilingual t() keys (lr_ prefix), EN/ES/PT parity. Deferred to a later version per plan: About-page "Help us grow" hub and the standalone refer-a-market form. -->
 <!-- v1.74.48 — Code-only build (no Supabase changes; one read-only column-type check confirmed vendors.id/slug and markets.id/slug are all text). (1) SLUG RELOAD FIX ("Vendor not found" / market not-found shell on returning to a page): in-app navigation rewrites the address bar to the clean slug (/vendors/keiths-kookies) via updatePageMeta, but on a cold reload (mobile tab discard, Edge sleeping tabs, F5) routeFromURL passes that SLUG into renderVendorProfile/renderMarketDetail, where BOTH the local lookup (getVendor/getMarket match id only) and the vendor Supabase fallback (.eq('id', id)) fail -> not-found shell. Fixed: vendor + market local lookups now match id OR slug; vendor Supabase fallback now queries .or(id.eq.X,slug.eq.X).limit(1) (safe — both columns are text); the v1.74.47 post-await re-resolve also matches id OR slug. Pages reached by id-URLs are unaffected. (2) OPERATOR DASHBOARD RELOAD: routeFromURL had an exact handler for /vendors/dashboard but NOT /markets/dashboard, so an operator reloading their dashboard fell through to the market-page regex and got renderMarketDetail('dashboard') -> "market not found" shell. /markets/dashboard now routes to the dashboard like the vendor path. (3) DASHBOARD TAB PERSISTENCE: the active dashboard tab (Schedule/Inbox/etc = ST.tab) lived only in memory, so any cold reload dumped vendors/operators back on the default dashboard view. The tab is now saved to sessionStorage (wm_dash_tab) on every vendor/operator tab switch and restored on boot for /vendors/dashboard and /markets/dashboard, validated against the 5 known tabs with fallback to home (covers logout/role-switch/stale values). sessionStorage is per-tab and survives reload/discard but not closing the tab — intentional. -->
 <!-- v1.74.47 — Code-only build (no Supabase changes). (1) VENDOR PAGE RENDER CRASH / DEAD BUTTONS (Sentry: TypeError undefined is not an object evaluating 'c.c', renderVendorProfile, WebKit/iOS): race condition — the initial background data load REPLACES the whole DATA.vendors array (DATA.vendors = vendors) and can complete while renderVendorProfile is awaiting its fresh-vendor fetch / loadAttendanceData; the captured v then belongs to the discarded old array, DATA.vendors.indexOf(v) returns -1, CLRS[-1] is undefined, and c.c throws — an UNHANDLED error that aborted the render mid-page, leaving buttons (incl. Change photo / gallery Add photo) dead until another navigation re-rendered. Most likely on cold deep-links over slower mobile connections, which is why it looked phone-specific and self-healed. Fixed two ways: (a) after the awaits, v is re-resolved from the CURRENT DATA.vendors (getVendor(id)), pushed if genuinely missing; (b) vc() is now negative-safe via ((i % len) + len) % len so an indexOf -1 can never crash ANY render (defense in depth). (2) SEARCH DROPDOWN VENDOR PHOTO: vendor results in the global search dropdown always rendered initials — the icon never checked v.photo (markets already checked DATA.market_photos, which is why market cover photos showed). Now uses the same v.photo ? <img> : initials pattern as every other vendor card. (3) PROFILE PHOTO CACHE-BUSTING: photo overwrites upsert to a constant storage path (profile/<id>/photo.jpg), so the URL never changed and browsers kept serving the stale cached image after an update (confirmed via DevTools disable-cache test). v.photo now gets ?v=<timestamp> appended on upload, so every new upload is a fresh URL everywhere. (4) FILE INPUT RESET: previewCoverPhoto now clears input.value after storing the file, so re-selecting the SAME photo still fires onchange instead of silently doing nothing. -->
 <!-- v1.74.46 — Code-only build (no Supabase changes). (1) VENDOR-PAGE SOCIAL LINKS FIX: vendor Facebook/Instagram/Website links opened to a Windmill page instead of the external site. Root cause: normalizeSocialUrl() (auto-prepends https://) was wired into MARKET saves back in v1.74.28/29 but never into any VENDOR path, so a vendor who entered a bare 'facebook.com/x' had it stored bare and rendered as href="facebook.com/x" — a RELATIVE link resolving to shopwindmill.com/vendors/facebook.com/x. Fixed on BOTH sides: (a) render — vendor public page now wraps the website/instagram/facebook hrefs in normalizeSocialUrl(), which instantly fixes every EXISTING vendor with no data migration; (b) save — normalizeSocialUrl now applied on admin vendor edit, vendor self-serve save (Pro + free single-link branches), and vendor onboarding (Pro + free branches), so new/edited links store clean. normalizeSocialUrl is idempotent (leaves good http/https URLs untouched, handles empty). Note: Facebook/Instagram apps opening vs browser is an OS-level decision (iOS Universal Links / Android App Links) once links are valid https — not controlled here; test on a real phone, not desktop. (2) SHARE MESSAGE TEXT: shareProfile() (public page Share button) previously passed navigator.share a separate {text, url}; iOS Messages tends to drop the separate text field and show only the link card, so shares arrived as a bare card with no words. Now the message and link are combined into ONE text field ('I wanted to share <Name> with you on Windmill: <url>'), so the words appear AND the URL still unfurls to the existing (unchanged) share card. Also: the shared URL now uses the vendor's clean slug (via the resolved record) instead of the raw id passed in, giving shopwindmill.com/vendors/<slug>. Desktop clipboard fallback unchanged. Applies to vendor/market/operator shares alike. NOT in this build (tracked separately): the admin active/inactive toggle honesty fix (toggle works — it was the two-step ✓ confirm; optional cleanup pending), and the protect_sensitive_user_fields → login_email trigger fix (needs a DB change, awaiting go). -->
@@ -1108,6 +1111,15 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
   </div>
 </div>
 
+<!-- LISTING REPORT MODAL (v1.74.49) — suggest-an-update + refer-a-vendor; body rendered by openListingReport() -->
+<div class="modal-overlay hidden" id="listingReportModal" onclick="closeModalOnOverlay(event,'listingReportModal')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <button class="modal-close" onclick="closeModal('listingReportModal')">×</button>
+    <div id="lrBody"></div>
+  </div>
+</div>
+
 <!-- DATE PICKER MODAL -->
 <div class="modal-overlay hidden" id="datePickerModal" onclick="closeModalOnOverlay(event,'datePickerModal')">
   <div class="modal">
@@ -1340,6 +1352,31 @@ async function loadFromSupabase() {
           date: p.created_at ? new Date(p.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : ''
         }));
       } catch(e) { console.warn('Pre-order interest load failed:', e); }
+
+      // Load listing reports for admin (v1.74.49 — admin-only read, same pattern as above).
+      try {
+        const { data: reports } = await supabaseClient.from('listing_reports').select('*').order('created_at', {ascending: false});
+        ST.adminReports = (reports || []).map(r => ({
+          id: r.id,
+          type: r.type,
+          listingType: r.listing_type,
+          listingId: r.listing_id,
+          listingName: r.listing_name || r.listing_id,
+          category: r.category || '',
+          description: r.description || '',
+          refName: r.referral_vendor_name || '',
+          refSells: r.referral_vendor_sells || '',
+          refContact: r.referral_vendor_contact || '',
+          refMName: r.referral_market_name || '',
+          refMCity: r.referral_market_city || '',
+          refMSched: r.referral_market_schedule || '',
+          name: r.submitter_name || '',
+          email: r.submitter_email || '',
+          role: r.submitter_role || '',
+          status: r.status || 'new',
+          date: r.created_at ? new Date(r.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : ''
+        }));
+      } catch(e) { console.warn('Listing reports load failed:', e); }
 
       return true;
     }
@@ -1774,6 +1811,7 @@ let ST = {
   areaRequests:[],
   adminMessages:[],
   adminPreorders:[],
+  adminReports:[],
   adminClaims:[
     {id:'c1',vendorId:'the-empanada-queen',vendorName:'The Empanada Queen',claimant:'Maria Gonzalez',email:'maria@empanadaqueen.com',phone:'239-555-0182',message:'This is my business — I have been selling at Lakes Park for 3 years.',date:'May 28, 2026',status:'pending'},
     {id:'c2',vendorId:'suncoast-honey-co',vendorName:'Suncoast Honey Co.',claimant:'David Park',email:'david@suncoasthoney.com',phone:'239-555-0247',message:'I am the owner of Suncoast Honey and want to manage my listing.',date:'May 27, 2026',status:'pending'},
@@ -2072,6 +2110,32 @@ const T = {
     md_about:"About",md_contact:"Contact",md_gallery:"Gallery",md_vendors:"Vendors",md_email:"Email",
     md_market_gallery:"Market Gallery",md_no_photos:"No photos added yet.",md_gallery_lock:"Market photo gallery is an Operator Pro feature",
     md_claim_sub:"Claim this market to add photos, show off your venue, and attract more visitors",md_claim:"Claim",md_show10:"Show 10 more",
+    lr_prompt_wrong:"See something wrong?",lr_prompt_link:"Suggest an update",
+    lr_refer_prompt:"Know a vendor here that's not on Windmill?",lr_refer_link:"Refer them",
+    lr_title_update:"Suggest an update",lr_title_refer:"Refer a vendor",
+    lr_sub_update:"Spotted something off? Tell us and we'll fix it.",lr_sub_refer:"Tell us about a vendor at this market we should add.",
+    lr_listing:"Listing",lr_issue:"What's the issue?",lr_desc:"Tell us what's wrong",lr_notes:"Anything else we should know? (optional)",
+    lr_vname:"Vendor name",lr_vsells:"What do they sell? (optional)",lr_vcontact:"Vendor contact info, if known (optional)",
+    lr_your_name:"Your name",lr_your_email:"Your email",lr_role:"I am a...",
+    lr_role_shopper:"Shopper",lr_role_vendor:"Vendor",lr_role_operator:"Market operator",
+    lr_submit:"Submit",lr_i_name:"Wrong name",lr_i_markets:"Wrong or missing markets",lr_i_vendors:"Wrong or missing vendors",
+    lr_i_schedule:"Wrong schedule",lr_i_hours:"Wrong schedule or hours",lr_i_location:"Wrong location",
+    lr_i_link:"Broken link or photo",lr_i_closed_v:"No longer in business",lr_i_closed_m:"Market has closed",lr_i_other:"Other",
+    lr_thanks_title:"Thank you!",lr_thanks_sub:"We'll review your submission and make any needed updates.",
+    lr_acct_sub:"Want to save favorite vendors and markets?",lr_acct_cta:"Create my free account",
+    lr_claim_v:"Is this your business?",lr_claim_m:"Do you run this market?",lr_claim_btn:"Claim your free listing",
+    lr_err_required:"Please fill in all required fields.",lr_err_email:"Please enter a valid email address.",
+    grow_title:"Help us grow Windmill",grow_row_sub:"Suggest updates, refer vendors & markets",
+    grow_intro:"Windmill gets better with every tip from people like you.",
+    grow_update_sub:"Spotted wrong info on a vendor or market page?",
+    grow_refer_v_sub:"Know a great vendor we should add?",
+    grow_refer_m_sub:"Know a farmers market we're missing?",
+    lr_search_ph:"Type a vendor or market name...",lr_search_market_ph:"Which market? Start typing... (optional)",
+    lr_notfound:"Can't find it?",lr_refer_v_instead:"Refer this vendor instead",lr_refer_m_instead:"Refer this market instead",
+    lr_pick_required:"Please pick a vendor or market from the suggestions.",
+    lr_title_refer_m:"Refer a market",lr_sub_refer_m:"Tell us about a farmers market we should add.",
+    lr_mname:"Market name",lr_mcity:"City or town",lr_msched:"Day & time, if known (optional)",
+    lr_tag_vendor:"Vendor",lr_tag_market:"Market",
     md_no_reviews:"No reviews yet",md_first_review:"Be the first to review this market",md_write_review:"Write a review",
     cp_featured:"Featured vendors",cp_where:"Where to find it",cp_no_markets:"No markets found for this category in your area.",cp_show_more:"Show more vendors",
     hm_hero:"Your local farmers market,<br>at your fingertips",hm_see_all:"See all markets →",hm_featured:"Featured vendors & markets",hm_vendors_near:"Vendors near you",
@@ -2315,6 +2379,32 @@ const T = {
     md_about:"Acerca de",md_contact:"Contacto",md_gallery:"Galería",md_vendors:"Vendedores",md_email:"Email",
     md_market_gallery:"Galería del Mercado",md_no_photos:"Aún no hay fotos.",md_gallery_lock:"La galería de fotos del mercado es una función Pro para Operadores",
     md_claim_sub:"Reclama este mercado para agregar fotos, mostrar tu lugar y atraer más visitantes",md_claim:"Reclamar",md_show10:"Ver 10 más",
+    lr_prompt_wrong:"¿Ves algo incorrecto?",lr_prompt_link:"Sugiere una actualización",
+    lr_refer_prompt:"¿Conoces un vendedor aquí que no está en Windmill?",lr_refer_link:"Recomiéndalo",
+    lr_title_update:"Sugiere una actualización",lr_title_refer:"Recomienda un vendedor",
+    lr_sub_update:"¿Notaste algo incorrecto? Cuéntanos y lo corregiremos.",lr_sub_refer:"Cuéntanos sobre un vendedor en este mercado que deberíamos agregar.",
+    lr_listing:"Listado",lr_issue:"¿Cuál es el problema?",lr_desc:"Cuéntanos qué está mal",lr_notes:"¿Algo más que debamos saber? (opcional)",
+    lr_vname:"Nombre del vendedor",lr_vsells:"¿Qué vende? (opcional)",lr_vcontact:"Contacto del vendedor, si lo conoces (opcional)",
+    lr_your_name:"Tu nombre",lr_your_email:"Tu correo",lr_role:"Soy...",
+    lr_role_shopper:"Comprador",lr_role_vendor:"Vendedor",lr_role_operator:"Operador de mercado",
+    lr_submit:"Enviar",lr_i_name:"Nombre incorrecto",lr_i_markets:"Mercados incorrectos o faltantes",lr_i_vendors:"Vendedores incorrectos o faltantes",
+    lr_i_schedule:"Horario incorrecto",lr_i_hours:"Horario incorrecto",lr_i_location:"Ubicación incorrecta",
+    lr_i_link:"Enlace o foto rotos",lr_i_closed_v:"Ya no está en el negocio",lr_i_closed_m:"El mercado cerró",lr_i_other:"Otro",
+    lr_thanks_title:"¡Gracias!",lr_thanks_sub:"Revisaremos tu envío y haremos las actualizaciones necesarias.",
+    lr_acct_sub:"¿Quieres guardar tus vendedores y mercados favoritos?",lr_acct_cta:"Crear mi cuenta gratis",
+    lr_claim_v:"¿Es tu negocio?",lr_claim_m:"¿Operas este mercado?",lr_claim_btn:"Reclama tu listado gratis",
+    lr_err_required:"Por favor completa todos los campos requeridos.",lr_err_email:"Por favor ingresa un correo válido.",
+    grow_title:"Ayúdanos a crecer Windmill",grow_row_sub:"Sugiere cambios, recomienda vendedores y mercados",
+    grow_intro:"Windmill mejora con cada aporte de personas como tú.",
+    grow_update_sub:"¿Viste información incorrecta en una página de vendedor o mercado?",
+    grow_refer_v_sub:"¿Conoces un buen vendedor que deberíamos agregar?",
+    grow_refer_m_sub:"¿Conoces un mercado que nos falta?",
+    lr_search_ph:"Escribe el nombre de un vendedor o mercado...",lr_search_market_ph:"¿En qué mercado? Escribe... (opcional)",
+    lr_notfound:"¿No lo encuentras?",lr_refer_v_instead:"Recomienda este vendedor",lr_refer_m_instead:"Recomienda este mercado",
+    lr_pick_required:"Por favor elige un vendedor o mercado de las sugerencias.",
+    lr_title_refer_m:"Recomienda un mercado",lr_sub_refer_m:"Cuéntanos sobre un mercado que deberíamos agregar.",
+    lr_mname:"Nombre del mercado",lr_mcity:"Ciudad o pueblo",lr_msched:"Día y hora, si los conoces (opcional)",
+    lr_tag_vendor:"Vendedor",lr_tag_market:"Mercado",
     md_no_reviews:"Aún no hay reseñas",md_first_review:"Sé el primero en reseñar este mercado",md_write_review:"Escribir reseña",
     cp_featured:"Vendedores destacados",cp_where:"Dónde encontrarlo",cp_no_markets:"No se encontraron mercados de esta categoría en tu área.",cp_show_more:"Ver más vendedores",
     hm_hero:"Tu mercado de agricultores local,<br>al alcance de tu mano",hm_see_all:"Ver todos los mercados →",hm_featured:"Vendedores y mercados destacados",hm_vendors_near:"Vendedores cerca de ti",
@@ -2558,6 +2648,32 @@ const T = {
     md_about:"Sobre",md_contact:"Contato",md_gallery:"Galeria",md_vendors:"Vendedores",md_email:"Email",
     md_market_gallery:"Galeria do Mercado",md_no_photos:"Ainda não há fotos.",md_gallery_lock:"A galeria de fotos do mercado é um recurso Pro para Operadores",
     md_claim_sub:"Reivindique este mercado para adicionar fotos, mostrar seu espaço e atrair mais visitantes",md_claim:"Reivindicar",md_show10:"Ver mais 10",
+    lr_prompt_wrong:"Viu algo errado?",lr_prompt_link:"Sugira uma atualização",
+    lr_refer_prompt:"Conhece um vendedor aqui que não está no Windmill?",lr_refer_link:"Indique-o",
+    lr_title_update:"Sugira uma atualização",lr_title_refer:"Indique um vendedor",
+    lr_sub_update:"Notou algo errado? Conte para nós e vamos corrigir.",lr_sub_refer:"Conte sobre um vendedor neste mercado que deveríamos adicionar.",
+    lr_listing:"Página",lr_issue:"Qual é o problema?",lr_desc:"Conte o que está errado",lr_notes:"Algo mais que devemos saber? (opcional)",
+    lr_vname:"Nome do vendedor",lr_vsells:"O que ele vende? (opcional)",lr_vcontact:"Contato do vendedor, se souber (opcional)",
+    lr_your_name:"Seu nome",lr_your_email:"Seu e-mail",lr_role:"Eu sou...",
+    lr_role_shopper:"Comprador",lr_role_vendor:"Vendedor",lr_role_operator:"Operador de mercado",
+    lr_submit:"Enviar",lr_i_name:"Nome errado",lr_i_markets:"Mercados errados ou faltando",lr_i_vendors:"Vendedores errados ou faltando",
+    lr_i_schedule:"Horário errado",lr_i_hours:"Horário errado",lr_i_location:"Localização errada",
+    lr_i_link:"Link ou foto quebrados",lr_i_closed_v:"Não está mais em atividade",lr_i_closed_m:"O mercado fechou",lr_i_other:"Outro",
+    lr_thanks_title:"Obrigado!",lr_thanks_sub:"Vamos revisar seu envio e fazer as atualizações necessárias.",
+    lr_acct_sub:"Quer salvar seus vendedores e mercados favoritos?",lr_acct_cta:"Criar minha conta grátis",
+    lr_claim_v:"Este é o seu negócio?",lr_claim_m:"Você opera este mercado?",lr_claim_btn:"Reivindique sua página grátis",
+    lr_err_required:"Por favor preencha todos os campos obrigatórios.",lr_err_email:"Por favor insira um e-mail válido.",
+    grow_title:"Ajude o Windmill a crescer",grow_row_sub:"Sugira mudanças, indique vendedores e mercados",
+    grow_intro:"O Windmill melhora com cada dica de pessoas como você.",
+    grow_update_sub:"Viu informação errada em uma página de vendedor ou mercado?",
+    grow_refer_v_sub:"Conhece um bom vendedor que deveríamos adicionar?",
+    grow_refer_m_sub:"Conhece um mercado que está faltando?",
+    lr_search_ph:"Digite o nome de um vendedor ou mercado...",lr_search_market_ph:"Em qual mercado? Digite... (opcional)",
+    lr_notfound:"Não encontrou?",lr_refer_v_instead:"Indique este vendedor",lr_refer_m_instead:"Indique este mercado",
+    lr_pick_required:"Por favor escolha um vendedor ou mercado das sugestões.",
+    lr_title_refer_m:"Indique um mercado",lr_sub_refer_m:"Conte sobre um mercado que deveríamos adicionar.",
+    lr_mname:"Nome do mercado",lr_mcity:"Cidade",lr_msched:"Dia e hora, se souber (opcional)",
+    lr_tag_vendor:"Vendedor",lr_tag_market:"Mercado",
     md_no_reviews:"Ainda não há avaliações",md_first_review:"Seja o primeiro a avaliar este mercado",md_write_review:"Escrever avaliação",
     cp_featured:"Vendedores em destaque",cp_where:"Onde encontrar",cp_no_markets:"Nenhum mercado desta categoria encontrado na sua área.",cp_show_more:"Ver mais vendedores",
     hm_hero:"Seu mercado de agricultores local,<br>na palma da sua mão",hm_see_all:"Ver todos os mercados →",hm_featured:"Vendedores e mercados em destaque",hm_vendors_near:"Vendedores perto de você",
@@ -6206,6 +6322,13 @@ async function renderVendorProfile(id) {
 
     ${DISCLAIMER_HTML}
 
+    <!-- SUGGEST AN UPDATE (v1.74.50) — unclaimed listings only; sits with the
+         data-accuracy disclaimer, where a shopper spotting an error is looking -->
+    ${!v.claimed ? `<div style="text-align:center;padding:0 16px 16px;margin-top:-4px">
+      <span style="font-size:12px;color:var(--text3)">${t('lr_prompt_wrong')} </span>
+      <span onclick="openListingReport('correction','vendor','${v.id}')" style="font-size:12px;color:var(--terra);cursor:pointer;text-decoration:underline;text-underline-offset:2px">${t('lr_prompt_link')}</span>
+    </div>` : ''}
+
     <!-- MORE VENDORS NEAR YOU: free/unclaimed only, same category, manual scroll -->
     ${!isPro ? buildMoreVendorsStrip(v) : ''}
 
@@ -6649,6 +6772,21 @@ function renderMarketDetail(id) {
     </div>
 
     ${DISCLAIMER_HTML}
+
+    <!-- SUGGEST AN UPDATE + REFER A VENDOR (v1.74.50) — update link on unclaimed
+         markets only; refer-a-vendor on ALL market pages (vendor acquisition, admin-only
+         routing). Sits with the data-accuracy disclaimer under the vendor grid — the
+         moment a shopper notices something wrong or missing. -->
+    <div style="text-align:center;padding:0 16px 16px;margin-top:-4px">
+      ${!m.claimed ? `<div style="margin-bottom:6px">
+        <span style="font-size:12px;color:var(--text3)">${t('lr_prompt_wrong')} </span>
+        <span onclick="openListingReport('correction','market','${m.id}')" style="font-size:12px;color:var(--terra);cursor:pointer;text-decoration:underline;text-underline-offset:2px">${t('lr_prompt_link')}</span>
+      </div>` : ''}
+      <div>
+        <span style="font-size:12px;color:var(--text3)">${t('lr_refer_prompt')} </span>
+        <span onclick="openListingReport('vendor_referral','market','${m.id}')" style="font-size:12px;color:var(--terra);cursor:pointer;text-decoration:underline;text-underline-offset:2px">${t('lr_refer_link')}</span>
+      </div>
+    </div>
 
     <!-- OTHER MARKETS IN YOUR AREA -->
     ${renderOtherMarketsCarousel(m.id, m.region)}
@@ -9283,6 +9421,24 @@ async function submitShopperProfile() {
   }
 }
 
+function lrGrowEntriesHTML() {
+  /* v1.74.51 — shared "Help us grow" entry cards: Me-tab grow section (signed in)
+     and signed-out Me card both render these; each opens the report/referral modals,
+     which already handle both auth states (prefill vs. manual + account CTA). */
+  const card = (icon, title, sub, onclick) => `
+    <div onclick="${onclick}" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px;cursor:pointer;display:flex;align-items:center;gap:12px;margin-bottom:10px" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">
+      <span style="font-size:20px">${icon}</span>
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:500;color:var(--text)">${title}</div>
+        <div style="font-size:11px;color:var(--text3)">${sub}</div>
+      </div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>`;
+  return card('✏️', t('lr_title_update'), t('grow_update_sub'), "openGrowForm('update')")
+       + card('🧺', t('lr_title_refer'), t('grow_refer_v_sub'), "openGrowForm('vendor')")
+       + card('🏪', t('lr_title_refer_m'), t('grow_refer_m_sub'), "openGrowForm('market')");
+}
+
 async function renderMeSection(section) {
   const sb = document.getElementById('scrollBody');
   if(!sb) return;
@@ -9290,6 +9446,15 @@ async function renderMeSection(section) {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--terra)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
     <span style="font-size:13px;color:var(--terra);font-weight:500">${t('me_account')}</span>
   </div>`;
+
+  if(section === 'grow') {
+    sb.innerHTML = `<div>${backBtn}<div style="padding:16px">
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;margin-bottom:4px">🌱 ${t('grow_title')}</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:16px">${t('grow_intro')}</div>
+      ${lrGrowEntriesHTML()}
+    </div></div>`;
+    return;
+  }
 
   if(section === 'profile') {
     sb.innerHTML = `<div>${backBtn}<div style="padding:16px" id="meSectionContent"><div style="display:flex;align-items:center;justify-content:center;height:120px;gap:10px"><div style="width:18px;height:18px;border:2px solid var(--green);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></div><span style="font-size:13px;color:var(--text2)">${t('vd_loading')}</span></div></div></div>`;
@@ -9763,12 +9928,22 @@ async function renderMe() {
           </div>
           ${chevron}
         </div>
-        <div onclick="renderMeSection('about')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+        <div onclick="renderMeSection('about')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid var(--border);cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
           <div style="display:flex;align-items:center;gap:12px">
             <span style="font-size:18px">🌿</span>
             <div>
               <div style="font-size:14px;font-weight:500;color:var(--text)">${t('vd_about')}</div>
               <div style="font-size:11px;color:var(--text3)">${t('vd_about_sub')}</div>
+            </div>
+          </div>
+          ${chevron}
+        </div>
+        <div onclick="renderMeSection('grow')" style="display:flex;align-items:center;justify-content:space-between;padding:15px 16px;cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:18px">🌱</span>
+            <div>
+              <div style="font-size:14px;font-weight:500;color:var(--text)">${t('grow_title')}</div>
+              <div style="font-size:11px;color:var(--text3)">${t('grow_row_sub')}</div>
             </div>
           </div>
           ${chevron}
@@ -9866,6 +10041,13 @@ async function renderMe() {
             Shopwindmill
           </a>
         </div>
+      </div>
+      <!-- HELP US GROW (v1.74.51) — signed-out entry point; forms handle the
+           no-account flow (manual name/email + post-submit account CTA) -->
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-top:10px">
+        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:2px">🌱 ${t('grow_title')}</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:12px">${t('grow_intro')}</div>
+        ${lrGrowEntriesHTML()}
       </div>
   </div>`;
 }
@@ -11385,9 +11567,57 @@ function renderAdminPanel() {
       <button onclick="ST.adminClaimsType='vendor';ST.adminClaimsTab='pending';renderAdminPanel()" style="flex:1;padding:8px;border-radius:var(--r-pill);border:0.5px solid ${ST.adminClaimsType==='vendor'?'var(--green)':'var(--border)'};background:${ST.adminClaimsType==='vendor'?'var(--green-lt)':'var(--surface)'};color:${ST.adminClaimsType==='vendor'?'var(--green-dk)':'var(--text2)'};font-size:12px;cursor:pointer;font-weight:${ST.adminClaimsType==='vendor'?'600':'400'}">🌾 Vendors (${vendorClaims.length})</button>
       <button onclick="ST.adminClaimsType='market';ST.adminClaimsTab='pending';renderAdminPanel()" style="flex:1;padding:8px;border-radius:var(--r-pill);border:0.5px solid ${ST.adminClaimsType==='market'?'var(--green)':'var(--border)'};background:${ST.adminClaimsType==='market'?'var(--green-lt)':'var(--surface)'};color:${ST.adminClaimsType==='market'?'var(--green-dk)':'var(--text2)'};font-size:12px;cursor:pointer;font-weight:${ST.adminClaimsType==='market'?'600':'400'}">🏪 Markets (${marketClaims.length})</button>
       <button onclick="ST.adminClaimsType='preorders';renderAdminPanel()" style="flex:1;padding:8px;border-radius:var(--r-pill);border:0.5px solid ${ST.adminClaimsType==='preorders'?'var(--green)':'var(--border)'};background:${ST.adminClaimsType==='preorders'?'var(--green-lt)':'var(--surface)'};color:${ST.adminClaimsType==='preorders'?'var(--green-dk)':'var(--text2)'};font-size:12px;cursor:pointer;font-weight:${ST.adminClaimsType==='preorders'?'600':'400'}">🛒 Pre-Orders (${ST.adminPreorders.length})</button>
+      <button onclick="ST.adminClaimsType='reports';renderAdminPanel()" style="flex:1;padding:8px;border-radius:var(--r-pill);border:0.5px solid ${ST.adminClaimsType==='reports'?'var(--green)':'var(--border)'};background:${ST.adminClaimsType==='reports'?'var(--green-lt)':'var(--surface)'};color:${ST.adminClaimsType==='reports'?'var(--green-dk)':'var(--text2)'};font-size:12px;cursor:pointer;font-weight:${ST.adminClaimsType==='reports'?'600':'400'}">📝 Reports (${ST.adminReports.filter(r=>r.status==='new').length})</button>
     </div>`;
 
-    if(ST.adminClaimsType==='preorders') {
+    if(ST.adminClaimsType==='reports') {
+      // v1.74.49 — listing reports + vendor referrals queue. New → Reviewed → Done / Dismissed.
+      const catLabels = { name:'Wrong name', markets:'Wrong/missing markets', vendors:'Wrong/missing vendors', schedule:'Wrong schedule/hours', location:'Wrong location', link:'Broken link/photo', closed:'Closed / out of business', other:'Other' };
+      const newReports = ST.adminReports.filter(r=>r.status==='new');
+      const oldReports = ST.adminReports.filter(r=>r.status!=='new');
+      if(!ST.adminReportsTab) ST.adminReportsTab = 'new';
+      h += `<div class="admin-subtabs">
+        <button class="admin-subtab ${ST.adminReportsTab==='new'?'active':''}" onclick="ST.adminReportsTab='new';renderAdminPanel()">New (${newReports.length})</button>
+        <button class="admin-subtab ${ST.adminReportsTab==='history'?'active':''}" onclick="ST.adminReportsTab='history';renderAdminPanel()">History (${oldReports.length})</button>
+      </div>`;
+      const showReports = ST.adminReportsTab==='history' ? oldReports : newReports;
+      if(showReports.length===0) {
+        h += `<div style="text-align:center;padding:32px;color:var(--text2);font-size:13px">${ST.adminReportsTab==='history'?'No handled reports yet':'No new reports 🎉'}</div>`;
+      } else {
+        h += `<div class="admin-table">`;
+        showReports.forEach(r => {
+          const isRef = r.type === 'vendor_referral';
+          const isMRef = r.type === 'market_referral';
+          const rowTitle = isMRef ? (r.refMName || 'New market') : (r.listingName || '(no market given)');
+          const badge = isMRef ? '🏪 Market referral' : isRef ? '🌱 Vendor referral' : '⚠ '+esc(catLabels[r.category]||r.category||'Report');
+          const badgeBg = (isRef||isMRef) ? '#E0F2FE' : 'var(--amber-lt)', badgeFg = (isRef||isMRef) ? '#075985' : '#7A4E08', badgeBd = (isRef||isMRef) ? '#BAE6FD' : '#F0D090';
+          h += `<div class="request-row">
+            <div class="request-info">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                <div class="request-city">${esc(rowTitle)}</div>
+                <span style="font-size:10px;padding:1px 6px;background:${badgeBg};color:${badgeFg};border-radius:var(--r-pill);border:0.5px solid ${badgeBd}">${badge}</span>
+                ${isMRef?'':`<span style="font-size:10px;padding:1px 6px;background:var(--surface2);color:var(--text2);border-radius:var(--r-pill);border:0.5px solid var(--border)">${r.listingType==='market'?'Market':'Vendor'}</span>`}
+              </div>
+              ${isMRef?`<div style="font-size:12px;color:var(--text);margin-top:4px"><b>${esc(r.refMName)}</b>${r.refMCity?' · '+esc(r.refMCity):''}${r.refMSched?' · '+esc(r.refMSched):''}</div>`:''}
+              ${isRef?`<div style="font-size:12px;color:var(--text);margin-top:4px"><b>${esc(r.refName)}</b>${r.refSells?' · '+esc(r.refSells):''}${r.refContact?' · '+esc(r.refContact):''}</div>`:''}
+              ${r.description?`<div style="font-size:11px;color:var(--text);margin-top:4px;font-style:italic">"${esc(r.description)}"</div>`:''}
+              <div class="request-contact">${esc(r.name)} · ${esc(r.email)} · ${esc(r.role)} · ${r.date}</div>
+              ${r.status!=='new'?`<div style="font-size:11px;color:var(--text3);margin-top:2px">Status: ${esc(r.status)}</div>`:''}
+            </div>
+            <div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0">
+              ${r.listingId?`<button class="action-btn preview" onclick="navigate('${r.listingType==='market'?'market':'vendor'}','${r.listingId}')">View</button>`:''}
+              ${r.status==='new'?`
+                <button class="action-btn publish" onclick="adminSetReportStatus('${r.id}','done')">✓ Done</button>
+                <button class="action-btn edit" onclick="adminSetReportStatus('${r.id}','reviewed')">Reviewed</button>
+                <button class="action-btn edit" style="color:var(--terra);border-color:var(--terra)" onclick="adminSetReportStatus('${r.id}','dismissed')">Dismiss</button>
+              `:`<button class="action-btn edit" onclick="adminSetReportStatus('${r.id}','new')">Reopen</button>`}
+              <a class="action-btn" style="text-align:center;text-decoration:none;display:block" href="mailto:${esc(r.email)}?subject=${encodeURIComponent('Windmill — about your '+(r.type==='correction'?'report on '+(r.listingName||'a listing'):'referral'))}">✉️ Reply</a>
+            </div>
+          </div>`;
+        });
+        h += `</div>`;
+      }
+    } else if(ST.adminClaimsType==='preorders') {
       // Read-only interest list — no approve/deny workflow, just an FYI feed
       if(ST.adminPreorders.length===0) {
         h += `<div style="text-align:center;padding:32px;color:var(--text2);font-size:13px">No pre-order interest yet</div>`;
@@ -12884,6 +13114,294 @@ function sgReject(reason){
   if(reason === 'bot'){ showToast('✓ Submitted'); return; } /* fake success — never teach bots the tell */
   if(reason === 'toofast'){ alert('Please take a moment to review your info, then tap submit again.'); return; }
   alert("You're submitting too quickly. Please wait a minute and try again.");
+}
+
+/* ── LISTING REPORTS (v1.74.49) ──
+   Public "suggest an update" (unclaimed vendor/market pages) and "refer a vendor"
+   (all market pages). No login required; name+email required; full spam-guard stack.
+   Inserts into listing_reports (public INSERT, admin-only read — deliberately NO
+   .select() chained: RETURNING would be blocked by RLS and fake-fail every real
+   submission; blocked INSERTs raise a real error, so checking `error` is reliable,
+   same pattern as area_requests). */
+/* ── v1.74.51: "Help us grow" hub — typeahead picker + generic forms ── */
+function lrTaHTML(taId, mode, placeholder, prefill) {
+  ST.lrTaMode = ST.lrTaMode || {}; ST.lrTaPick = ST.lrTaPick || {};
+  ST.lrTaMode[taId] = mode; delete ST.lrTaPick[taId];
+  return `<div style="position:relative">
+    <input class="form-input" type="text" id="${taId}" placeholder="${placeholder}" value="${esc(prefill||'')}" oninput="lrTaInput('${taId}')" autocomplete="off">
+    <div id="${taId}Sugg" style="position:absolute;top:100%;left:0;right:0;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-md);max-height:200px;overflow-y:auto;z-index:60;display:none;box-shadow:0 4px 14px rgba(0,0,0,.10)"></div>
+  </div>`;
+}
+
+function lrTaInput(taId) {
+  const inp = document.getElementById(taId), box = document.getElementById(taId+'Sugg');
+  if(!inp || !box) return;
+  delete ST.lrTaPick[taId]; /* retyping clears any prior pick */
+  const q = inp.value.trim().toLowerCase();
+  if(q.length < 2) { box.style.display='none'; box.innerHTML=''; return; }
+  const mode = ST.lrTaMode[taId];
+  let items = [];
+  if(mode === 'listings') {
+    /* unclaimed only — claimed listings are managed by their owners (message them instead) */
+    items = DATA.vendors.filter(v => !v.claimed && (v.name||'').toLowerCase().includes(q)).slice(0,5)
+      .map(v => ({type:'vendor', id:v.id, name:v.name, sub:t('lr_tag_vendor')}))
+      .concat(DATA.markets.filter(m => !m.claimed && ((m.name||'').toLowerCase().includes(q) || (m.city||'').toLowerCase().includes(q))).slice(0,5)
+      .map(m => ({type:'market', id:m.id, name:m.name, sub:t('lr_tag_market') + (m.city ? ' · ' + m.city : '')})));
+  } else { /* 'markets': all markets — a referred vendor can sell at a claimed market */
+    items = DATA.markets.filter(m => (m.name||'').toLowerCase().includes(q) || (m.city||'').toLowerCase().includes(q)).slice(0,6)
+      .map(m => ({type:'market', id:m.id, name:m.name, sub:m.city || ''}));
+  }
+  if(items.length === 0) {
+    box.innerHTML = mode === 'listings'
+      ? `<div style="padding:10px 12px;font-size:12px;color:var(--text2)">${t('lr_notfound')}</div>
+         <div onclick="lrTaRefer('vendor')" style="padding:9px 12px;font-size:12px;color:var(--terra);cursor:pointer;border-top:0.5px solid var(--border)">→ ${t('lr_refer_v_instead')}</div>
+         <div onclick="lrTaRefer('market')" style="padding:9px 12px;font-size:12px;color:var(--terra);cursor:pointer;border-top:0.5px solid var(--border)">→ ${t('lr_refer_m_instead')}</div>`
+      : '';
+    box.style.display = mode === 'listings' ? 'block' : 'none';
+    return;
+  }
+  box.innerHTML = items.map(it => `<div onclick="lrTaPick('${taId}','${it.type}','${it.id}')" style="padding:9px 12px;cursor:pointer;border-bottom:0.5px solid var(--border)" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+    <span style="font-size:13px;color:var(--text)">${esc(it.name)}</span>
+    <span style="font-size:10px;color:var(--text3);margin-left:6px">${esc(it.sub)}</span>
+  </div>`).join('');
+  box.style.display = 'block';
+}
+
+function lrTaPick(taId, type, id) {
+  const rec = type === 'market' ? DATA.markets.find(x=>x.id===id) : DATA.vendors.find(x=>x.id===id);
+  if(!rec) return;
+  ST.lrTaPick[taId] = { type, id, name: rec.name };
+  const inp = document.getElementById(taId), box = document.getElementById(taId+'Sugg');
+  if(inp) inp.value = rec.name;
+  if(box) { box.style.display='none'; box.innerHTML=''; }
+  /* update-picker mode: picking hands straight off to the standard correction form */
+  if(ST.lrTaMode[taId] === 'listings') openListingReport('correction', type, id);
+}
+
+function lrTaRefer(which) {
+  const inp = document.getElementById('lrPickTa');
+  openGrowForm(which, inp ? inp.value.trim() : '');
+}
+
+function openGrowForm(which, carryText) {
+  if(which === 'update') {
+    ST.lrCtx = null;
+    document.getElementById('lrBody').innerHTML = `
+      <div class="modal-title">${t('lr_title_update')}</div>
+      <div class="modal-sub">${t('grow_update_sub')}</div>
+      <div class="form-field"><label class="form-label">${t('lr_listing')}</label>
+        ${lrTaHTML('lrPickTa','listings',t('lr_search_ph'))}</div>`;
+    openModal('listingReportModal');
+    return;
+  }
+  if(which === 'vendor') {
+    ST.lrCtx = { kind:'vendor_referral', listingType:'market', listingId:null, listingName:null, generic:true };
+    const meName = ST.user ? (ST.user.name || '') : '', meEmail = ST.user ? (ST.user.email || '') : '';
+    document.getElementById('lrBody').innerHTML = `
+      <div class="modal-title">${t('lr_title_refer')}</div>
+      <div class="modal-sub">${t('grow_refer_v_sub')}</div>
+      <div class="form-field"><label class="form-label">${t('lr_vname')}</label><input class="form-input" type="text" id="lrVName" value="${esc(carryText||'')}"></div>
+      <div class="form-field"><label class="form-label">${t('lr_search_market_ph')}</label>${lrTaHTML('lrMarketTa','markets',t('lr_search_market_ph'))}</div>
+      <div class="form-field"><label class="form-label">${t('lr_vsells')}</label><input class="form-input" type="text" id="lrVSells"></div>
+      <div class="form-field"><label class="form-label">${t('lr_vcontact')}</label><input class="form-input" type="text" id="lrVContact"></div>
+      <div class="form-field"><label class="form-label">${t('lr_notes')}</label><textarea class="form-textarea" id="lrDesc"></textarea></div>
+      ${lrContactTailHTML(meName, meEmail)}`;
+    sgOpen('listing_report');
+    openModal('listingReportModal');
+    return;
+  }
+  /* which === 'market' */
+  ST.lrCtx = { kind:'market_referral', listingType:'market', listingId:null, listingName:null, generic:true };
+  const meName = ST.user ? (ST.user.name || '') : '', meEmail = ST.user ? (ST.user.email || '') : '';
+  document.getElementById('lrBody').innerHTML = `
+    <div class="modal-title">${t('lr_title_refer_m')}</div>
+    <div class="modal-sub">${t('lr_sub_refer_m')}</div>
+    <div class="form-field"><label class="form-label">${t('lr_mname')}</label><input class="form-input" type="text" id="lrMName" value="${esc(carryText||'')}"></div>
+    <div class="form-field"><label class="form-label">${t('lr_mcity')}</label><input class="form-input" type="text" id="lrMCity"></div>
+    <div class="form-field"><label class="form-label">${t('lr_msched')}</label><input class="form-input" type="text" id="lrMSched"></div>
+    <div class="form-field"><label class="form-label">${t('lr_notes')}</label><textarea class="form-textarea" id="lrDesc"></textarea></div>
+    ${lrContactTailHTML(meName, meEmail)}`;
+  sgOpen('listing_report');
+  openModal('listingReportModal');
+}
+
+function lrContactTailHTML(meName, meEmail) {
+  const roleGuess = ST.role === 'vendor' ? 'vendor' : ST.role === 'operator' ? 'operator' : 'shopper';
+  return `
+    <div class="form-field"><label class="form-label">${t('lr_your_name')}</label><input class="form-input" type="text" id="lrName" value="${esc(meName||'')}"></div>
+    <div class="form-field"><label class="form-label">${t('lr_your_email')}</label><input class="form-input" type="email" id="lrEmail" value="${esc(meEmail||'')}"></div>
+    <div class="form-field"><label class="form-label">${t('lr_role')}</label>
+      <select class="form-input" id="lrRole">
+        <option value="shopper" ${roleGuess==='shopper'?'selected':''}>${t('lr_role_shopper')}</option>
+        <option value="vendor" ${roleGuess==='vendor'?'selected':''}>${t('lr_role_vendor')}</option>
+        <option value="operator" ${roleGuess==='operator'?'selected':''}>${t('lr_role_operator')}</option>
+      </select></div>
+    <input id="lrHoneypot" name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:1px;width:1px;opacity:0;pointer-events:none">
+    <button class="btn-primary" id="lrSubmitBtn" onclick="submitListingReport()">${t('lr_submit')}</button>`;
+}
+
+function lrCategoryOptions(listingType) {
+  const common = [['name','lr_i_name'],['schedule', listingType==='market' ? 'lr_i_hours' : 'lr_i_schedule'],['link','lr_i_link']];
+  const opts = listingType === 'market'
+    ? [['name','lr_i_name'],['vendors','lr_i_vendors'],['schedule','lr_i_hours'],['location','lr_i_location'],['link','lr_i_link'],['closed','lr_i_closed_m'],['other','lr_i_other']]
+    : [['name','lr_i_name'],['markets','lr_i_markets'],['schedule','lr_i_schedule'],['link','lr_i_link'],['closed','lr_i_closed_v'],['other','lr_i_other']];
+  return opts.map(o => `<option value="${o[0]}">${t(o[1])}</option>`).join('');
+}
+
+function openListingReport(kind, listingType, listingId) {
+  const rec = listingType === 'market' ? DATA.markets.find(x=>x.id===listingId) : DATA.vendors.find(x=>x.id===listingId);
+  ST.lrCtx = { kind, listingType, listingId, listingName: rec ? rec.name : listingId };
+  const isReferral = kind === 'vendor_referral';
+  const meName = ST.user ? (ST.user.name || '') : '';
+  const meEmail = ST.user ? (ST.user.email || '') : '';
+  const roleGuess = ST.role === 'vendor' ? 'vendor' : ST.role === 'operator' ? 'operator' : 'shopper';
+  let h = `
+    <div class="modal-title">${t(isReferral ? 'lr_title_refer' : 'lr_title_update')}</div>
+    <div class="modal-sub">${t(isReferral ? 'lr_sub_refer' : 'lr_sub_update')}</div>
+    <div class="form-field"><label class="form-label">${t('lr_listing')}</label>
+      <input class="form-input" type="text" value="${esc(ST.lrCtx.listingName)}" disabled style="background:var(--surface2);color:var(--text2)"></div>`;
+  if(isReferral) {
+    h += `
+    <div class="form-field"><label class="form-label">${t('lr_vname')}</label><input class="form-input" type="text" id="lrVName"></div>
+    <div class="form-field"><label class="form-label">${t('lr_vsells')}</label><input class="form-input" type="text" id="lrVSells"></div>
+    <div class="form-field"><label class="form-label">${t('lr_vcontact')}</label><input class="form-input" type="text" id="lrVContact"></div>
+    <div class="form-field"><label class="form-label">${t('lr_notes')}</label><textarea class="form-textarea" id="lrDesc"></textarea></div>`;
+  } else {
+    h += `
+    <div class="form-field"><label class="form-label">${t('lr_issue')}</label>
+      <select class="form-input" id="lrCategory">${lrCategoryOptions(listingType)}</select></div>
+    <div class="form-field"><label class="form-label">${t('lr_desc')}</label><textarea class="form-textarea" id="lrDesc"></textarea></div>`;
+  }
+  h += `
+    <div class="form-field"><label class="form-label">${t('lr_your_name')}</label><input class="form-input" type="text" id="lrName" value="${esc(meName)}"></div>
+    <div class="form-field"><label class="form-label">${t('lr_your_email')}</label><input class="form-input" type="email" id="lrEmail" value="${esc(meEmail)}"></div>
+    <div class="form-field"><label class="form-label">${t('lr_role')}</label>
+      <select class="form-input" id="lrRole">
+        <option value="shopper" ${roleGuess==='shopper'?'selected':''}>${t('lr_role_shopper')}</option>
+        <option value="vendor" ${roleGuess==='vendor'?'selected':''}>${t('lr_role_vendor')}</option>
+        <option value="operator" ${roleGuess==='operator'?'selected':''}>${t('lr_role_operator')}</option>
+      </select></div>
+    <input id="lrHoneypot" name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:1px;width:1px;opacity:0;pointer-events:none">
+    <button class="btn-primary" id="lrSubmitBtn" onclick="submitListingReport()">${t('lr_submit')}</button>`;
+  document.getElementById('lrBody').innerHTML = h;
+  sgOpen('listing_report');
+  openModal('listingReportModal');
+}
+
+async function submitListingReport() {
+  const c = ST.lrCtx || {};
+  const isReferral = c.kind === 'vendor_referral';
+  const isMarketReferral = c.kind === 'market_referral';
+  /* generic vendor referral: optional market pick from the typeahead */
+  if(isReferral && c.generic) {
+    const pick = (ST.lrTaPick||{})['lrMarketTa'];
+    c.listingId = pick ? pick.id : null;
+    c.listingName = pick ? pick.name : null;
+  }
+  const mName = document.getElementById('lrMName')?.value?.trim() || '';
+  const mCity = document.getElementById('lrMCity')?.value?.trim() || '';
+  const mSched = document.getElementById('lrMSched')?.value?.trim() || '';
+  const name = document.getElementById('lrName')?.value?.trim();
+  const email = document.getElementById('lrEmail')?.value?.trim();
+  const role = document.getElementById('lrRole')?.value || 'shopper';
+  const desc = document.getElementById('lrDesc')?.value?.trim() || '';
+  const vName = document.getElementById('lrVName')?.value?.trim() || '';
+  const vSells = document.getElementById('lrVSells')?.value?.trim() || '';
+  const vContact = document.getElementById('lrVContact')?.value?.trim() || '';
+  const category = document.getElementById('lrCategory')?.value || null;
+
+  const missingCore = isMarketReferral ? (!mName || !mCity) : (isReferral ? !vName : !desc);
+  if(!name || !email || missingCore) { alert(t('lr_err_required')); return; }
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { alert(t('lr_err_email')); return; }
+  const sg = sgCheck('listing_report', 'lrHoneypot');
+  if(sg) { if(sg==='bot') closeModal('listingReportModal'); sgReject(sg); return; }
+
+  const btn = document.getElementById('lrSubmitBtn');
+  if(btn) btn.disabled = true;
+  let saved = false;
+  if(supabaseClient) {
+    /* error-check only, no .select(): admin-only-read table (see block comment above) */
+    const { error } = await supabaseClient.from('listing_reports').insert({
+      type: c.kind, listing_type: c.listingType, listing_id: c.listingId, listing_name: c.listingName,
+      category: (isReferral || isMarketReferral) ? null : category, description: desc,
+      referral_vendor_name: isReferral ? vName : null,
+      referral_vendor_sells: isReferral ? vSells : null,
+      referral_vendor_contact: isReferral ? vContact : null,
+      referral_market_name: isMarketReferral ? mName : null,
+      referral_market_city: isMarketReferral ? mCity : null,
+      referral_market_schedule: isMarketReferral ? mSched : null,
+      submitter_name: name, submitter_email: email, submitter_role: role
+    });
+    if(error) {
+      console.error('listing_reports insert failed:', error);
+      notifySaveError('Your submission could not be saved. Please try again.');
+      if(btn) btn.disabled = false;
+      return;
+    }
+    saved = true;
+  }
+  ST.lrLast = { name, email, role };
+
+  /* Admin email alert — convenience layer only; the table row above is the source of truth */
+  if(saved) {
+    const subj = isMarketReferral
+      ? 'Windmill market referral: ' + mName + ' (' + mCity + ')'
+      : isReferral
+      ? 'Windmill referral: ' + vName + ' — ' + (c.listingName || 'no market given')
+      : 'Windmill report: ' + (category || 'issue') + ' — ' + c.listingName;
+    const body = '<h3>' + esc(isMarketReferral ? 'Market referral' : isReferral ? 'Vendor referral' : 'Listing report') + '</h3>'
+      + (c.listingId ? '<p><b>Listing:</b> ' + esc(c.listingName) + ' (' + esc(c.listingType) + ' · ' + esc(c.listingId) + ')</p>' : '')
+      + (isMarketReferral ? '<p><b>Referred market:</b> ' + esc(mName) + ' · ' + esc(mCity) + '</p><p><b>Schedule:</b> ' + esc(mSched || '—') + '</p>' : '')
+      + (isReferral
+          ? '<p><b>Referred vendor:</b> ' + esc(vName) + '</p><p><b>Sells:</b> ' + esc(vSells || '—') + '</p><p><b>Contact:</b> ' + esc(vContact || '—') + '</p>'
+          : '<p><b>Category:</b> ' + esc(category || '—') + '</p>')
+      + '<p><b>Details:</b> ' + esc(desc || '—') + '</p>'
+      + '<p><b>From:</b> ' + esc(name) + ' · ' + esc(email) + ' · ' + esc(role) + '</p>';
+    sendWindmillEmail(subj, body); /* fire-and-forget; failure only logs */
+  }
+
+  /* Thank-you state: optional one-click account creation (reuses entered name/email),
+     plus claim prompt when a vendor reports on a vendor page / operator on a market page */
+  const showClaim = (role === 'vendor' && c.listingType === 'vendor') || (role === 'operator' && c.listingType === 'market') || (role === 'operator' && isMarketReferral);
+  const claimKey = c.listingType === 'market' ? 'lr_claim_m' : 'lr_claim_v';
+  const claimNav = c.listingType === 'market' ? 'markets-join' : 'vendors-join';
+  let h = `
+    <div style="text-align:center;padding:8px 0 4px"><div style="font-size:34px;margin-bottom:8px">🌻</div>
+      <div class="modal-title" style="margin-bottom:4px">${t('lr_thanks_title')}</div>
+      <div class="modal-sub">${t('lr_thanks_sub')}</div></div>`;
+  if(showClaim) {
+    h += `<div style="background:var(--terra-lt);border:0.5px solid #ECC4B0;border-radius:var(--r-md);padding:12px;text-align:center;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:500;color:#7A2E10;margin-bottom:8px">${t(claimKey)}</div>
+      <button onclick="closeModal('listingReportModal');navigate('${claimNav}')" style="padding:8px 18px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">${t('lr_claim_btn')}</button>
+    </div>`;
+  }
+  if(!ST.user) {
+    h += `<div style="text-align:center;padding:4px 0">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px">${t('lr_acct_sub')}</div>
+      <button class="btn-primary" onclick="lrCreateAccount()">${t('lr_acct_cta')}</button>
+    </div>`;
+  }
+  document.getElementById('lrBody').innerHTML = h;
+}
+
+function lrCreateAccount() {
+  /* One-click signup reusing the name/email the person just entered — no re-typing.
+     openSignIn renders the auth modal synchronously, so the fields exist right after. */
+  const last = ST.lrLast || {};
+  const roleMap = { shopper:'customer', vendor:'vendor', operator:'operator' };
+  closeModal('listingReportModal');
+  openSignIn('signup', roleMap[last.role] || 'customer');
+  const nEl = document.getElementById('authName'); if(nEl && last.name) nEl.value = last.name;
+  const eEl = document.getElementById('authEmail'); if(eEl && last.email) eEl.value = last.email;
+}
+
+async function adminSetReportStatus(id, status) {
+  const r = await vUpdate('listing_reports', { status }, q => q.eq('id', id));
+  if(r.ok) {
+    const rec = ST.adminReports.find(x => x.id === id);
+    if(rec) rec.status = status;
+    renderAdminPanel();
+  }
 }
 
 /* NOTE v1.74.41: this modal flow is currently orphaned (nothing opens #areaModal — the live
@@ -17713,8 +18231,8 @@ function applyForcedView() {
 async function downloadData() {
   const btn = document.getElementById('backupBtn');
   if(btn) { btn.disabled = true; btn.textContent = 'Exporting…'; }
-  const TABLES = ['vendors','markets','operators','vendor_markets','users','claims','messages','message_replies','products','follows','attendance','announcements','preorder_interest','shopper_profiles','regions','cities','area_requests'];
-  const payload = { exported: new Date().toISOString(), app_version: '1.74.48', tables: {} };
+  const TABLES = ['vendors','markets','operators','vendor_markets','users','claims','messages','message_replies','products','follows','attendance','announcements','preorder_interest','shopper_profiles','regions','cities','area_requests','listing_reports'];
+  const payload = { exported: new Date().toISOString(), app_version: '1.74.51', tables: {} };
   const failed = [];
   try {
     if(!supabaseClient) throw new Error('Supabase not connected');
@@ -17900,7 +18418,7 @@ function renderAdminSettings() {
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Platform Info</div>
-        <div class="admin-row-meta">Version 1.74.48 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
+        <div class="admin-row-meta">Version 1.74.51 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Coverage Area</div>
