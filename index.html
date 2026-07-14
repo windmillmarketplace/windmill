@@ -18,6 +18,10 @@
 <!-- v1.74.43 — Hotfix: vendor AND operator onboarding wizards rendering raw HTML as visible text (regression introduced in v1.74.39, present in .39-.42). Root cause: the v1.74.39 XSS pass wrapped the ENTIRE step template in esc() at the two wizard render sites (${esc(s.content)} in showVendorOnboarding and showOperatorOnboarding) — but s.content is trusted app-authored HTML markup, so escaping it displayed the markup as text. All user-entered data inside those templates (name, email, phone, website, etc.) was ALREADY individually escaped at the field level (value="${esc(...)}"), so the outer wrap added no protection — it only broke rendering. Fix: outer esc() removed from both sites (${s.content}); field-level escaping inside is untouched, step titles/subtitles remain escaped (plain text, correct). XSS posture unchanged. LESSON for future escaping passes: esc() belongs at the individual user-data interpolation, never around an app-built HTML template — if a template renders as visible tags, look for a wholesale esc() wrap at the render site. -->
 <!-- v1.74.44 — Backlog build (paired with Supabase changes, all approved: migration add_nudge_columns_and_pg_net, Edge Function nudge-unread v1, migration schedule_daily_nudge_unread). (1) SHOPPER NOTIFICATION TOAST REFACTOR (closes the known leftover from v1.74.38): the My Account notification toggles built their toast inside a huge inline onclick with `const t` shadowing the translation function — which is why those strings couldn't be translated. Refactored into a named notifPrefToggle() helper using showToast + t(); both the live email-updates toggle and the hidden SMS toggle (inside the v1.74.5 preserved-markup comment, so restoring it later brings the fixed version) now use it. Four new trilingual keys: ms_email_on/off, ms_sms_on/off (EN/ES/PT, dictionary parity maintained). (2) 24-HOUR UNREAD MESSAGE NUDGE (closes a long-standing backlog item): new nudge-unread Edge Function runs daily at 13:00 UTC (9am EDT) via pg_cron + pg_net (pg_net enabled this session; pg_cron was already installed), finds message threads with unread activity older than 24h, and sends ONE reminder email per activity burst via the existing send-email/Resend pipeline. Covers BOTH directions: vendor/admin hasn't read a customer message (read=false + latest customer-side activity >24h old), and shopper hasn't read a vendor/admin reply (sender_last_read_at predates the latest non-customer reply by >24h). Dedupe via two new columns, messages.nudge_sent_at (recipient side) and messages.sender_nudge_sent_at (shopper side) — a nudge is only sent if the last nudge predates the newest qualifying activity, so nobody is ever nudged twice for the same message; instant new-message emails (last_emailed_at) are untouched and separate. Threads deleted/hidden by a side (deleted_by user ids) are skipped for that side; 50-email safety cap per run; supports POST {"dry":true} for a no-send preview. Dry run against live data matched exactly 2 threads — both Keith's own test accounts with old unread support replies — validating the logic; each will receive one reminder on the first scheduled run. The cron job authenticates with the publishable anon key (already public in this page's source; the function's dedupe makes extra invocations harmless). NO changes to app behavior in this file for item 2 — it is entirely server-side; this file's changes are item 1 only. -->
 <!-- v1.74.45 — Quick fix: operator dashboard URL. The operator dashboard never updated the browser URL (unlike the vendor dashboard, which sets /vendors/dashboard via replaceState) — so after operator sign-in the URL stayed at /markets/login, and after viewing a public market/vendor page and returning to the dashboard, the URL stayed stuck on that public page's path (a refresh there would deep-link back onto that public page instead of the dashboard). Fix: renderOperatorDash now mirrors the vendor dashboard pattern — replaceState to /markets/dashboard plus document.title, skipped on file:// for local testing. Code only, no Supabase changes. Bug present in all prior versions incl. live v1.74.38. -->
+<!-- v1.74.57 — Dead dashboard links: ST.sub ghost variable (code-only, no Supabase changes). Seven onclick handlers set ST.sub to switch dashboard tabs, but NOTHING reads ST.sub — the sub-page routers (renderOperatorSubPage / renderVendorSubPage) read ST.tab — so all seven clicks silently re-rendered the same page. Casualties: FIVE operator-dashboard Upgrade-to-Pro buttons/banners (a free operator trying to upgrade had no working path from any of them), the Pro/Trial 📣 Post-announcement quick action (reported by Keith), and the vendor schedule empty-state 'Add your markets' link. All seven replaced with the canonical navigate('me'|'following'|'markets') pattern the bottom nav uses (sets ST.tab, resets scroll, re-renders sidebar/bottom, persists the dashboard tab to sessionStorage per v1.74.48). No ST.sub writers remain. Product note: announcements stay operator-level (one announcement to followers of all the operator's markets) for launch; per-market targeting is backlog — it requires restructuring announcement storage. -->
+<!-- v1.74.56 — Vendors-page search box fixes (code-only, no Supabase changes). Two bugs, one page. (1) FOCUS LOSS (pre-existing since the page was built): the in-page search box's oninput called renderVendorsList(), which rebuilds the ENTIRE page via scrollBody.innerHTML on every keystroke — destroying the input element itself, so focus/cursor died after each character and you had to re-click per letter. Fixed by hoisting the inner renderList closure to top-level renderVendorsListBody() (reads ST.vendorListSearch/ST.vendorListCat directly); oninput now updates state and re-renders ONLY the results list, so the input survives and typing is continuous. Category chips and × still do a full renderVendorsList() — they're clicks, no focus at stake, and they need the header restyled. (2) UN-CLEARABLE CARRIED-OVER SEARCH (exposed by v1.74.55's see-all fix): the override guard re-copied ST.globalSearchOverride into any emptied search box on every render, so × emptied the box and the re-render immediately resurrected the term — combined with bug 1 the box felt locked. Both oninput and × now clear ST.globalSearchOverride, making the see-all hand-off one-shot: term arrives once, then the box is a normal box. (3) × button is now always in the DOM (id=vendorListClear) with display toggled by renderVendorsListBody, so it appears the moment you start typing instead of waiting for a full re-render. Markets page untouched (its carried-over search uses the separate green banner, no inline box). -->
+<!-- v1.74.55 — Global search "See all vendors" dead-end fix (code-only, no Supabase changes). Clicking "See all vendors for '<query>'" in the search dropdown bounced to Home with the search lost. Root cause: globalSearchSeeAll called navigate('vendors'), but no page named 'vendors' exists — the vendors browse page is 'vendors-list' — so renderCurrentPage matched nothing and fell through to the Home default. Two-line fix: (1) navigate('vendors') → navigate('vendors-list'); (2) the override-clear guard in navigate() updated to spare 'vendors-list' instead of the nonexistent 'vendors', so the carried-over search term survives to render. Now lands on Browse Vendors with the search box pre-filled and the full filtered list. "See all markets" was never affected ('markets' is a real tab). Only one navigate('vendors') caller existed — no other paths touched. -->
+<!-- v1.74.54 — Demo data touch-up (code-only, no Supabase changes). The hardcoded demo-vendor-pro (Empanada Queen) weekly_update announcement named Lakes Park, which is out of season for summer — removed Lakes Park from the text, leaving Fort Myers Downtown. One-line change ahead of Saturday vendor outreach so the Pro demo page shows no out-of-season info. -->
 <!-- v1.74.53 — Admin dashboard QoL (no DB changes). (1) TIER PICKER: the vendor Pro/Trial/Free/Expired pill no longer blind-toggles the pro boolean (which left trial_start behind and made the resulting label unpredictable) — clicking now opens a 3-option picker (Free = pro off + trial cleared; Trial = fresh trial_start today; Pro = pro on) via new adminSetVendorTier(); popover closes on outside click. (2) USERS TAB: vendor/operator user rows now show their linked business name in the meta line (🧺 vendor name via users.vendor_id, 🏪 operator name via users.operator_id, from in-memory DATA — no extra queries; silently omitted if the link is missing). (3) SORT CONTROLS: Claims pending/history get Newest/Oldest/A–Z/Z–A (claims mapping now retains raw created_at as createdAt for exact date sorting); Messages inbox gets Newest/Oldest/Unread first/A–Z/Z–A by sender (sorted copy — ST.adminMessages order untouched so nav unread logic is unaffected); Follows gets Most/Fewest/A–Z/Z–A applied to both the vendor and market lists; Views gets a mode-aware sort — All Views: Newest/Oldest (flips the server-side order and resets pagination), Unique visitors: Most/Fewest views, Recently seen, A–Z/Z–A by email (guests sort to the bottom on A–Z). Each tab keeps its own sort state (ST.adminClaimsSort / adminMsgSort / adminFollowsSort / adminViewsSortAll / adminViewsSortUnique) for the session. -->
 <!-- v1.74.52 — Privileged-field lockdown (paired Supabase migration login_email_and_privileged_field_protection, applied this session after BEGIN/ROLLBACK testing). DB side: (1) New admin-only login_email column on vendors + operators — the trusted login identity, separate from the vendor-editable public email; backfilled for all existing linked/claimed rows from their auth accounts. (2) protect_sensitive_user_fields (users role-escalation trigger) now validates vendor/operator role grants against login_email instead of the editable public email, closing the loophole where the trust anchor was a field the vendor could change; added auth.uid() IS NULL escape so service-role/edge-function writes are unaffected. (3) New BEFORE INSERT/UPDATE triggers on vendors + operators: for non-admin user sessions, privileged columns (id, pro, trial_start, claimed, published [vendors only], login_email, trial_warning flags) are silently reverted to their old values on update and forced to safe defaults on insert — silent revert rather than an exception because dbSaveVendor upserts the whole vendor object on every self-serve save, so raising would break every vendor profile save. Net: a vendor can no longer self-upgrade to Pro, extend their own trial, or flip claimed status via direct API calls; normal profile edits are unchanged. HTML side (this build): claim-approval flow now writes login_email alongside email for both vendor and operator approvals (required — the rewritten users trigger reads it when the new vendor/operator signs in and their role is set); test-vendor reset flow clears login_email. No other code paths touched. -->
 <!-- v1.74.51 — "Help us grow Windmill" hub (phase 2 of the report/referral system; paired Supabase migration add_market_referral_to_listing_reports already applied: type CHECK widened to include market_referral, three nullable columns added — referral_market_name / _city / _schedule). (1) ENTRY POINTS: signed-in shopper Me tab gets a "🌱 Help us grow Windmill" row directly under About Windmill, opening renderMeSection('grow') with three entry cards; signed-out Me view gets the same three cards in a card below the Contact us / Follow us blocks (per Keith — the natural closing beat after the mission content). Both entry points open the same modals, which already handle both auth states from v1.74.49 (prefilled fields + no CTA when signed in; manual name/email + one-click account CTA when signed out). Customer view only. (2) SUGGEST AN UPDATE (generic): typeahead (lrTaHTML/lrTaInput/lrTaPick) searching UNCLAIMED vendors + UNCLAIMED markets together (markets also match on city), results labeled Vendor/Market; picking a result hands off to the existing v1.74.49 correction form for that listing. Unclaimed-only is deliberate: claimed listings are managed by their owners — shoppers who disagree with a claimed listing's info can message the owner directly. Zero-results state doubles as lead capture: "Can't find it? → Refer this vendor / market instead" flips to the referral forms with the typed text carried over. (3) REFER A VENDOR (generic): vendor name required + OPTIONAL market typeahead over ALL markets (a missing vendor can sell at a claimed market) + sells/contact/notes; submits as vendor_referral with listing_id/name from the pick or null. (4) REFER A MARKET (new): market name + city required, schedule + notes optional; submits as market_referral into the new columns. All three reuse the shared contact tail (name/email/role, honeypot, and the full sgOpen/sgCheck spam-guard stack) via new lrContactTailHTML(); typeahead onclick handlers pass IDs only (names with apostrophes like "Keith's Kookies" never enter attribute strings). (5) ADMIN: reports queue now renders market referrals with a 🏪 badge and name/city/schedule line; vendor-referral badge relabeled "🌱 Vendor referral"; row title falls back to the referred market name or "(no market given)" for generic referrals; View button renders only when a listing_id exists; mailto subject handles null listing names. Admin load maps the three new columns. (6) ~20 new trilingual t() keys (grow_/lr_ prefixes), EN/ES/PT parity. -->
@@ -1656,7 +1660,7 @@ const DATA = {
       primary_link:{label:"Website",url:"https://empanadaqueen.com"},
       markets:["lakes-park","fort-myers-downtown","cape-coral-downtown","babcock-ranch"],
       photo:"https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=200&q=80",
-      weekly_update:{text:"New this Saturday: Nutella & Banana dessert empanadas — only 24 made, first come first served! Find us at Lakes Park and Fort Myers Downtown 🫔",expires:"week",badge:"This week",posted_at:"2026-06-13"},
+      weekly_update:{text:"New this Saturday: Nutella & Banana dessert empanadas — only 24 made, first come first served! Find us at Fort Myers Downtown 🫔",expires:"week",badge:"This week",posted_at:"2026-06-13"},
       photos:[
         {url:"https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=600&q=80",caption:"Our signature chicken & sofrito empanadas, fresh from the oven"},
         {url:"https://images.unsplash.com/photo-1565299507177-b0ac66763828?w=600&q=80",caption:"Market setup at Lakes Park — we're always the green tent!"},
@@ -3399,7 +3403,7 @@ function globalSearchSeeAll(listType, query) {
   if(listType === 'markets') {
     navigate('markets');
   } else if(listType === 'vendors') {
-    navigate('vendors');
+    navigate('vendors-list');
   }
 }
 
@@ -3564,7 +3568,7 @@ function navigate(page, id) {
   ST.previousPage = ST.currentPage;
   ST.previousId = ST.currentId;
   // Clear globalSearchOverride when navigating away from markets/vendors
-  if(ST.globalSearchOverride && page !== 'markets' && page !== 'vendors') {
+  if(ST.globalSearchOverride && page !== 'markets' && page !== 'vendors-list') {
     ST.globalSearchOverride = '';
     ST.vendorListSearch = '';
   }
@@ -4576,18 +4580,16 @@ function renderHome() {
 }
 
 /* ── VENDORS LIST PAGE ── */
-function renderVendorsList() {
-  const sb = document.getElementById('scrollBody');
-  if(sb) sb.classList.remove('explore-mode');
-
-  // Apply temporary search override from global search "see all" — clears on input change
-  if(ST.globalSearchOverride && !ST.vendorListSearch) {
-    ST.vendorListSearch = ST.globalSearchOverride;
-  }
-  let vendorSearch = ST.vendorListSearch || '';
-  let catFilter = ST.vendorListCat || '';
-
-  const renderList = () => {
+/* v1.74.56 — list body hoisted out of renderVendorsList so the search box's
+   oninput can re-render ONLY the results (renderVendorsListBody) instead of
+   rebuilding the whole page and destroying the input mid-keystroke. Reads
+   ST.vendorListSearch / ST.vendorListCat directly. Also toggles the × clear
+   button (vendorListClear) and updates the count. */
+function renderVendorsListBody() {
+    const vendorSearch = ST.vendorListSearch || '';
+    const catFilter = ST.vendorListCat || '';
+    const clearBtn = document.getElementById('vendorListClear');
+    if(clearBtn) clearBtn.style.display = vendorSearch ? 'inline' : 'none';
     let vendors = DATA.vendors.filter(v => v.published && (!getActiveRegions() || getActiveRegions().includes(v.region)));
     if(vendorSearch) {
       const q = vendorSearch.toLowerCase();
@@ -4636,7 +4638,20 @@ function renderVendorsList() {
     listEl.innerHTML = h;
     const countEl = document.getElementById('vendorListCount');
     if(countEl) countEl.textContent = vendors.length + ' vendors';
-  };
+}
+
+function renderVendorsList() {
+  const sb = document.getElementById('scrollBody');
+  if(sb) sb.classList.remove('explore-mode');
+
+  // Apply temporary search override from global search "see all" — consumed
+  // once here; any user edit or × click clears the override (v1.74.56) so it
+  // can never re-copy itself back into an emptied box.
+  if(ST.globalSearchOverride && !ST.vendorListSearch) {
+    ST.vendorListSearch = ST.globalSearchOverride;
+  }
+  let vendorSearch = ST.vendorListSearch || '';
+  let catFilter = ST.vendorListCat || '';
 
   document.getElementById('scrollBody').innerHTML = `<div>
     <div style="background:var(--surface);padding:12px 16px;border-bottom:0.5px solid var(--border);position:sticky;top:0;z-index:10">
@@ -4644,8 +4659,8 @@ function renderVendorsList() {
       <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:10px">All Vendors</div>
       <div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-pill);padding:8px 14px;margin-bottom:10px">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input value="${vendorSearch}" placeholder="Search vendors, categories, cities..." style="border:none;background:transparent;outline:none;flex:1;font-size:13px;font-family:var(--font-sans);color:var(--text)" oninput="ST.vendorListSearch=this.value;renderVendorsList()">
-        ${vendorSearch ? `<button onclick="ST.vendorListSearch='';renderVendorsList()" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px">×</button>` : ''}
+        <input value="${vendorSearch}" placeholder="Search vendors, categories, cities..." style="border:none;background:transparent;outline:none;flex:1;font-size:13px;font-family:var(--font-sans);color:var(--text)" oninput="ST.globalSearchOverride='';ST.vendorListSearch=this.value;renderVendorsListBody()">
+        <button id="vendorListClear" onclick="ST.globalSearchOverride='';ST.vendorListSearch='';renderVendorsList()" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px;display:${vendorSearch ? 'inline' : 'none'}">×</button>
       </div>
       <div style="display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px">
         <div onclick="ST.vendorListCat='';renderVendorsList()" style="padding:5px 12px;border:0.5px solid ${!catFilter?'var(--green)':'var(--border-med)'};border-radius:var(--r-pill);font-size:11px;cursor:pointer;background:${!catFilter?'var(--green-lt)':'var(--surface)'};color:${!catFilter?'var(--green-dk)':'var(--text2)'};white-space:nowrap;flex-shrink:0">All</div>
@@ -4662,7 +4677,7 @@ function renderVendorsList() {
     ${DISCLAIMER_HTML}
   </div>`;
 
-  renderList();
+  renderVendorsListBody();
 }
 
 /* ── CATEGORY DESCRIPTIONS ── */
@@ -11138,7 +11153,7 @@ async function renderOperatorDash() {
       <div style="flex:1">
         <div style="font-size:12px;font-weight:600;color:#B91C1C;margin-bottom:4px">Your Pro trial has ended</div>
         <div style="font-size:11px;color:#B91C1C;opacity:.85;margin-bottom:8px">Your account has moved to the free tier. Upgrade to keep announcements, analytics, and ad-free market pages.</div>
-        <button onclick="ST.sub='me';renderCurrentPage()" style="padding:7px 16px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Upgrade to Pro — $29/mo →</button>
+        <button onclick="navigate('me')" style="padding:7px 16px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:12px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Upgrade to Pro — $29/mo →</button>
       </div>
     </div>`;
   } else if(isFreeTrial && ST.opTrialStart) {
@@ -11162,7 +11177,7 @@ async function renderOperatorDash() {
       <div style="flex:1">
         <div style="font-size:12px;font-weight:600;color:${textColor};margin-bottom:2px">${label}</div>
         <div style="font-size:11px;color:${textColor};opacity:.85${warning?';margin-bottom:8px':''}">${sub}</div>
-        ${warning ? `<button onclick="ST.sub='me';renderCurrentPage()" style="padding:6px 14px;background:${urgent?'var(--terra)':'var(--amber)'};color:#fff;border:none;border-radius:var(--r-pill);font-size:11px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Upgrade to Pro →</button>` : ''}
+        ${warning ? `<button onclick="navigate('me')" style="padding:6px 14px;background:${urgent?'var(--terra)':'var(--amber)'};color:#fff;border:none;border-radius:var(--r-pill);font-size:11px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">Upgrade to Pro →</button>` : ''}
       </div>
     </div>`;
   }
@@ -11171,11 +11186,11 @@ async function renderOperatorDash() {
     ? `<span style="color:var(--green-dk);font-weight:500">Operator Pro</span>`
     : isFreeTrial
       ? `<span style="color:var(--green-dk);font-weight:500">Pro Trial</span> <span style="color:var(--text3)">· Founding operator</span>`
-      : `${t('free_tier')} · <span style="color:var(--terra);cursor:pointer;font-weight:500" onclick="ST.sub='me';renderCurrentPage()">${t('upgrade_pro')} — $29/mo</span>`;
+      : `${t('free_tier')} · <span style="color:var(--terra);cursor:pointer;font-weight:500" onclick="navigate('me')">${t('upgrade_pro')} — $29/mo</span>`;
 
   const adSection = isFree ? `<div class="dash-ad"><div><div class="ad-label">${t('ad_label')}</div><div class="ad-text">${t('operator_upgrade')}</div></div><div class="ad-placeholder">📢</div></div>` : '';
 
-  const upgradeBanner = isFree ? `<div class="upgrade-banner"><span style="font-size:20px">⭐</span><div class="upgrade-text">${t('upgrade_banner')} <strong>$29/mo · ${t('first_month_free')}</strong></div><button class="upgrade-btn" onclick="ST.sub='me';renderCurrentPage()">${t('upgrade_pro')}</button></div>` : '';
+  const upgradeBanner = isFree ? `<div class="upgrade-banner"><span style="font-size:20px">⭐</span><div class="upgrade-text">${t('upgrade_banner')} <strong>$29/mo · ${t('first_month_free')}</strong></div><button class="upgrade-btn" onclick="navigate('me')">${t('upgrade_pro')}</button></div>` : '';
 
   document.getElementById('scrollBody').innerHTML = `<div class="operator-dash">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
@@ -11191,7 +11206,7 @@ async function renderOperatorDash() {
     <div class="dash-grid">
       <div class="dash-card"><div class="dash-card-num">${myMarkets.length}</div><div class="dash-card-label">${t('your_markets')}</div></div>
       <div class="dash-card"><div class="dash-card-num">${totalFollowers}</div><div class="dash-card-label">${t('total_followers')}</div></div>
-      <div class="dash-card" ${isFree?`onclick="ST.sub='me';renderCurrentPage()" style="cursor:pointer"`:''}><div class="dash-card-num">${!isFree ? totalPageViews : '🔒'}</div><div class="dash-card-label">${t('page_views')}${isFree?' · Pro':''}</div></div>
+      <div class="dash-card" ${isFree?`onclick="navigate('me')" style="cursor:pointer"`:''}><div class="dash-card-num">${!isFree ? totalPageViews : '🔒'}</div><div class="dash-card-label">${t('page_views')}${isFree?' · Pro':''}</div></div>
       <div class="dash-card"><div class="dash-card-num">${DATA.vendors.filter(v=>v.claimed&&myMarkets.some(m=>v.markets&&v.markets.includes(m.id))).length}</div><div class="dash-card-label">${t('claimed_vendors')}</div></div>
     </div>
 
@@ -11203,7 +11218,7 @@ async function renderOperatorDash() {
       <div style="display:flex;flex-direction:column;gap:10px">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);${isFree?'opacity:0.6':''}">
           <div><div style="font-size:13px;font-weight:500;color:var(--text)">📣 Post announcement</div><div style="font-size:11px;color:var(--text3)">Notify all market followers</div></div>
-          ${isFree ? `<span style="font-size:14px">🔒</span>` : `<span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="ST.sub='following';ST.currentPage=null;renderCurrentPage()">Post →</span>`}
+          ${isFree ? `<span style="font-size:14px">🔒</span>` : `<span style="font-size:12px;color:var(--terra);cursor:pointer;font-weight:500" onclick="navigate('following')">Post →</span>`}
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);${isFree?'opacity:0.6':''}">
           <div><div style="font-size:13px;font-weight:500;color:var(--text)">📲 Share your page</div><div style="font-size:11px;color:var(--text3)">Post updates to Facebook & Instagram</div></div>
@@ -15777,7 +15792,7 @@ function _makeShareModalRow(label, hasCont, addLabel, navAction, fbKey, igKey, m
 // ── Build schedule share section (injected into schedule page) ──
 function buildVendorScheduleShareSection(marketIds) {
   if(!marketIds || !marketIds.length) {
-    return "<div class=\"dash-section\"><div style=\"font-size:13px;color:var(--text2);text-align:center;padding:8px 0\">No markets on your schedule yet. <span onclick=\"ST.sub='markets';ST.currentPage=null;renderCurrentPage()\" style=\"color:var(--green-dk);cursor:pointer;text-decoration:underline\">Add your markets</span> to share your schedule.</div></div>";
+    return "<div class=\"dash-section\"><div style=\"font-size:13px;color:var(--text2);text-align:center;padding:8px 0\">No markets on your schedule yet. <span onclick=\"navigate('markets')\" style=\"color:var(--green-dk);cursor:pointer;text-decoration:underline\">Add your markets</span> to share your schedule.</div></div>";
   }
   return "<div class=\"dash-section\">"
     + "<div class=\"dash-section-title\">Share your schedule</div>"
@@ -18295,7 +18310,7 @@ async function downloadData() {
   const btn = document.getElementById('backupBtn');
   if(btn) { btn.disabled = true; btn.textContent = 'Exporting…'; }
   const TABLES = ['vendors','markets','operators','vendor_markets','users','claims','messages','message_replies','products','follows','attendance','announcements','preorder_interest','shopper_profiles','regions','cities','area_requests','listing_reports'];
-  const payload = { exported: new Date().toISOString(), app_version: '1.74.53', tables: {} };
+  const payload = { exported: new Date().toISOString(), app_version: '1.74.57', tables: {} };
   const failed = [];
   try {
     if(!supabaseClient) throw new Error('Supabase not connected');
@@ -18481,7 +18496,7 @@ function renderAdminSettings() {
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Platform Info</div>
-        <div class="admin-row-meta">Version 1.74.53 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
+        <div class="admin-row-meta">Version 1.74.57 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Coverage Area</div>
