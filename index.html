@@ -18,6 +18,8 @@
 <!-- v1.74.43 — Hotfix: vendor AND operator onboarding wizards rendering raw HTML as visible text (regression introduced in v1.74.39, present in .39-.42). Root cause: the v1.74.39 XSS pass wrapped the ENTIRE step template in esc() at the two wizard render sites (${esc(s.content)} in showVendorOnboarding and showOperatorOnboarding) — but s.content is trusted app-authored HTML markup, so escaping it displayed the markup as text. All user-entered data inside those templates (name, email, phone, website, etc.) was ALREADY individually escaped at the field level (value="${esc(...)}"), so the outer wrap added no protection — it only broke rendering. Fix: outer esc() removed from both sites (${s.content}); field-level escaping inside is untouched, step titles/subtitles remain escaped (plain text, correct). XSS posture unchanged. LESSON for future escaping passes: esc() belongs at the individual user-data interpolation, never around an app-built HTML template — if a template renders as visible tags, look for a wholesale esc() wrap at the render site. -->
 <!-- v1.74.44 — Backlog build (paired with Supabase changes, all approved: migration add_nudge_columns_and_pg_net, Edge Function nudge-unread v1, migration schedule_daily_nudge_unread). (1) SHOPPER NOTIFICATION TOAST REFACTOR (closes the known leftover from v1.74.38): the My Account notification toggles built their toast inside a huge inline onclick with `const t` shadowing the translation function — which is why those strings couldn't be translated. Refactored into a named notifPrefToggle() helper using showToast + t(); both the live email-updates toggle and the hidden SMS toggle (inside the v1.74.5 preserved-markup comment, so restoring it later brings the fixed version) now use it. Four new trilingual keys: ms_email_on/off, ms_sms_on/off (EN/ES/PT, dictionary parity maintained). (2) 24-HOUR UNREAD MESSAGE NUDGE (closes a long-standing backlog item): new nudge-unread Edge Function runs daily at 13:00 UTC (9am EDT) via pg_cron + pg_net (pg_net enabled this session; pg_cron was already installed), finds message threads with unread activity older than 24h, and sends ONE reminder email per activity burst via the existing send-email/Resend pipeline. Covers BOTH directions: vendor/admin hasn't read a customer message (read=false + latest customer-side activity >24h old), and shopper hasn't read a vendor/admin reply (sender_last_read_at predates the latest non-customer reply by >24h). Dedupe via two new columns, messages.nudge_sent_at (recipient side) and messages.sender_nudge_sent_at (shopper side) — a nudge is only sent if the last nudge predates the newest qualifying activity, so nobody is ever nudged twice for the same message; instant new-message emails (last_emailed_at) are untouched and separate. Threads deleted/hidden by a side (deleted_by user ids) are skipped for that side; 50-email safety cap per run; supports POST {"dry":true} for a no-send preview. Dry run against live data matched exactly 2 threads — both Keith's own test accounts with old unread support replies — validating the logic; each will receive one reminder on the first scheduled run. The cron job authenticates with the publishable anon key (already public in this page's source; the function's dedupe makes extra invocations harmless). NO changes to app behavior in this file for item 2 — it is entirely server-side; this file's changes are item 1 only. -->
 <!-- v1.74.45 — Quick fix: operator dashboard URL. The operator dashboard never updated the browser URL (unlike the vendor dashboard, which sets /vendors/dashboard via replaceState) — so after operator sign-in the URL stayed at /markets/login, and after viewing a public market/vendor page and returning to the dashboard, the URL stayed stuck on that public page's path (a refresh there would deep-link back onto that public page instead of the dashboard). Fix: renderOperatorDash now mirrors the vendor dashboard pattern — replaceState to /markets/dashboard plus document.title, skipped on file:// for local testing. Code only, no Supabase changes. Bug present in all prior versions incl. live v1.74.38. -->
+<!-- v1.74.53 — Admin dashboard QoL (no DB changes). (1) TIER PICKER: the vendor Pro/Trial/Free/Expired pill no longer blind-toggles the pro boolean (which left trial_start behind and made the resulting label unpredictable) — clicking now opens a 3-option picker (Free = pro off + trial cleared; Trial = fresh trial_start today; Pro = pro on) via new adminSetVendorTier(); popover closes on outside click. (2) USERS TAB: vendor/operator user rows now show their linked business name in the meta line (🧺 vendor name via users.vendor_id, 🏪 operator name via users.operator_id, from in-memory DATA — no extra queries; silently omitted if the link is missing). (3) SORT CONTROLS: Claims pending/history get Newest/Oldest/A–Z/Z–A (claims mapping now retains raw created_at as createdAt for exact date sorting); Messages inbox gets Newest/Oldest/Unread first/A–Z/Z–A by sender (sorted copy — ST.adminMessages order untouched so nav unread logic is unaffected); Follows gets Most/Fewest/A–Z/Z–A applied to both the vendor and market lists; Views gets a mode-aware sort — All Views: Newest/Oldest (flips the server-side order and resets pagination), Unique visitors: Most/Fewest views, Recently seen, A–Z/Z–A by email (guests sort to the bottom on A–Z). Each tab keeps its own sort state (ST.adminClaimsSort / adminMsgSort / adminFollowsSort / adminViewsSortAll / adminViewsSortUnique) for the session. -->
+<!-- v1.74.52 — Privileged-field lockdown (paired Supabase migration login_email_and_privileged_field_protection, applied this session after BEGIN/ROLLBACK testing). DB side: (1) New admin-only login_email column on vendors + operators — the trusted login identity, separate from the vendor-editable public email; backfilled for all existing linked/claimed rows from their auth accounts. (2) protect_sensitive_user_fields (users role-escalation trigger) now validates vendor/operator role grants against login_email instead of the editable public email, closing the loophole where the trust anchor was a field the vendor could change; added auth.uid() IS NULL escape so service-role/edge-function writes are unaffected. (3) New BEFORE INSERT/UPDATE triggers on vendors + operators: for non-admin user sessions, privileged columns (id, pro, trial_start, claimed, published [vendors only], login_email, trial_warning flags) are silently reverted to their old values on update and forced to safe defaults on insert — silent revert rather than an exception because dbSaveVendor upserts the whole vendor object on every self-serve save, so raising would break every vendor profile save. Net: a vendor can no longer self-upgrade to Pro, extend their own trial, or flip claimed status via direct API calls; normal profile edits are unchanged. HTML side (this build): claim-approval flow now writes login_email alongside email for both vendor and operator approvals (required — the rewritten users trigger reads it when the new vendor/operator signs in and their role is set); test-vendor reset flow clears login_email. No other code paths touched. -->
 <!-- v1.74.51 — "Help us grow Windmill" hub (phase 2 of the report/referral system; paired Supabase migration add_market_referral_to_listing_reports already applied: type CHECK widened to include market_referral, three nullable columns added — referral_market_name / _city / _schedule). (1) ENTRY POINTS: signed-in shopper Me tab gets a "🌱 Help us grow Windmill" row directly under About Windmill, opening renderMeSection('grow') with three entry cards; signed-out Me view gets the same three cards in a card below the Contact us / Follow us blocks (per Keith — the natural closing beat after the mission content). Both entry points open the same modals, which already handle both auth states from v1.74.49 (prefilled fields + no CTA when signed in; manual name/email + one-click account CTA when signed out). Customer view only. (2) SUGGEST AN UPDATE (generic): typeahead (lrTaHTML/lrTaInput/lrTaPick) searching UNCLAIMED vendors + UNCLAIMED markets together (markets also match on city), results labeled Vendor/Market; picking a result hands off to the existing v1.74.49 correction form for that listing. Unclaimed-only is deliberate: claimed listings are managed by their owners — shoppers who disagree with a claimed listing's info can message the owner directly. Zero-results state doubles as lead capture: "Can't find it? → Refer this vendor / market instead" flips to the referral forms with the typed text carried over. (3) REFER A VENDOR (generic): vendor name required + OPTIONAL market typeahead over ALL markets (a missing vendor can sell at a claimed market) + sells/contact/notes; submits as vendor_referral with listing_id/name from the pick or null. (4) REFER A MARKET (new): market name + city required, schedule + notes optional; submits as market_referral into the new columns. All three reuse the shared contact tail (name/email/role, honeypot, and the full sgOpen/sgCheck spam-guard stack) via new lrContactTailHTML(); typeahead onclick handlers pass IDs only (names with apostrophes like "Keith's Kookies" never enter attribute strings). (5) ADMIN: reports queue now renders market referrals with a 🏪 badge and name/city/schedule line; vendor-referral badge relabeled "🌱 Vendor referral"; row title falls back to the referred market name or "(no market given)" for generic referrals; View button renders only when a listing_id exists; mailto subject handles null listing names. Admin load maps the three new columns. (6) ~20 new trilingual t() keys (grow_/lr_ prefixes), EN/ES/PT parity. -->
 <!-- v1.74.50 — Placement fix for the v1.74.49 report links (code-only, no Supabase changes). Both the "Suggest an update" link (vendor + market pages) and the "Refer a vendor" link (market pages) previously rendered near the very bottom of the page — after the "More vendors near you" / "Also at this market" strips on vendor pages and after the "Other markets in your area" carousel on market pages — where they visually read as belonging to those OTHER listings rather than the one being viewed. Moved both to sit directly under the DISCLAIMER_HTML block ("Market details may vary…"), which is right below the schedule (vendor pages) / vendor grid (market pages): the exact spot a shopper is looking when they notice something wrong or missing, and thematically paired with the accuracy disclaimer. Visibility rules unchanged: suggest-an-update on unclaimed listings only; refer-a-vendor on all market pages. -->
 <!-- v1.74.49 — "Suggest an update" + "Refer a vendor" (paired with one Supabase migration: create_listing_reports_table — BEGIN/ROLLBACK-tested; see delivery notes for apply status). (1) NEW TABLE listing_reports: public INSERT (anon + authenticated), admin-only read/update/delete via is_admin(), CHECK constraints on type (correction | vendor_referral) and listing_type (vendor | market); added to the full-backup table list. Inserts deliberately do NOT chain .select() — admin-only-read table, RETURNING would be RLS-blocked and fake-fail every real submission; error-check alone is reliable for INSERTs (same documented pattern as area_requests, v1.74.41). (2) PUBLIC PROMPTS: unclaimed vendor pages and unclaimed market pages get a low-key "See something wrong? Suggest an update" text link near the page bottom; ALL market pages (claimed or not) additionally get "Know a vendor here that's not on Windmill? Refer them" — referral is vendor acquisition, not error correction, and everything routes to admin only (deliberately NOT forwarded to operators: referrals are admin's GTM leads, and submitter info shouldn't be shared with third parties). (3) REPORT MODAL (listingReportModal, body rendered per-open): listing pre-filled read-only from the page (no "different listing" picker — report from that listing's page instead); correction form has a per-listing-type issue dropdown (vendor: wrong name / wrong-missing markets / wrong schedule / broken link-photo / no longer in business / other; market: wrong name / wrong-missing vendors / wrong schedule-hours / wrong location / broken link-photo / market closed / other) + required description; referral form has vendor name (required) / what they sell / contact if known / optional notes; both collect name + email (pre-filled when logged in) + shopper-vendor-operator role select. Full spam-guard stack (honeypot + 3s minimum-time + localStorage throttle via existing sgOpen/sgCheck; no CAPTCHA, consistent with v1.74.41 decision). (4) POST-SUBMIT FUNNEL: thank-you state offers one-click "Create my free account" reusing the just-entered name/email (opens the existing signup modal pre-filled — no re-typing; skipped when already logged in), plus a claim prompt when a self-identified vendor reports on a vendor page or operator on a market page ("Is this your business? / Do you run this market? Claim your free listing"). (5) ADMIN RECEIVE SIDE: new "📝 Reports" pill in the Claims tab (alongside Vendors / Markets / Pre-Orders; count shows NEW reports only) with New/History subtabs; each row shows referral-vs-report badge, listing type, category label, description, referred-vendor details, submitter info, View deep-link, mailto Reply, and status actions (New → Done / Reviewed / Dismissed, with Reopen from History) persisted via vUpdate. Admin also gets a per-submission email alert through the existing sendWindmillEmail helper (fire-and-forget — the table row is the source of truth; a Resend hiccup never loses a report). Reports load at admin login using the same admin-only-read pattern as pre-order interest. (6) ~35 new trilingual t() keys (lr_ prefix), EN/ES/PT parity. Deferred to a later version per plan: About-page "Help us grow" hub and the standalone refer-a-market form. -->
@@ -1310,6 +1312,7 @@ async function loadFromSupabase() {
             id: c.id,
             vendorId: c.vendor_id,
             vendorName: c.vendor_name || c.vendor_id,
+            createdAt: c.created_at || '',
             claimant: c.claimant_name,
             email: c.email,
             phone: c.phone || '',
@@ -11640,7 +11643,14 @@ function renderAdminPanel() {
         <button class="admin-subtab ${ST.adminClaimsTab!=='history'?'active':''}" onclick="ST.adminClaimsTab='pending';renderAdminPanel()">Pending (${pending.length})</button>
         <button class="admin-subtab ${ST.adminClaimsTab==='history'?'active':''}" onclick="ST.adminClaimsTab='history';renderAdminPanel()">History (${history.length})</button>
       </div>`;
-      const showList = ST.adminClaimsTab==='history' ? history : pending;
+      const cSort = ST.adminClaimsSort || 'newest';
+      const showList = [...(ST.adminClaimsTab==='history' ? history : pending)].sort((a,b)=>{
+        if(cSort==='oldest') return new Date(a.createdAt||0) - new Date(b.createdAt||0);
+        if(cSort==='az') return (a.vendorName||'').localeCompare(b.vendorName||'');
+        if(cSort==='za') return (b.vendorName||'').localeCompare(a.vendorName||'');
+        return new Date(b.createdAt||0) - new Date(a.createdAt||0);
+      });
+      if(showList.length>0) h += `<div style="display:flex;justify-content:flex-end;margin:2px 0 8px 0"><select onchange="ST.adminClaimsSort=this.value;renderAdminPanel()" style="font-size:11px;padding:5px 8px;border:0.5px solid var(--border-med);border-radius:var(--r-sm);background:var(--surface2);font-family:var(--font-sans);color:var(--text2)"><option value="newest" ${cSort==='newest'?'selected':''}>Newest first</option><option value="oldest" ${cSort==='oldest'?'selected':''}>Oldest first</option><option value="az" ${cSort==='az'?'selected':''}>A–Z</option><option value="za" ${cSort==='za'?'selected':''}>Z–A</option></select></div>`;
       if(showList.length===0) {
         h += `<div style="text-align:center;padding:32px;color:var(--text2);font-size:13px">${ST.adminClaimsTab==='history'?'No claim history yet':'No pending claims 🎉'}</div>`;
       } else {
@@ -11687,6 +11697,7 @@ function renderAdminPanel() {
         <button class="admin-subtab ${ST.adminMsgTab==='compose'?'active':''}" onclick="ST.adminMsgTab='compose';ST.adminMsgThread=null;renderAdminPanel()">✏️ New</button>
         <button class="admin-subtab ${ST.adminMsgTab==='announce'?'active':''}" onclick="ST.adminMsgTab='announce';ST.adminMsgThread=null;renderAdminPanel()">📢 Announce</button>
       </div>
+      ${ST.adminMsgTab==='inbox'&&!ST.adminMsgThread?`<select onchange="ST.adminMsgSort=this.value;renderAdminPanel()" style="font-size:11px;padding:5px 8px;border:0.5px solid var(--border-med);border-radius:var(--r-sm);background:var(--surface2);font-family:var(--font-sans);color:var(--text2)"><option value="newest" ${(ST.adminMsgSort||'newest')==='newest'?'selected':''}>Newest first</option><option value="oldest" ${ST.adminMsgSort==='oldest'?'selected':''}>Oldest first</option><option value="unread" ${ST.adminMsgSort==='unread'?'selected':''}>Unread first</option><option value="az" ${ST.adminMsgSort==='az'?'selected':''}>A–Z</option><option value="za" ${ST.adminMsgSort==='za'?'selected':''}>Z–A</option></select>`:''}
     </div>`;
 
     if(ST.adminMsgTab==='inbox') {
@@ -11732,7 +11743,16 @@ function renderAdminPanel() {
           h += `<div style="text-align:center;padding:32px;color:var(--text2);font-size:13px">No messages yet</div>`;
         } else {
           h += `<div class="admin-table">`;
-          ST.adminMessages.forEach(msg => {
+          const mSort = ST.adminMsgSort || 'newest';
+          const _mLast = (m) => { let t = new Date(m.created_at || m.date || 0).getTime(); (m.replies||[]).forEach(r=>{ const rt = new Date(r.created_at||0).getTime(); if(rt>t) t = rt; }); return t; };
+          const _msgs = [...ST.adminMessages].sort((a,b)=>{
+            if(mSort==='oldest') return _mLast(a) - _mLast(b);
+            if(mSort==='unread') return ((isAdminThreadUnread(b)?1:0) - (isAdminThreadUnread(a)?1:0)) || (_mLast(b) - _mLast(a));
+            if(mSort==='az') return (a.from||'').localeCompare(b.from||'');
+            if(mSort==='za') return (b.from||'').localeCompare(a.from||'');
+            return _mLast(b) - _mLast(a);
+          });
+          _msgs.forEach(msg => {
             const colors = [{bg:'#EEF2EB',c:'#3D6B35'},{bg:'#FDF3DC',c:'#7A4E08'},{bg:'#FAEDE6',c:'#7A2E10'}];
             const col = colors[msg.id.charCodeAt(1)%3];
             // Preview the most recent message in the thread (a reply if there is
@@ -11837,7 +11857,7 @@ function renderAdminPanel() {
           ul += `<div class="admin-row">
             <div class="admin-row-info">
               <div class="admin-row-name">${esc(u.name||'—')} <span style="font-size:10px;color:${roleColor[u.role]||'var(--text3)'};font-weight:500;text-transform:uppercase">${u.role||'customer'}</span></div>
-              <div class="admin-row-meta">${esc(u.email)} · Joined ${joined}</div>
+              <div class="admin-row-meta">${esc(u.email)}${(()=>{ if(u.vendor_id){const b=DATA.vendors.find(x=>x.id===u.vendor_id); if(b) return ' · 🧺 '+esc(b.name);} if(u.operator_id){const b=DATA.operators.find(x=>x.id===u.operator_id); if(b) return ' · 🏪 '+esc(b.name);} return ''; })()} · Joined ${joined}</div>
             </div>
             <div class="admin-row-actions">
               <select onchange="adminChangeUserRole('${u.id}',this.value)" style="font-size:11px;padding:4px 6px;border:0.5px solid var(--border-med);border-radius:var(--r-sm);background:var(--surface2);font-family:var(--font-sans)">
@@ -11879,10 +11899,18 @@ function renderAdminPanel() {
           if(f.market_id) marketCounts[f.market_id] = (marketCounts[f.market_id]||0) + 1;
         });
 
-        let html = `<div style="font-size:12px;color:var(--text2);margin-bottom:12px">Total follows: ${followList.length}</div>`;
+        const fSort = ST.adminFollowsSort || 'most';
+        const fName = (id, isVendor) => { const x = isVendor ? DATA.vendors.find(v=>v.id===id) : DATA.markets.find(m=>m.id===id); return (x?.name || id).toLowerCase(); };
+        const followSorter = isVendor => (a,b) => {
+          if(fSort==='fewest') return a[1] - b[1];
+          if(fSort==='az') return fName(a[0],isVendor).localeCompare(fName(b[0],isVendor));
+          if(fSort==='za') return fName(b[0],isVendor).localeCompare(fName(a[0],isVendor));
+          return b[1] - a[1];
+        };
+        let html = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div style="font-size:12px;color:var(--text2)">Total follows: ${followList.length}</div><select onchange="ST.adminFollowsSort=this.value;renderAdminPanel()" style="font-size:11px;padding:5px 8px;border:0.5px solid var(--border-med);border-radius:var(--r-sm);background:var(--surface2);font-family:var(--font-sans);color:var(--text2)"><option value="most" ${fSort==='most'?'selected':''}>Most follows</option><option value="fewest" ${fSort==='fewest'?'selected':''}>Fewest follows</option><option value="az" ${fSort==='az'?'selected':''}>A–Z</option><option value="za" ${fSort==='za'?'selected':''}>Z–A</option></select></div>`;
 
         // Vendors with follows
-        const vendorFollows = Object.entries(vendorCounts).sort((a,b)=>b[1]-a[1]);
+        const vendorFollows = Object.entries(vendorCounts).sort(followSorter(true));
         if(vendorFollows.length > 0) {
           html += `<div style="font-size:12px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Vendors</div>
           <div class="admin-table" style="margin-bottom:16px">`;
@@ -11901,7 +11929,7 @@ function renderAdminPanel() {
         }
 
         // Markets with follows
-        const marketFollows = Object.entries(marketCounts).sort((a,b)=>b[1]-a[1]);
+        const marketFollows = Object.entries(marketCounts).sort(followSorter(false));
         if(marketFollows.length > 0) {
           html += `<div style="font-size:12px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Markets</div>
           <div class="admin-table">`;
@@ -12072,6 +12100,7 @@ function renderAdminPanel() {
         <select onchange="setAdminViewsRange(this.value)" style="padding:9px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:12px;font-family:var(--font-sans);background:var(--surface);color:var(--text)">
           ${viewsRanges.map(([key,label])=>`<option value="${key}" ${ST.adminViewsRange===key?'selected':''}>${label}</option>`).join('')}
         </select>
+        ${!ST.adminViewsAsType ? `<select onchange="setAdminViewsSort(this.value)" style="padding:9px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:12px;font-family:var(--font-sans);background:var(--surface);color:var(--text)">${(ST.adminViewsMode==='unique'?[['most','Most views'],['fewest','Fewest views'],['recent','Recently seen'],['az','A–Z'],['za','Z–A']]:[['newest','Newest first'],['oldest','Oldest first']]).map(([k,l])=>`<option value="${k}" ${((ST.adminViewsMode==='unique'?(ST.adminViewsSortUnique||'most'):(ST.adminViewsSortAll||'newest'))===k)?'selected':''}>${l}</option>`).join('')}</select>` : ''}
         ${!ST.adminViewsAsType ? `<div class="views-mode-toggle" style="display:flex;border:0.5px solid var(--border-med);border-radius:var(--r-md);overflow:hidden">
           <div onclick="setAdminViewsMode('all')" style="flex:1;text-align:center;padding:9px 10px;font-size:11px;cursor:pointer;white-space:nowrap;background:${ST.adminViewsMode==='all'?'var(--green-lt)':'var(--surface)'};color:${ST.adminViewsMode==='all'?'var(--green-dk)':'var(--text2)'};font-weight:${ST.adminViewsMode==='all'?'600':'400'}">All Views</div>
           <div onclick="setAdminViewsMode('unique')" style="flex:1;text-align:center;padding:9px 10px;font-size:11px;cursor:pointer;white-space:nowrap;border-left:0.5px solid var(--border-med);background:${ST.adminViewsMode==='unique'?'var(--green-lt)':'var(--surface)'};color:${ST.adminViewsMode==='unique'?'var(--green-dk)':'var(--text2)'};font-weight:${ST.adminViewsMode==='unique'?'600':'400'}">👤 Unique</div>
@@ -12094,6 +12123,11 @@ function renderAdminPanel() {
   if(ST.adminTab === 'views') loadAdminViews();
 }
 
+function setAdminViewsSort(v) {
+  if(ST.adminViewsMode === 'unique') ST.adminViewsSortUnique = v; else ST.adminViewsSortAll = v;
+  ST.adminViewsPage = 0;
+  renderAdminPanel();
+}
 async function loadAdminViews() {
   const statsEl = document.getElementById('adminViewsStats');
   const listEl = document.getElementById('adminViewsList');
@@ -12256,7 +12290,15 @@ async function loadAdminViews() {
         if(r.created_at > v.lastSeen) v.lastSeen = r.created_at;
         v.rows.push(r);
       });
-      const visitorList = Object.values(byVisitor).sort((a,b)=>b.count-a.count);
+      const uSort = ST.adminViewsSortUnique || 'most';
+      const uName = v => (v.email || 'zzzz guest ' + v.visitorId).toLowerCase();
+      const visitorList = Object.values(byVisitor).sort((a,b)=>{
+        if(uSort==='fewest') return a.count - b.count;
+        if(uSort==='recent') return new Date(b.lastSeen) - new Date(a.lastSeen);
+        if(uSort==='az') return uName(a).localeCompare(uName(b));
+        if(uSort==='za') return uName(b).localeCompare(uName(a));
+        return b.count - a.count;
+      });
       const totalPages = Math.max(1, Math.ceil(visitorList.length / PAGE_SIZE));
       const pageItems = visitorList.slice(pageStart, pageStart + PAGE_SIZE);
 
@@ -12298,10 +12340,10 @@ async function loadAdminViews() {
     }
 
     /* ── ALL VIEWS: ONE ROW PER PAGE LOAD (existing behavior) ── */
-    let rowsQuery = withCommon(supabaseClient.from('page_views').select('*').order('created_at', {ascending:false}).range(pageStart, pageEnd));
+    let rowsQuery = withCommon(supabaseClient.from('page_views').select('*').order('created_at', {ascending: (ST.adminViewsSortAll||'newest')==='oldest'}).range(pageStart, pageEnd));
     const { data: rows } = await rowsQuery;
 
-    let listHtml = `<div style="font-size:11px;font-weight:500;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Recent views</div>
+    let listHtml = `<div style="font-size:11px;font-weight:500;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">${(ST.adminViewsSortAll||'newest')==='oldest'?'Oldest views first':'Recent views'}</div>
     <div class="admin-table">`;
 
     if(!rows || rows.length === 0) {
@@ -13859,13 +13901,34 @@ function adminToggleVendorClaimed(id, el) {
   if(supabaseClient) vUpdate('vendors', {claimed:v.claimed}, q => q.eq('id',id));
 }
 function adminToggleVendorPro(id, el) {
+  /* v1.74.53 — explicit tier picker instead of a blind toggle. The pill displays four
+     derived states (Pro/Trial/Free/Expired) but the old toggle only flipped the pro
+     boolean and left trial_start behind, so the resulting label was unpredictable.
+     Now the click opens a picker and you choose the exact target state. */
+  document.getElementById('tierPickPop')?.remove();
   const v = DATA.vendors.find(x=>x.id===id);
   if(!v) return;
-  v.pro = !v.pro;
-  if(v.pro && !v.trial_start) v.trial_start = new Date().toISOString();
-  el.textContent = v.pro ? 'Pro' : 'Free';
-  el.className = 'status-pill ' + (v.pro ? 'live' : 'draft');
-  if(supabaseClient) vUpdate('vendors', {pro:v.pro,trial_start:v.trial_start||null}, q => q.eq('id',id));
+  const r = el.getBoundingClientRect();
+  const pop = document.createElement('div');
+  pop.id = 'tierPickPop';
+  pop.style.cssText = `position:fixed;top:${r.bottom+4}px;left:${Math.max(8, r.right-170)}px;z-index:9999;background:var(--surface);border:0.5px solid var(--border-med);border-radius:var(--r-md);box-shadow:0 8px 24px rgba(0,0,0,.15);padding:6px;width:170px;font-family:var(--font-sans)`;
+  const opts = [
+    ['free',  'Free',  'Pro off, trial cleared'],
+    ['trial', 'Trial', 'Starts a fresh trial today'],
+    ['pro',   'Pro',   'Full Pro']
+  ];
+  pop.innerHTML = opts.map(([k,label,hint])=>`<div onclick="adminSetVendorTier('${id}','${k}')" style="padding:8px 10px;border-radius:var(--r-sm);cursor:pointer;font-size:12px" onmouseover="this.style.background='var(--green-lt)'" onmouseout="this.style.background='none'"><b>${label}</b><div style="font-size:10px;color:var(--text3)">${hint}</div></div>`).join('');
+  document.body.appendChild(pop);
+  setTimeout(()=>{ const close = e => { if(!pop.contains(e.target)){ pop.remove(); document.removeEventListener('click', close); } }; document.addEventListener('click', close); }, 0);
+}
+function adminSetVendorTier(id, tier) {
+  document.getElementById('tierPickPop')?.remove();
+  const v = DATA.vendors.find(x=>x.id===id);
+  if(!v) return;
+  if(tier==='free')  { v.pro = false; v.trial_start = null; }
+  if(tier==='trial') { v.pro = false; v.trial_start = new Date().toISOString(); }
+  if(tier==='pro')   { v.pro = true; }
+  if(supabaseClient) vUpdate('vendors', {pro:v.pro, trial_start:v.trial_start||null}, q => q.eq('id',id));
   renderAdminPanel();
 }
 
@@ -13876,7 +13939,7 @@ async function adminResetVendorToUnclaimed(vendorId, vendorName) {
   if(v) { v.claimed = false; v.pro = false; v.trial_start = null; v.email = resetEmail; }
   if(supabaseClient) {
     try {
-      await vUpdate('vendors', { claimed: false, pro: false, trial_start: null, email: resetEmail }, q => q.eq('id', vendorId));
+      await vUpdate('vendors', { claimed: false, pro: false, trial_start: null, email: resetEmail, login_email: null }, q => q.eq('id', vendorId));
       // Disconnect any user account currently linked to this test vendor and reset their email
       await vUpdate('users', { role: 'customer', vendor_id: null, trial_start: null, email: resetEmail }, q => q.eq('vendor_id', vendorId));
       // Clear old claim records so a fresh claim can be submitted without being blocked
@@ -14104,7 +14167,7 @@ async function adminApproveClaimFinalize(claimId, resolvedEmail) {
           const { data: opRecord } = await supabaseClient
             .from('operators').select('id,phone,email').eq('id', operatorId).maybeSingle();
           if(opRecord) {
-            const opUpdate = { trial_start: trialStart, claimed: true, email: finalOperatorEmail, contact_role: c.role || '' };
+            const opUpdate = { trial_start: trialStart, claimed: true, email: finalOperatorEmail, login_email: finalOperatorEmail, contact_role: c.role || '' };
             // Use their claim-time phone as a starting default — never overwrite a real existing number
             if(c.phone && !opRecord.phone) opUpdate.phone = c.phone;
             await vUpdate('operators', opUpdate, q => q.eq('id', operatorId));
@@ -14162,7 +14225,7 @@ async function adminApproveClaimFinalize(claimId, resolvedEmail) {
     if(v) { v.claimed = true; v.trial_start = trialStart; v.email = finalEmail; }
     if(supabaseClient) {
       try {
-        const vendorUpdate = { claimed: true, trial_start: trialStart, email: finalEmail };
+        const vendorUpdate = { claimed: true, trial_start: trialStart, email: finalEmail, login_email: finalEmail };
         // Use their claim-time phone as a starting default — never overwrite a real existing number
         if(c.phone && !v?.phone) vendorUpdate.phone = c.phone;
         await vUpdate('vendors', vendorUpdate, q => q.eq('id', c.vendorId));
@@ -18232,7 +18295,7 @@ async function downloadData() {
   const btn = document.getElementById('backupBtn');
   if(btn) { btn.disabled = true; btn.textContent = 'Exporting…'; }
   const TABLES = ['vendors','markets','operators','vendor_markets','users','claims','messages','message_replies','products','follows','attendance','announcements','preorder_interest','shopper_profiles','regions','cities','area_requests','listing_reports'];
-  const payload = { exported: new Date().toISOString(), app_version: '1.74.51', tables: {} };
+  const payload = { exported: new Date().toISOString(), app_version: '1.74.53', tables: {} };
   const failed = [];
   try {
     if(!supabaseClient) throw new Error('Supabase not connected');
@@ -18418,7 +18481,7 @@ function renderAdminSettings() {
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Platform Info</div>
-        <div class="admin-row-meta">Version 1.74.51 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
+        <div class="admin-row-meta">Version 1.74.53 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Coverage Area</div>
