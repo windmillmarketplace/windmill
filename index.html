@@ -8,80 +8,62 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.74.58 — Shopper signup rate limiting (spam protection): Added three-layer bot defense to the shopper signup form (auth modal, signup mode) to match the existing vendor/operator/crowdsourced-data pattern — honeypot (hidden type="url" field that bots auto-fill), 3-second minimum submission time (bot speed check), and localStorage throttle (max 3 submissions/minute). Honeypot field is invisible, never focusable; bots filling it are silently rejected with a fake success toast so they learn nothing. Timing violations (too fast) and throttle violations (too many/minute) show a user-facing retry prompt (not a silent dismiss, since real humans sometimes make mistakes). Real shoppers filling one form normally will never trigger any check. Email verification (already built, Supabase native) gates actual access — a shopper cannot sign in until they click the confirmation link in their email. This prevents database bloat from bot spam while keeping signup frictionless for real users. (Code only, no Supabase changes.) -->
-<!-- v1.74.19 — Fixed silent save failures (data-loss risk class): (1) Root cause found for "market edits don't stick" bug — markets table was missing a 'phone' column that the edit form was already trying to save, causing Supabase to reject the entire update (400 PGRST204); column added directly in Supabase, confirmed fixed. (2) dbSaveVendor and dbSaveMarket previously swallowed all write failures into console.warn only, with no return value — any caller had no way to know if a save actually worked. Both now return true/false and show a visible on-screen error via new notifySaveError() helper on failure, covering every vendor/market save path (admin edits, vendor self-serve profile edits, gallery uploads, onboarding). (3) All 6 operator onboarding save steps (contact info, tagged markets, cover photo, description, links, setup-complete flag) now show a visible error on failure instead of failing silently. (4) sendShopperReply (shopper replying inline to an existing inbox thread) did not check whether the reply actually saved before clearing the input and showing success — three sibling reply functions already had this check, this one was the outlier; now fixed to match. (5) toggleFollowDB (follow/unfollow vendor or market) previously had zero error handling — a failed database write left the follow button showing the wrong state with no indication of failure; now rolls back the optimistic UI change and shows a visible error if the write fails. Left untouched: background reads/lookups (unread counts, session checks, search-as-you-type, email status polling) where silent failure causes no data loss. -->
-<!-- v1.74.20 — Fixed vendor dashboard product Edit button doing nothing on click. Root cause: the Edit button's onclick attribute was delimited with single quotes, but embedded the vendor ID using raw, unescaped single quotes inside that same attribute — the browser read the first of those as the end of the attribute value, so the onclick handler never actually attached (invalid markup, no console error). Fixed by having the button pass only the product ID and look the full product record up from a small in-memory map (ST._dashProductsById) built when the product grid renders, instead of embedding the whole product object as inline JSON inside an HTML attribute — this also removes any future risk of the same class of bug from product names/descriptions containing quotes or ampersands. Also fixed: deleteProduct() previously had an empty catch block and no return value, so a failed delete looked identical to a successful one (modal closes, grid refreshes, product could still exist in the database). It now returns true/false, and confirmDeleteProduct shows a visible on-screen error via notifySaveError() and leaves the modal open if the delete fails, instead of silently proceeding as if it worked. -->
-<!-- v1.74.21 — Security lockdown pass + pre-order interest now actually works: (1) Supabase RLS: markets/operators tables previously had a "Service write" policy with no role restriction and always-true USING/WITH CHECK — meaning any client, including unauthenticated, could insert/update/delete rows in either table. Replaced with is_admin()-only insert/delete and admin-or-owning-operator update, mirroring the existing vendors/products pattern. Same fix applied to cities/regions (previously any authenticated user, not just admin, could write). (2) preorder_interest table had RLS enabled with zero policies defined — meaning the "Notify me when pre-orders launch" button had been silently failing for every click since it was built; the insert was blocked, caught, and a false success toast shown anyway. Added an insert policy (logged-in users, own record only) and admin-only read/update/delete. (3) vendor-photos storage bucket had two redundant SELECT policies letting anyone list every file in the bucket via the API — not needed since the bucket's own "public" flag already handles direct-URL photo loading without any policy; removed both, upload policies untouched. (4) Revoked direct RPC-call access (anon + authenticated + PUBLIC) on two SECURITY DEFINER trigger-only functions (protect_sensitive_user_fields, rls_auto_enable) — nothing in the app calls these directly, they only fire as triggers, which is unaffected by this. Deliberately left is_admin() untouched despite being flagged by the same scanner category — it's called inside nearly every RLS policy in the database, and revoking direct-call access for a role also revokes that role's ability to have policies evaluate the function on their behalf, which would break RLS platform-wide for every non-admin user. (5) Pre-order interest, now that it actually saves: the public "Get notified" button (on a vendor's public profile page — reachable by shoppers, vendors, or operators browsing that page) was hardcoding role:'shopper' regardless of who was actually logged in; now passes the real ST.role. Added a live email notification to admin (via existing sendWindmillEmail helper) on every new interest submission, and a new "🛒 Pre-Orders" toggle inside the admin Claims tab (alongside the existing Vendors/Markets toggle) showing a read-only list of who's interested in what, with real account-type labels. While in this code: fixed the Vendors pill's "active" check, which previously read `!== 'market'` (so it would incorrectly show active when the new Pre-Orders pill was selected too) — now explicitly checks `=== 'vendor'`. -->
-<!-- v1.74.22 — Market Pro-status now correctly inherited live from its operator, fixing two confirmed go-to-market gaps at once: the Market Gallery and Facebook/Instagram links on a market's public page were gated on the market's own static pro column, which was never kept in sync with the actual operator's plan — meaning a Pro-trial operator's markets stayed locked out of Gallery and social links even though the operator was actively paying (or trialing). Replaced every such check in renderMarketDetail with a live-computed opIsPro, derived the same way vendor Pro status already is elsewhere in the app (operator.pro OR an active 6-month trial from operator.trial_start) — so a market's Pro features now turn on and off automatically and instantly whenever its operator's status changes, with no separate flag to keep in sync and no risk of drift. Also fixed the same underlying bug class in the nearby "Other markets from this operator" carousel, which checked a nonexistent operator.tier field (never a real column on operators) and had silently only ever worked when the operator was viewing their own page — now uses the same live pro/trial computation, so the carousel correctly groups a Pro-trial operator's other markets for every visitor, not just the operator themselves. NOT YET LIVE-TESTED against a real Pro-trial operator with populated Facebook/Instagram/gallery data — needs confirmation on a live market before considering this fully verified. -->
-<!-- v1.74.40 — Reliability build (crucial tier of the health-check plan; no Supabase changes). (1) FULL DATABASE BACKUP: the admin Settings "Download backup" button previously exported only the three in-memory arrays (vendors/markets/operators) — it now exports EVERY table live from Supabase (16 tables incl. users, messages, message_replies, claims, products, follows, attendance, announcements, preorder_interest, shopper_profiles, vendor_markets, regions, cities) as one dated windmill-backup-YYYY-MM-DD.json, paginating past PostgREST's 1000-row page cap so nothing is truncated; page_views capped at the most recent 2000 rows (analytics, non-critical). Per-table failures are reported in a toast instead of failing the whole export. Run weekly. (2) VERIFIED WRITES: new vUpdate() helper chains .select('id') onto updates and treats BOTH an error AND a zero-row result as failure (Supabase returns HTTP 204 success even when RLS silently filters out every row — the root cause of the four prior fake-success-toast bugs). 58 update call sites converted, including the 7 fire-and-forget .then(()=>{}) writes (messaging toggle, notification prefs, read-state bookkeeping, weekly-update/announcement expiry cleanup). Failures now show a visible toast via notifySaveError, except background bookkeeping (read receipts, sender_last_read_at, expiry cleanup, login-email mirror) which logs to console only ({silent:true}) to avoid toast noise. The one remaining raw .update() call (operator market-claim) already had its own .select('id') row-count verification. (3) BUG DISCOVERED during backup work, NOT yet fixed (needs Keith's decision + Supabase approval): the area_requests table DOES NOT EXIST in the database — the shopper "request your area" form inserts into it and shows a success message regardless, so every area request ever submitted has been silently lost. Options: create the table (small migration) or point the form at an existing flow. Admin Platform Info version label also refreshed (was stale at 1.64). -->
-<!-- v1.74.41 — Go-to-market build (paired with one Supabase migration: create_area_requests_table, BEGIN/ROLLBACK-tested then applied with approval). (1) SOCIAL PREVIEW TAGS: added Open Graph + Twitter card meta tags (og:title/description/url/image + twitter:summary_large_image) so any shopwindmill.com link pasted into Facebook, Instagram, WhatsApp, iMessage, etc. expands into a branded preview card instead of a bare link. One global card for all links (share platforms read raw HTML only, no JS — per-vendor cards need a Netlify Edge Function or the Next.js migration; deferred). Points at https://shopwindmill.com/share-image.png — a new 1200x630 branded image (windmill mark + wordmark + tagline in site colors/fonts, Lora + DM Sans) delivered alongside this file; MUST be committed to the repo root next to the HTML or previews show no image. (2) SPAM PROTECTION on public forms — three invisible layers, zero friction for real users: honeypot (hidden 'website' field bots auto-fill → silently dropped with a fake success toast so bots learn nothing), minimum-time-to-submit (submissions <3s after the form rendered are bot-speed → polite retry prompt), and a localStorage throttle (max 3 submissions per form per minute per browser). Fully wired (all three layers) on the three public no-login forms: vendor join/claim, market join/claim, and the area-request page. Throttle-only on the logged-in flows (pre-order interest button, vendor upgrade request) where honeypot/timing don't apply. Deliberately no CAPTCHA — signup friction would cost real vendor signups. (3) AREA REQUESTS ACTUALLY SAVE NOW: new area_requests table created in Supabase (public insert / admin-only read-update-delete, mirroring the claims RLS pattern; anon insert + read-block verified in the rollback test). TWO broken flows found and fixed: (a) the modal flow (submitAreaRequest) inserted into the then-nonexistent table and showed 'Thanks!' regardless — note this modal is orphaned, nothing in the app opens #areaModal; fixed anyway with a verified insert; (b) the LIVE page flow (/area-request → submitAreaReq) never wrote to the database at all — it only pushed into the in-memory ST.areaRequests array, so every real area request ever submitted vanished on page reload. Now inserts to the table with error checking before showing success. IMPORTANT RLS SUBTLETY: these inserts deliberately do NOT chain .select() (unlike the vUpdate pattern) — the table is admin-only read, so RETURNING would be blocked by RLS and make every real submission look like a failure; blocked INSERTs raise a real error (unlike UPDATEs' silent zero-row filtering), so checking `error` alone is reliable here. (4) Admin dashboard's 'Incoming Area Requests' panel now loads real rows from the table at login (admin-only read; empty for everyone else) — the two hardcoded fake demo entries (Tampa/Naples) are removed, so this panel now shows real data only. (5) area_requests added to the full-backup table list. -->
-<!-- v1.74.42 — Polish build (code only, no Supabase changes). (1) LAZY-LOADED remaining images: added loading="lazy" to ~14 image sites that were missing it — vendor avatars in cards/lists (7 sites), market card/list thumbnails, product photos, admin dashboard vendor/operator row photos, and vendor gallery editor thumbs. Deliberately left eager: market/operator detail-page hero photos (above the fold — lazy would delay the most visible image), the lightbox image (src set dynamically on open), and the local file-upload preview (data URL, no network fetch). The existing lazy-pending/data-src IntersectionObserver system for photo strips is untouched. (2) PASSWORD-MANAGER ATTRIBUTES: added the missing autocomplete attributes to the six password fields that lacked them — change-password modal (current-password on the current field, new-password on new+confirm), change-email confirm-password (current-password), and password-recovery set-new-password (new-password on both). Login/signup fields already had them. 1Password/Chrome/iCloud Keychain now reliably offer save + autofill on every password field in the app. (3) REAL BUG FIXED in the "empty catch" cleanup: the vendor-signup users-table upsert (assigns role:'vendor' + vendor_id) had an empty catch AND never checked the returned error — supabase-js doesn't throw, so failures were doubly invisible; a silent failure here breaks vendor login role assignment (the protect_sensitive_user_fields trigger checks vendors.email against the JWT). Now checks the returned error and shows a visible "contact support" message on failure instead of letting the vendor discover it at next login. Remaining empty catches audited and kept deliberately with annotations: localStorage try/catches (private-mode storage failures, intended) and map-marker .remove() cleanup (marker already detached); the vendor share-modal fallback lookup now console.warns instead of swallowing. (4) CONSOLE.LOG CLEANUP: removed 7 routine success logs (data loaded, email sent, vendor/market saved/deleted, role updated). Deliberately kept: sandbox/local-mode notices (intentional test-mode feedback), the backup summary line (added v1.74.40, useful when verifying weekly backups), one-time migration tool progress logs (admin utility), and the dev-mode notice. -->
-<!-- v1.74.43 — Hotfix: vendor AND operator onboarding wizards rendering raw HTML as visible text (regression introduced in v1.74.39, present in .39-.42). Root cause: the v1.74.39 XSS pass wrapped the ENTIRE step template in esc() at the two wizard render sites (${esc(s.content)} in showVendorOnboarding and showOperatorOnboarding) — but s.content is trusted app-authored HTML markup, so escaping it displayed the markup as text. All user-entered data inside those templates (name, email, phone, website, etc.) was ALREADY individually escaped at the field level (value="${esc(...)}"), so the outer wrap added no protection — it only broke rendering. Fix: outer esc() removed from both sites (${s.content}); field-level escaping inside is untouched, step titles/subtitles remain escaped (plain text, correct). XSS posture unchanged. LESSON for future escaping passes: esc() belongs at the individual user-data interpolation, never around an app-built HTML template — if a template renders as visible tags, look for a wholesale esc() wrap at the render site. -->
-<!-- v1.74.44 — Backlog build (paired with Supabase changes, all approved: migration add_nudge_columns_and_pg_net, Edge Function nudge-unread v1, migration schedule_daily_nudge_unread). (1) SHOPPER NOTIFICATION TOAST REFACTOR (closes the known leftover from v1.74.38): the My Account notification toggles built their toast inside a huge inline onclick with `const t` shadowing the translation function — which is why those strings couldn't be translated. Refactored into a named notifPrefToggle() helper using showToast + t(); both the live email-updates toggle and the hidden SMS toggle (inside the v1.74.5 preserved-markup comment, so restoring it later brings the fixed version) now use it. Four new trilingual keys: ms_email_on/off, ms_sms_on/off (EN/ES/PT, dictionary parity maintained). (2) 24-HOUR UNREAD MESSAGE NUDGE (closes a long-standing backlog item): new nudge-unread Edge Function runs daily at 13:00 UTC (9am EDT) via pg_cron + pg_net (pg_net enabled this session; pg_cron was already installed), finds message threads with unread activity older than 24h, and sends ONE reminder email per activity burst via the existing send-email/Resend pipeline. Covers BOTH directions: vendor/admin hasn't read a customer message (read=false + latest customer-side activity >24h old), and shopper hasn't read a vendor/admin reply (sender_last_read_at predates the latest non-customer reply by >24h). Dedupe via two new columns, messages.nudge_sent_at (recipient side) and messages.sender_nudge_sent_at (shopper side) — a nudge is only sent if the last nudge predates the newest qualifying activity, so nobody is ever nudged twice for the same message; instant new-message emails (last_emailed_at) are untouched and separate. Threads deleted/hidden by a side (deleted_by user ids) are skipped for that side; 50-email safety cap per run; supports POST {"dry":true} for a no-send preview. Dry run against live data matched exactly 2 threads — both Keith's own test accounts with old unread support replies — validating the logic; each will receive one reminder on the first scheduled run. The cron job authenticates with the publishable anon key (already public in this page's source; the function's dedupe makes extra invocations harmless). NO changes to app behavior in this file for item 2 — it is entirely server-side; this file's changes are item 1 only. -->
-<!-- v1.74.45 — Quick fix: operator dashboard URL. The operator dashboard never updated the browser URL (unlike the vendor dashboard, which sets /vendors/dashboard via replaceState) — so after operator sign-in the URL stayed at /markets/login, and after viewing a public market/vendor page and returning to the dashboard, the URL stayed stuck on that public page's path (a refresh there would deep-link back onto that public page instead of the dashboard). Fix: renderOperatorDash now mirrors the vendor dashboard pattern — replaceState to /markets/dashboard plus document.title, skipped on file:// for local testing. Code only, no Supabase changes. Bug present in all prior versions incl. live v1.74.38. -->
-<!-- v1.74.57 — Dead dashboard links: ST.sub ghost variable (code-only, no Supabase changes). Seven onclick handlers set ST.sub to switch dashboard tabs, but NOTHING reads ST.sub — the sub-page routers (renderOperatorSubPage / renderVendorSubPage) read ST.tab — so all seven clicks silently re-rendered the same page. Casualties: FIVE operator-dashboard Upgrade-to-Pro buttons/banners (a free operator trying to upgrade had no working path from any of them), the Pro/Trial 📣 Post-announcement quick action (reported by Keith), and the vendor schedule empty-state 'Add your markets' link. All seven replaced with the canonical navigate('me'|'following'|'markets') pattern the bottom nav uses (sets ST.tab, resets scroll, re-renders sidebar/bottom, persists the dashboard tab to sessionStorage per v1.74.48). No ST.sub writers remain. Product note: announcements stay operator-level (one announcement to followers of all the operator's markets) for launch; per-market targeting is backlog — it requires restructuring announcement storage. -->
-<!-- v1.74.56 — Vendors-page search box fixes (code-only, no Supabase changes). Two bugs, one page. (1) FOCUS LOSS (pre-existing since the page was built): the in-page search box's oninput called renderVendorsList(), which rebuilds the ENTIRE page via scrollBody.innerHTML on every keystroke — destroying the input element itself, so focus/cursor died after each character and you had to re-click per letter. Fixed by hoisting the inner renderList closure to top-level renderVendorsListBody() (reads ST.vendorListSearch/ST.vendorListCat directly); oninput now updates state and re-renders ONLY the results list, so the input survives and typing is continuous. Category chips and × still do a full renderVendorsList() — they're clicks, no focus at stake, and they need the header restyled. (2) UN-CLEARABLE CARRIED-OVER SEARCH (exposed by v1.74.55's see-all fix): the override guard re-copied ST.globalSearchOverride into any emptied search box on every render, so × emptied the box and the re-render immediately resurrected the term — combined with bug 1 the box felt locked. Both oninput and × now clear ST.globalSearchOverride, making the see-all hand-off one-shot: term arrives once, then the box is a normal box. (3) × button is now always in the DOM (id=vendorListClear) with display toggled by renderVendorsListBody, so it appears the moment you start typing instead of waiting for a full re-render. Markets page untouched (its carried-over search uses the separate green banner, no inline box). -->
-<!-- v1.74.55 — Global search "See all vendors" dead-end fix (code-only, no Supabase changes). Clicking "See all vendors for '<query>'" in the search dropdown bounced to Home with the search lost. Root cause: globalSearchSeeAll called navigate('vendors'), but no page named 'vendors' exists — the vendors browse page is 'vendors-list' — so renderCurrentPage matched nothing and fell through to the Home default. Two-line fix: (1) navigate('vendors') → navigate('vendors-list'); (2) the override-clear guard in navigate() updated to spare 'vendors-list' instead of the nonexistent 'vendors', so the carried-over search term survives to render. Now lands on Browse Vendors with the search box pre-filled and the full filtered list. "See all markets" was never affected ('markets' is a real tab). Only one navigate('vendors') caller existed — no other paths touched. -->
-<!-- v1.74.54 — Demo data touch-up (code-only, no Supabase changes). The hardcoded demo-vendor-pro (Empanada Queen) weekly_update announcement named Lakes Park, which is out of season for summer — removed Lakes Park from the text, leaving Fort Myers Downtown. One-line change ahead of Saturday vendor outreach so the Pro demo page shows no out-of-season info. -->
-<!-- v1.74.53 — Admin dashboard QoL (no DB changes). (1) TIER PICKER: the vendor Pro/Trial/Free/Expired pill no longer blind-toggles the pro boolean (which left trial_start behind and made the resulting label unpredictable) — clicking now opens a 3-option picker (Free = pro off + trial cleared; Trial = fresh trial_start today; Pro = pro on) via new adminSetVendorTier(); popover closes on outside click. (2) USERS TAB: vendor/operator user rows now show their linked business name in the meta line (🧺 vendor name via users.vendor_id, 🏪 operator name via users.operator_id, from in-memory DATA — no extra queries; silently omitted if the link is missing). (3) SORT CONTROLS: Claims pending/history get Newest/Oldest/A–Z/Z–A (claims mapping now retains raw created_at as createdAt for exact date sorting); Messages inbox gets Newest/Oldest/Unread first/A–Z/Z–A by sender (sorted copy — ST.adminMessages order untouched so nav unread logic is unaffected); Follows gets Most/Fewest/A–Z/Z–A applied to both the vendor and market lists; Views gets a mode-aware sort — All Views: Newest/Oldest (flips the server-side order and resets pagination), Unique visitors: Most/Fewest views, Recently seen, A–Z/Z–A by email (guests sort to the bottom on A–Z). Each tab keeps its own sort state (ST.adminClaimsSort / adminMsgSort / adminFollowsSort / adminViewsSortAll / adminViewsSortUnique) for the session. -->
-<!-- v1.74.52 — Privileged-field lockdown (paired Supabase migration login_email_and_privileged_field_protection, applied this session after BEGIN/ROLLBACK testing). DB side: (1) New admin-only login_email column on vendors + operators — the trusted login identity, separate from the vendor-editable public email; backfilled for all existing linked/claimed rows from their auth accounts. (2) protect_sensitive_user_fields (users role-escalation trigger) now validates vendor/operator role grants against login_email instead of the editable public email, closing the loophole where the trust anchor was a field the vendor could change; added auth.uid() IS NULL escape so service-role/edge-function writes are unaffected. (3) New BEFORE INSERT/UPDATE triggers on vendors + operators: for non-admin user sessions, privileged columns (id, pro, trial_start, claimed, published [vendors only], login_email, trial_warning flags) are silently reverted to their old values on update and forced to safe defaults on insert — silent revert rather than an exception because dbSaveVendor upserts the whole vendor object on every self-serve save, so raising would break every vendor profile save. Net: a vendor can no longer self-upgrade to Pro, extend their own trial, or flip claimed status via direct API calls; normal profile edits are unchanged. HTML side (this build): claim-approval flow now writes login_email alongside email for both vendor and operator approvals (required — the rewritten users trigger reads it when the new vendor/operator signs in and their role is set); test-vendor reset flow clears login_email. No other code paths touched. -->
-<!-- v1.74.51 — "Help us grow Windmill" hub (phase 2 of the report/referral system; paired Supabase migration add_market_referral_to_listing_reports already applied: type CHECK widened to include market_referral, three nullable columns added — referral_market_name / _city / _schedule). (1) ENTRY POINTS: signed-in shopper Me tab gets a "🌱 Help us grow Windmill" row directly under About Windmill, opening renderMeSection('grow') with three entry cards; signed-out Me view gets the same three cards in a card below the Contact us / Follow us blocks (per Keith — the natural closing beat after the mission content). Both entry points open the same modals, which already handle both auth states from v1.74.49 (prefilled fields + no CTA when signed in; manual name/email + one-click account CTA when signed out). Customer view only. (2) SUGGEST AN UPDATE (generic): typeahead (lrTaHTML/lrTaInput/lrTaPick) searching UNCLAIMED vendors + UNCLAIMED markets together (markets also match on city), results labeled Vendor/Market; picking a result hands off to the existing v1.74.49 correction form for that listing. Unclaimed-only is deliberate: claimed listings are managed by their owners — shoppers who disagree with a claimed listing's info can message the owner directly. Zero-results state doubles as lead capture: "Can't find it? → Refer this vendor / market instead" flips to the referral forms with the typed text carried over. (3) REFER A VENDOR (generic): vendor name required + OPTIONAL market typeahead over ALL markets (a missing vendor can sell at a claimed market) + sells/contact/notes; submits as vendor_referral with listing_id/name from the pick or null. (4) REFER A MARKET (new): market name + city required, schedule + notes optional; submits as market_referral into the new columns. All three reuse the shared contact tail (name/email/role, honeypot, and the full sgOpen/sgCheck spam-guard stack) via new lrContactTailHTML(); typeahead onclick handlers pass IDs only (names with apostrophes like "Keith's Kookies" never enter attribute strings). (5) ADMIN: reports queue now renders market referrals with a 🏪 badge and name/city/schedule line; vendor-referral badge relabeled "🌱 Vendor referral"; row title falls back to the referred market name or "(no market given)" for generic referrals; View button renders only when a listing_id exists; mailto subject handles null listing names. Admin load maps the three new columns. (6) ~20 new trilingual t() keys (grow_/lr_ prefixes), EN/ES/PT parity. -->
-<!-- v1.74.50 — Placement fix for the v1.74.49 report links (code-only, no Supabase changes). Both the "Suggest an update" link (vendor + market pages) and the "Refer a vendor" link (market pages) previously rendered near the very bottom of the page — after the "More vendors near you" / "Also at this market" strips on vendor pages and after the "Other markets in your area" carousel on market pages — where they visually read as belonging to those OTHER listings rather than the one being viewed. Moved both to sit directly under the DISCLAIMER_HTML block ("Market details may vary…"), which is right below the schedule (vendor pages) / vendor grid (market pages): the exact spot a shopper is looking when they notice something wrong or missing, and thematically paired with the accuracy disclaimer. Visibility rules unchanged: suggest-an-update on unclaimed listings only; refer-a-vendor on all market pages. -->
-<!-- v1.74.49 — "Suggest an update" + "Refer a vendor" (paired with one Supabase migration: create_listing_reports_table — BEGIN/ROLLBACK-tested; see delivery notes for apply status). (1) NEW TABLE listing_reports: public INSERT (anon + authenticated), admin-only read/update/delete via is_admin(), CHECK constraints on type (correction | vendor_referral) and listing_type (vendor | market); added to the full-backup table list. Inserts deliberately do NOT chain .select() — admin-only-read table, RETURNING would be RLS-blocked and fake-fail every real submission; error-check alone is reliable for INSERTs (same documented pattern as area_requests, v1.74.41). (2) PUBLIC PROMPTS: unclaimed vendor pages and unclaimed market pages get a low-key "See something wrong? Suggest an update" text link near the page bottom; ALL market pages (claimed or not) additionally get "Know a vendor here that's not on Windmill? Refer them" — referral is vendor acquisition, not error correction, and everything routes to admin only (deliberately NOT forwarded to operators: referrals are admin's GTM leads, and submitter info shouldn't be shared with third parties). (3) REPORT MODAL (listingReportModal, body rendered per-open): listing pre-filled read-only from the page (no "different listing" picker — report from that listing's page instead); correction form has a per-listing-type issue dropdown (vendor: wrong name / wrong-missing markets / wrong schedule / broken link-photo / no longer in business / other; market: wrong name / wrong-missing vendors / wrong schedule-hours / wrong location / broken link-photo / market closed / other) + required description; referral form has vendor name (required) / what they sell / contact if known / optional notes; both collect name + email (pre-filled when logged in) + shopper-vendor-operator role select. Full spam-guard stack (honeypot + 3s minimum-time + localStorage throttle via existing sgOpen/sgCheck; no CAPTCHA, consistent with v1.74.41 decision). (4) POST-SUBMIT FUNNEL: thank-you state offers one-click "Create my free account" reusing the just-entered name/email (opens the existing signup modal pre-filled — no re-typing; skipped when already logged in), plus a claim prompt when a self-identified vendor reports on a vendor page or operator on a market page ("Is this your business? / Do you run this market? Claim your free listing"). (5) ADMIN RECEIVE SIDE: new "📝 Reports" pill in the Claims tab (alongside Vendors / Markets / Pre-Orders; count shows NEW reports only) with New/History subtabs; each row shows referral-vs-report badge, listing type, category label, description, referred-vendor details, submitter info, View deep-link, mailto Reply, and status actions (New → Done / Reviewed / Dismissed, with Reopen from History) persisted via vUpdate. Admin also gets a per-submission email alert through the existing sendWindmillEmail helper (fire-and-forget — the table row is the source of truth; a Resend hiccup never loses a report). Reports load at admin login using the same admin-only-read pattern as pre-order interest. (6) ~35 new trilingual t() keys (lr_ prefix), EN/ES/PT parity. Deferred to a later version per plan: About-page "Help us grow" hub and the standalone refer-a-market form. -->
-<!-- v1.74.48 — Code-only build (no Supabase changes; one read-only column-type check confirmed vendors.id/slug and markets.id/slug are all text). (1) SLUG RELOAD FIX ("Vendor not found" / market not-found shell on returning to a page): in-app navigation rewrites the address bar to the clean slug (/vendors/keiths-kookies) via updatePageMeta, but on a cold reload (mobile tab discard, Edge sleeping tabs, F5) routeFromURL passes that SLUG into renderVendorProfile/renderMarketDetail, where BOTH the local lookup (getVendor/getMarket match id only) and the vendor Supabase fallback (.eq('id', id)) fail -> not-found shell. Fixed: vendor + market local lookups now match id OR slug; vendor Supabase fallback now queries .or(id.eq.X,slug.eq.X).limit(1) (safe — both columns are text); the v1.74.47 post-await re-resolve also matches id OR slug. Pages reached by id-URLs are unaffected. (2) OPERATOR DASHBOARD RELOAD: routeFromURL had an exact handler for /vendors/dashboard but NOT /markets/dashboard, so an operator reloading their dashboard fell through to the market-page regex and got renderMarketDetail('dashboard') -> "market not found" shell. /markets/dashboard now routes to the dashboard like the vendor path. (3) DASHBOARD TAB PERSISTENCE: the active dashboard tab (Schedule/Inbox/etc = ST.tab) lived only in memory, so any cold reload dumped vendors/operators back on the default dashboard view. The tab is now saved to sessionStorage (wm_dash_tab) on every vendor/operator tab switch and restored on boot for /vendors/dashboard and /markets/dashboard, validated against the 5 known tabs with fallback to home (covers logout/role-switch/stale values). sessionStorage is per-tab and survives reload/discard but not closing the tab — intentional. -->
-<!-- v1.74.47 — Code-only build (no Supabase changes). (1) VENDOR PAGE RENDER CRASH / DEAD BUTTONS (Sentry: TypeError undefined is not an object evaluating 'c.c', renderVendorProfile, WebKit/iOS): race condition — the initial background data load REPLACES the whole DATA.vendors array (DATA.vendors = vendors) and can complete while renderVendorProfile is awaiting its fresh-vendor fetch / loadAttendanceData; the captured v then belongs to the discarded old array, DATA.vendors.indexOf(v) returns -1, CLRS[-1] is undefined, and c.c throws — an UNHANDLED error that aborted the render mid-page, leaving buttons (incl. Change photo / gallery Add photo) dead until another navigation re-rendered. Most likely on cold deep-links over slower mobile connections, which is why it looked phone-specific and self-healed. Fixed two ways: (a) after the awaits, v is re-resolved from the CURRENT DATA.vendors (getVendor(id)), pushed if genuinely missing; (b) vc() is now negative-safe via ((i % len) + len) % len so an indexOf -1 can never crash ANY render (defense in depth). (2) SEARCH DROPDOWN VENDOR PHOTO: vendor results in the global search dropdown always rendered initials — the icon never checked v.photo (markets already checked DATA.market_photos, which is why market cover photos showed). Now uses the same v.photo ? <img> : initials pattern as every other vendor card. (3) PROFILE PHOTO CACHE-BUSTING: photo overwrites upsert to a constant storage path (profile/<id>/photo.jpg), so the URL never changed and browsers kept serving the stale cached image after an update (confirmed via DevTools disable-cache test). v.photo now gets ?v=<timestamp> appended on upload, so every new upload is a fresh URL everywhere. (4) FILE INPUT RESET: previewCoverPhoto now clears input.value after storing the file, so re-selecting the SAME photo still fires onchange instead of silently doing nothing. -->
-<!-- v1.74.46 — Code-only build (no Supabase changes). (1) VENDOR-PAGE SOCIAL LINKS FIX: vendor Facebook/Instagram/Website links opened to a Windmill page instead of the external site. Root cause: normalizeSocialUrl() (auto-prepends https://) was wired into MARKET saves back in v1.74.28/29 but never into any VENDOR path, so a vendor who entered a bare 'facebook.com/x' had it stored bare and rendered as href="facebook.com/x" — a RELATIVE link resolving to shopwindmill.com/vendors/facebook.com/x. Fixed on BOTH sides: (a) render — vendor public page now wraps the website/instagram/facebook hrefs in normalizeSocialUrl(), which instantly fixes every EXISTING vendor with no data migration; (b) save — normalizeSocialUrl now applied on admin vendor edit, vendor self-serve save (Pro + free single-link branches), and vendor onboarding (Pro + free branches), so new/edited links store clean. normalizeSocialUrl is idempotent (leaves good http/https URLs untouched, handles empty). Note: Facebook/Instagram apps opening vs browser is an OS-level decision (iOS Universal Links / Android App Links) once links are valid https — not controlled here; test on a real phone, not desktop. (2) SHARE MESSAGE TEXT: shareProfile() (public page Share button) previously passed navigator.share a separate {text, url}; iOS Messages tends to drop the separate text field and show only the link card, so shares arrived as a bare card with no words. Now the message and link are combined into ONE text field ('I wanted to share <Name> with you on Windmill: <url>'), so the words appear AND the URL still unfurls to the existing (unchanged) share card. Also: the shared URL now uses the vendor's clean slug (via the resolved record) instead of the raw id passed in, giving shopwindmill.com/vendors/<slug>. Desktop clipboard fallback unchanged. Applies to vendor/market/operator shares alike. NOT in this build (tracked separately): the admin active/inactive toggle honesty fix (toggle works — it was the two-step ✓ confirm; optional cleanup pending), and the protect_sensitive_user_fields → login_email trigger fix (needs a DB change, awaiting go). -->
-<!-- v1.74.39 — Security hardening build (paired with a Supabase migration applied this session). (1) XSS protection: new esc() helper HTML-escapes user-entered content before it is interpolated into innerHTML templates — applied to ~315 interpolation sites covering vendor/market/operator names, descriptions, taglines, products, photo captions, weekly updates, inbox thread names and message bodies, claims, area requests, page-view analytics names, and reflected search text. Previously any vendor/operator/shopper could put live HTML/script in a text field (e.g. their business name) and it would execute in every visitor's browser — including the admin dashboard (session-hijack risk via a malicious claim or message). New escJs() helper protects the handful of places where user text is embedded inside inline onclick handler strings (HTML-entity escaping is NOT safe there — entities decode before JS parses — so backslash-hex escaping is used instead); this also inherently fixes the apostrophe-in-name breakage class (same bug family as the v1.74.14 product-edit fix) at those call sites. Deliberately NOT escaped: alert()/toast/clipboard/document.title/email-body/textContent contexts (plain text — escaping would show literal &amp;-entities). (2) Breached-password protection (free replacement for Supabase's Pro-only leaked-password feature): new checkPwnedPassword() checks new passwords against HaveIBeenPwned via its k-anonymity API — the password never leaves the browser, only the first 5 hex chars of its SHA-1 hash are sent, response is padded. Wired into all five password flows: shopper signup, vendor signup, market/operator signup, Settings change-password, and password-recovery set-new-password. Fails open if the API is unreachable so a third-party outage can never block signups. New trilingual error key vl_err_pw_breached (EN/ES/PT). (3) Fixed live-site "vendor Pro dashboard shows Upgrade lock" bug in admin view-as: Supabase re-fires SIGNED_IN on tab refocus/token refresh, and the auth handler re-ran the full admin login routine mid-impersonation, wiping ST.vendorId/isProTrial/trialStart — the dashboard then re-evaluated as free tier. Guard added: repeat SIGNED_IN events are ignored while sandbox/overwrite mode or the test-vendor role switcher is active. Local file:// was unaffected (no real session = no repeat events), which is why it only reproduced on the live site. SUPABASE MIGRATION (security_cleanup_storage_and_function_hygiene, applied with approval after BEGIN/ROLLBACK test): dropped two legacy storage INSERT policies that let any logged-in user upload files to ANY bucket ("Authenticated upload storage objects", "authenticated_upload 1yg665i_0") — the properly scoped vendor-photos upload policy remains; pinned search_path on handle_updated_at(). Deliberately KEPT the vendor-photos SELECT and UPDATE policies despite the advisor's listing warning — photo uploads use upsert:true on fixed paths and Supabase storage overwrites require SELECT+UPDATE; this is why the SELECT policy reappeared after the v1.74.21 removal. Remaining advisor warnings are all documented-intentional: claims public INSERT (pre-signup claim flow), page_views public INSERT (analytics), is_admin() executable (RLS-load-bearing, see v1.74.21), vendor-photos listing (upsert requirement above), and the leaked-password toggle (now solved client-side by item 2). -->
-<!-- v1.74.38 — Shopper surface translated (Session 3 of translation effort): (1) Shopper auth modal fully wired to t() — sign in, create account (incl. role picker and marketing opt-in), password reset, and magic-link flows. (2) Shared credential modals translated (Change Password, Set New Password, Change Login Email) — these are reached from both the shopper Security section and the vendor Settings > Security section, closing the last gap from Session 2. (3) My Account area translated: menu (renderMe), Security/Notifications/App Settings sections (renderMeSection), and the profile card with its edit form (renderShopperProfileCard). (4) Shopper inbox and the message-vendor modal translated, including the Pro-gate and messages-paused states. (5) Public pages: market detail (section nav, contact rows, gallery incl. Operator-Pro lock, reviews, "Get directions", claim prompt), category pages, home hero + section headers, map empty-state, Following tab (signed-out and empty states), privacy policy chrome. (6) Weekly Update modal (vendor Pro feature behind My Schedule) fully translated incl. duration chips and badge label. (7) Vendors Join page demo-card labels ("See a real Pro page" / "Tap to explore this Pro page"). Approx. 145 new keys (am_/cm_/me_/ms_/sp_/sh_/fw_/md_/cp_/hm_/mp_/mm_/wu_/vj_/pp_ prefixes); dictionary now ~620 keys per language with full three-language parity. Known intentional leftovers: inline toggle toast messages in shopper notifications (local variable shadows t()), operator-side pages (login, pending, add-vendor/add-market modals) deferred to the operator session. -->
-<!-- v1.74.37 — Vendor dashboard fully translated (Session 2 of translation effort): (1) All five dashboard sub-pages wired to t() with ~150 new EN/ES/PT keys (vd_ prefix): Business Profile edit (photo/basic info/links/schedule/gallery sections, hide-from-public checkboxes, all placeholders), My Products (catalog page, add/edit product modal, product-limit alerts, delete confirmation), My Schedule (weekly update posts, attendance confirmation, Pro locks), Settings hub (plan cards, trial upsell, all five menu items) and every Settings section (Personal Info, Security, Notifications, About, Support, Help & Guide), vendor Inbox (thread list, reply box, read/unread, delete), and the pending-approval screen. (2) Save/validation feedback translated: saveVendorProfile and saveVendorSettingsProfile toasts and errors, product save/delete errors, free-tier upgrade banner (freePageHeader). (3) Dashboard trial banners translated: trial-ended card, days-left countdown (urgent/warning/normal variants). (4) Fixed a live shopper-facing bug: three places (home category rail, vendor-list category chips, filter chips) selected labels via cat.es / cat.pt, but DATA.categories never had those fields — so in ES/PT mode every category chip rendered the literal text "undefined". Added es/pt display names to all 19 categories in DATA.categories. The Business Profile Category dropdown now also shows translated names while still saving the canonical English value to vendors.category (no data change). Admin-facing views intentionally left in English. Dictionary now ~423 keys per language, full three-language parity. -->
-<!-- v1.74.36 — Vendor onboarding flow fully translated (Session 1 of translation effort): (1) The vendor onboarding wizard (all 7 steps: welcome, contact info, markets, cover photo, story, links, finish) previously contained zero t() calls — every string was hardcoded English, meaning a Spanish-speaking vendor got a fully-Spanish Join page then hit an English-only setup wizard. All ~50 wizard strings now wired to t() with new EN/ES/PT dictionary keys (ob_* prefix). (2) Vendor Sign In screen, Create Account form, and Forgot Password form fully translated (vl_* keys), including all validation alerts (empty fields, short password, connection errors, sign-in/sign-up failures) and the post-signup "check your email" / "reset link sent" confirmations. (3) Language choice now persists: ST.lang was hardcoded to 'en' on every page load, so a vendor who picked ES, signed up, clicked the email confirmation link, and returned was dumped back into English. Added setLang() helper persisting to localStorage (wm_lang), read on init; the Join-page EN/ES/PT toggles and the global cycleLang() both route through it. (4) Fixed 5 keys that were called via t() but never defined in the dictionary, so raw key names were displaying as visible text: share (vendor profile Share button), view (dashboard View button), no_markets_yet, reviews_label, coming_soon_label — all now defined in EN/ES/PT. Dictionary grew from 179 to ~274 keys per language, full three-language parity maintained. -->
-<!-- v1.74.35 — Personal Info was missing any indication of a vendor's login email at all after v1.74.34 removed it from that section (it moved to Security, but a vendor landing on Personal Info first had no way to see it there). Added a greyed-out, read-only "Login email" field back to Personal Info, showing the current value with a "Change in Security →" link. Informational only — no save logic, no new column, doesn't touch the actual credential; Security remains the only place that can change it. -->
-<!-- v1.74.34 — Vendor contact info split cleanly into public vs. private, plus a Pro-only "hide from public view" option: (1) Renamed the vendor's main dashboard tab/page from "My Profile" to "Business Profile" (bottom-nav label shortened to "Profile" so it still fits at 9px) — this is the public-facing page shoppers see. Email and phone stay editable here (unchanged from pre-v1.74.34 behavior), each with a new "Hide from public view" checkbox next to it, backed by two new vendors columns (hide_email, hide_phone; added live in Supabase, default false — no existing vendor's public page changes until they actively check one). Checkbox is locked with an upgrade prompt for free tier, matching the existing gallery-lock pattern; fully functional for Pro/Pro-trial. Entitlement is re-checked at both save time and render time (not just trusted from the stored flag), so a lapsed Pro trial can't leave contact info hidden against the vendor's will. Also added a "Same as my login email" convenience checkbox next to the public email field — a one-time copy of their current login email into the field, not a permanent lock; public and login email are still free to drift apart afterward, by design. (2) Renamed Settings' "Your Profile" section to "Personal Info" and removed its email/phone fields entirely (they're edited only on Business Profile now) — Personal Info is now just personal name + business address, i.e. purely private/account-side, nothing public-facing. Settings > Security (login email + password) is unchanged and remains the only place to change the actual login credential. (3) Public vendor page's Contact section honors both hide flags — a hidden field renders exactly like an empty one ("Not provided"). Admin/Claims views are untouched, always show full info regardless of these flags. (4) Login-email sync: onAuthSuccess (shared by shoppers, vendors, and operators) now compares the confirmed Supabase Auth email against the internal users.email mirror on every login, and updates the mirror if a login-email change was confirmed since last login. Deliberately does NOT run at the moment "Change email" is submitted, since Supabase doesn't switch the credential over until the confirmation link is clicked — syncing at submit time would mirror an unconfirmed, possibly-never-confirmed address. Never touches vendors.email/operators.email/markets.email — those remain fully independent public-facing fields. (5) Added the missing 'address' column to vendors (added live in Supabase) — Settings' address field was already trying to save there and silently failing on every save, same bug class as the operators.address issue fixed in v1.74.32. Known follow-up, not addressed in this version: Business name is still independently editable from both Business Profile and Settings > Personal Info, writing to the same vendors.name column — same duplicate-edit pattern this version just fixed for email/phone, just not yet folded in. -->
-<!-- v1.74.32 — Restored 'address' to saveOperatorSettingsProfile()'s update payload now that the operators.address column exists (added live in Supabase, no code change needed for that part). Previously removed in v1.74.27 because the column didn't exist yet, which caused the whole update to be rejected if sent. Also fixed a leftover bug from that removal: the local ST.opAddress assignment checked updates.address, a key that was never actually present on the updates object, so address changes never reliably reflected in app state even before considering the DB save. Additionally replaced the save's silent console.warn-only catch with notifySaveError(), matching the pattern used everywhere else profile/vendor/market saves happen, so a failed save now shows a visible error instead of looking identical to success. -->
-<!-- v1.74.31 — Fixed the operator Settings > Profile form appearing to "forget" name/phone/address/contact_role after a hard refresh. Root cause: onAuthSuccess (the session-restore path used on page reload) only ever fetched id/pro/trial_start from the operators table and never populated ST.opOrgName/opPhone/opAddress/opContactRole — only the fresh-login path (onOperatorLoginSuccess) did that. So a save could succeed perfectly (confirmed via direct DB check) while the form still showed blank/placeholder values on next load, because the app simply never re-fetched those fields into memory after a refresh. Broadened the session-restore fetch to select('*') and populate the same ST fields as fresh login, so both paths now stay in sync. Client-side only, no Supabase changes. -->
-<!-- v1.74.30 — Fixed two gaps in the market's live Contact & Links section. (1) Added a missing Email row — m.email was already captured by the operator/admin edit forms and saved to a real column, but there was never a line item to display it on the live page. (2) Fixed the Phone row, which was showing the OPERATOR's contact phone (op.phone) instead of the market's own phone (m.phone) — meaning any market-specific phone number an operator entered was saved correctly but never actually shown anywhere. Now shows the market's own phone first, falling back to the operator's phone only if the market hasn't set one of its own, so markets that relied on the old fallback behavior don't go blank. -->
-<!-- v1.74.29 — Correction to v1.74.28: the Website field had the exact same missing-protocol bug as Facebook/Instagram (confirmed live — a bare "keithstestmarket.com" value resolved as a broken relative link, which is why it looked like a file download attempt when tested from a local file:// path). v1.74.28's normalizeSocialUrl() fix was written for all three fields but the Website line was missed in the operator form and never applied to the admin market-edit form (em_website/em_fb/em_ig) at all. Both forms now consistently normalize website, facebook, and instagram on save. -->
-<!-- v1.74.28 — Operator dashboard gaps #3 and #4. (1) Social links: found that the Pro-gated unlock logic from v1.74.22 was already correct, but operator-entered Facebook/Instagram values with no protocol (e.g. "facebook.com/mymarket") rendered as broken relative links on the live page. Added normalizeSocialUrl() to auto-prepend https:// on save from the operator market-edit form. (2) Add Vendor modal rebuilt with a "Select Existing" / "Create New" toggle (defaults to Select Existing). Select Existing searches vendors in the operator's own region(s), lets them pick one and choose which of their markets to attach it to, and only inserts the missing vendor_markets rows (skips markets the vendor's already on, never touches the vendor's other market links or profile — this is a roster assignment, NOT a claim; the vendor still owns and claims their own page separately). Create New is the original manual-entry form, now actually able to save (see Supabase note below), and its optimistic local push was also fixed to only happen after a confirmed successful save instead of before. REQUIRED SUPABASE POLICY CHANGES (already applied, tested with BEGIN/ROLLBACK first): discovered operators previously had NO path at all to create vendors or roster-link them — the existing vendors/vendor_markets RLS only ever allowed a vendor's own claimed account or admin. Added two new additive INSERT-only policies: "Operators create unclaimed vendor stubs" (vendors — only allows claimed:false rows), and "Operators add vendor_markets links for own markets" (vendor_markets — only allows linking to markets the operator actually operates). Existing vendor-self/admin policies untouched. -->
-<!-- v1.74.27 — Three small operator-facing fixes. (1) Market gallery thumbnails weren't rendering on the live public market page (lightbox already worked fine and is untouched) — the photo-strip container was missing id="photoStrip" and initPhotoStrip() (which swaps each thumbnail's data-src into a real src) was never called after the market page rendered; both fixed, same pattern already used on the vendor and demo-operator pages. (2) Operator "Organization name" changes in Settings > Profile were silently failing to save — saveOperatorSettingsProfile() sent an 'address' field alongside name/phone/contact_role, but 'address' isn't a real column on operators, so Postgrest rejected the entire update every time with no error surfaced (same "field that isn't a real column" bug class as earlier fixes). Removed address from the update payload; name/phone/contact_role now save correctly. Address input stays in the UI but doesn't persist yet — needs a real column if we want that data kept. (3) saveAddedMarkets() (the new "Add a Market" flow from v1.74.26) now adds .select('id') and verifies the returned row count matches what was selected, so a future RLS silent no-op shows a real error toast instead of a false success — closes the same gap that let the earlier "Keiths Testmarket" claim look successful while never actually writing to the database. -->
-<!-- v1.74.26 — Operator dashboard gap #5: added an "+ Add a Market" button to the My Markets tab, opening a searchable checkbox-list modal (same pattern as the onboarding market-tagging step) of published markets not yet tagged to the operator, excluding any market already claimed by someone else. Selecting and saving sets operator_id + claimed:true on the chosen market(s) via the same tested Supabase update pattern used in onboarding, updates DATA.markets locally, and re-renders My Markets — no page reload needed. Also added an admin email alert (via the existing sendWindmillEmail helper) that fires whenever a market is added this way, listing the operator's org name/email and which market(s) were claimed, so admin has visibility into claims happening outside the formal claim-request/approval flow. -->
-<!-- v1.74.25 — Fixed the next layer of the same Admin > Add Market bug: the fix in v1.74.24 corrected operator_id, but market creation still failed with a 400. Root cause: the new-market object included active:true, a field that isn't a real column on markets — it's leftover from the local hardcoded seed data and was never wired to an actual column or feature (confirmed unused anywhere else in the app). Removed it from the object being saved. Same "field that isn't a real column" bug class as the phone/email issues fixed earlier. -->
-<!-- v1.74.24 — Fixed Admin > Markets > Add: every new market created here was silently failing to save while still showing "✓ Market created successfully!" Root cause: new markets were given operator_id:'' for unclaimed markets, but markets.operator_id has a foreign key to operators(id) — an empty string matches no operator row, so the insert was rejected by the database every time. Changed to operator_id:null (the correct way to represent "unclaimed"), and adminCreateMarket now checks dbSaveMarket's actual return value before showing success — rolling back the optimistic local DATA.markets push if the save failed, instead of claiming success regardless. Same silent-failure pattern already fixed elsewhere in v1.74.19; this admin feature was added afterward and got missed. -->
-<!-- v1.74.23 — Market cover photo + real photo gallery, for operators, matching the vendor gallery pattern: (1) Added a gallery column to markets (text array, mirrors vendors.gallery) via Supabase migration, confirmed live. (2) Operator Edit Market form (My Markets tab) now has a working cover-photo uploader at the top — previously there was no way to set or change a market's cover photo at all; it uploads to the same vendor-photos storage bucket under market-covers/{id}/, compresses client-side first, and updates DATA.market_photos immediately so it shows everywhere else in the app without a reload. (3) Added a full gallery editor to the same form — add/delete photos, per-photo captions, 10-photo cap for full Pro / 5 for Pro-trial, locked with an upgrade prompt for anyone below Pro-trial — same UI and behavior as the existing vendor gallery editor, reusing the same parseGallery/compressImage/uploadToStorage helpers rather than duplicating logic. (4) dbSaveMarket now serializes the gallery array the same way dbSaveVendor already does, before upsert. (5) The live public market page's gallery section (fixed in v1.74.22 to unlock for Pro-trial operators) now actually renders the real gallery array with real captions, replacing the placeholder that faked a one-photo gallery out of the single cover-photo field. NOT YET LIVE-TESTED — needs a real upload attempt against Supabase storage to confirm the market-covers/ and market-gallery/ paths save and load correctly before considering this verified. -->
-<!-- v1.74.18 — Two more fixes, verified before shipping: (1) Follow buttons on vendor cards (home page, category pages, "more like this" strips) correctly showed "Following" as text but never actually turned green — the CSS rule for it already existed but the button never got the class applied. Fixed all 6 card instances to add the class when following. (2) Product Edit button apostrophe bug — the v1.74.14 "fix" for this used backslash-escaping, which does not work: tested against a real HTML parser (jsdom) and confirmed browsers do not treat backslash as an escape character inside an HTML attribute, so the onclick attribute still broke and corrupted the button's markup on any product with an apostrophe. Replaced it with proper HTML-entity escaping (&#39;), which was verified end-to-end with the same real parser to produce a complete, valid, clickable button. -->
-<!-- v1.74.17 — Two fixes: (1) Shopper "Forgot password?" was wired to send a magic (passwordless sign-in) link instead of an actual password-reset link — it now sends a real reset email via resetPasswordForEmail, matching what vendor/operator "Forgot password" already correctly did. The separate "Send me a magic link instead" option is untouched and still works as its own legitimate passwordless sign-in path. (2) Vendor and operator "Sign out" always sent users to the generic shopper home page — authSignOut() now checks the role before clearing it and sends vendors to /vendors/login and operators to /markets/login instead. NOT YET LIVE-TESTED with a real reset email for the shopper flow — needs confirmation before this goes to production, same as the earlier v1.74.15 recovery-modal fix. -->
-<!-- v1.74.16 — Fixed follow buttons never showing "Following" (green) anywhere except the Favorites/Following tab. Root cause: several isFollowing() calls on vendor/market cards and the vendor/market profile pages had the vendor/market id wrapped in single quotes inside a nested template expression — e.g. isFollowing('vendor','${v.id}') — which JS does NOT interpolate inside single quotes, so the literal 8-character string "${v.id}" was being passed as the id instead of the real value. isFollowing() therefore always returned false in those spots, regardless of actual follow state. Fixed all 6 occurrences (4 on vendor/market cards, 2 on the vendor/market profile pages) to pass the real id directly. This bug predates all of today's changes and is unrelated to the login issue. -->
-<!-- v1.74.15 — Attempted fix for the original password-recovery-link bug (the one v1.74.11 tried to fix by breaking login instead). Added a SECOND, separate onAuthStateChange listener that is attached immediately on client creation but does nothing except watch for the PASSWORD_RECOVERY event and pop up the "set new password" modal — no async work, no database calls, no touching ST/DATA. The original sign-in/sign-out listener is completely untouched, still attached in its proven-safe late position (inside checkExistingSession, same as v1.74.8/v1.74.14). This isolates the one thing that genuinely needs to run early (catching the recovery event) from the thing that broke login last time (the full sign-in flow running early). NOT YET LIVE-TESTED with an actual password reset email — needs a real reset link click to confirm before this goes to production. -->
-<!-- v1.74.14 — Rebuilt from live production (v1.74.8) with the six safe, verified fixes from the attempted v1.74.9/10/11 batch re-applied: (1) market claim approval and onboarding market-tagging now correctly set markets.claimed = true (previously only operators.claimed was set, leaving approved markets stuck showing unclaimed). (2) Fixed two 406 console errors on login (.single() → .maybeSingle() for the user profile lookup and the vendor claimed-status check — both legitimately return zero rows for shopper/new accounts). (3) Follow buttons (vendor + market) now correctly reflect followed state after a hard refresh — onAuthSuccess now re-renders the current page after follows load. (4) Attendance data now loads before the schedule section builds, so the "✓ This week" badge shows correctly for first-time/cold visitors, not just after a dashboard visit. (5) Attendance save now reports real success/failure instead of a false "success" toast, and reverts the checkbox with an error toast if the save actually fails. (6) Fixed product Edit button breaking on any product with an apostrophe in its name/description/price — an already-escaped pJson variable existed but wasn't being used in the onclick handler. DELIBERATELY NOT INCLUDED: the auth-listener timing change from v1.74.11 (attaching onAuthStateChange immediately on client creation) — confirmed via isolated single-variable testing to be the sole cause of the login outage that led to today's rollback. The listener remains in its original v1.74.8 position (attached after checkExistingSession's getSession() call). This means the original password-recovery-link display bug that change was meant to fix is still present and will be addressed separately, deliberately, once a fix is found that doesn't break normal login. -->
-<!-- v1.74.8 — hid the Reviews section (and its nav-bar link) on both vendor and market profile pages; was a "No reviews yet" placeholder with a "Write a review" button that dead-ended into sign-in with no real system behind it. Original markup preserved in comments for both pages — market reviews planned to come back first as a lower-stakes test before vendor reviews. -->
-<!-- v1.74.7 — added real, working "Email updates & newsletters" toggle to Notifications & Alerts page, saving email_marketing_opt_in to shopper_profiles (new column, added directly in Supabase). Positioned above the existing "text alerts coming soon" placeholder rather than replacing it. Notifications menu subtitle updated to reflect the real feature. -->
-<!-- v1.74.6 — correction to v1.74.5: restored the phone field on the profile edit form as general optional contact info (was wrongly removed entirely, not just disconnected from the broken SMS feature). Also fixes a bug my v1.74.5 change introduced: submitShopperProfile() was still reading the now-removed SMS toggle element, which would have silently reset every shopper's sms_opt_in to false on their next profile save. -->
-<!-- v1.74.5 — hid the market-day text-alerts toggle (profile edit + notifications settings) and its phone field; feature was fully wired to save sms_opt_in/phone to Supabase but no SMS actually sends (no backend built), which was misleading real shoppers. Original markup preserved in comments for later restore when the SMS-sending Edge Function is built. Notifications menu subtitle updated to "Coming soon". -->
-<!-- v1.74.4 — vendor bottom nav & sidebar: "My Products" slot swapped for "Messages" (Products still reachable from the dashboard quick-links and quick-action tile, now wired directly rather than through the tab system); added vendor unread dot, gated to Pro/Pro-trial same as existing dashboard badge. Startup fix: shopper "Me" dot, admin "Messages" dot, and new vendor "Messages" dot now all compute once on initial app load instead of only after navigating into that tab — fixes hard refresh never showing the alert. -->
-<!-- v1.74.3 — fix: shopper replies to an existing vendor thread (via both the message modal and the shopper's own inbox) now correctly re-flag the thread as unread for the vendor; badge queries (shopper account page, vendor dashboard) now fetch reply role so a sender's own message is never counted as unread for them; removed temporary Sentry test function now that error tracking is confirmed working. -->
-<!-- v1.74.2 — add Sentry error tracking loader script + temporary test error function (window.testSentryError). -->
-<!-- v1.74.1 — fix: sending your own reply no longer marks your own conversation as unread; sender-side unread now ignores the viewer's own replies (shopper + vendor support threads). -->
-<!-- v1.71.10 -->
-<!-- v1.71.9 -->
-<!-- v1.71.8 -->
-<!-- v1.71.7 -->
-<!-- v1.71.6 -->
-<!-- v1.71.5 -->
-<!-- v1.71.4 -->
-<!-- v1.70.7 -->
-<!-- v1.70.6 -->
-<!-- v1.70.5 -->
-<!-- v1.70.4 -->
-<!-- v1.70.3 -->
-<!-- v1.70.2 -->
-<!-- v1.70.1 -->
-<!-- v1.70 -->
-<!-- v1.69.12 -->
-<!-- v1.69.11 -->
-<!-- v1.69.10 -->
-<!-- v1.69.9 -->
-<!-- v1.69.8 -->
-<!-- v1.69.4 -->
-<!-- v1.68.18 -->
+<!-- v1.74.62 — View-site return badge fix in admin preview; version comments condensed -->
+<!-- v1.74.61 — Map stability guard; view-site shopper nav + routing; admin tab persistence; Views tab source data + filters -->
+<!-- v1.74.60 — Monthly-market "next date" sorting corrected across all displays -->
+<!-- v1.74.59 — Monthly market scheduling fix; test listings hidden from public carousels -->
+<!-- v1.74.57 — Dashboard quick-link navigation fixes -->
+<!-- v1.74.56 — Vendors-page search box fixes -->
+<!-- v1.74.55 — Global search "See all vendors" fix -->
+<!-- v1.74.54 — Demo data touch-up -->
+<!-- v1.74.53 — Admin dashboard quality-of-life improvements -->
+<!-- v1.74.52 — Account security hardening -->
+<!-- v1.74.51 — "Help us grow Windmill" hub -->
+<!-- v1.74.50 — Report link placement fix -->
+<!-- v1.74.49 — "Suggest an update" + "Refer a vendor" -->
+<!-- v1.74.48 — Page reload fixes; dashboard tab persistence -->
+<!-- v1.74.47 — Vendor page render fix -->
+<!-- v1.74.46 — Vendor social link fixes -->
+<!-- v1.74.45 — Operator dashboard URL fix -->
+<!-- v1.74.44 — Notification improvements; unread message reminders -->
+<!-- v1.74.43 — Onboarding wizard display hotfix -->
+<!-- v1.74.42 — Performance polish -->
+<!-- v1.74.41 — Social link previews; area requests; form protections -->
+<!-- v1.74.40 — Reliability improvements; admin backup tooling -->
+<!-- v1.74.39 — Security hardening -->
+<!-- v1.74.38 — Shopper surface translations (ES/PT) -->
+<!-- v1.74.37 — Vendor dashboard translations (ES/PT) -->
+<!-- v1.74.36 — Vendor onboarding translations (ES/PT) -->
+<!-- v1.74.35 — Personal Info login email display -->
+<!-- v1.74.34 — Vendor contact info public/private split -->
+<!-- v1.74.32 — Operator address save fix -->
+<!-- v1.74.31 — Operator profile refresh fix -->
+<!-- v1.74.30 — Market contact section improvements -->
+<!-- v1.74.29 — Website link protocol fix -->
+<!-- v1.74.28 — Operator social links + roster additions -->
+<!-- v1.74.27 — Operator-facing fixes -->
+<!-- v1.74.26 — Operator "Add a Market" -->
+<!-- v1.74.25 — Admin market creation fix (part 2) -->
+<!-- v1.74.24 — Admin market creation fix -->
+<!-- v1.74.23 — Market cover photo + gallery -->
+<!-- v1.74.22 — Market Pro status inheritance -->
+<!-- v1.74.21 — Security improvements; pre-order interest -->
+<!-- v1.74.20 — Product edit button fix -->
+<!-- v1.74.19 — Save reliability improvements -->
+<!-- v1.74.18 — Follow button fixes -->
+<!-- v1.74.17 — Password reset fix -->
+<!-- v1.74.16 — Follow state display fix -->
+<!-- v1.74.15 — Password recovery link fix -->
+<!-- v1.74.14 — Stability rebuild -->
+<!-- v1.74.8 — Reviews section hidden -->
+<!-- v1.74.7 — Email updates toggle -->
+<!-- v1.74.6 — Profile phone field restored -->
+<!-- v1.74.5 — Text alerts toggle hidden -->
+<!-- v1.74.4 — Vendor nav: Messages slot -->
+<!-- v1.74.3 — Message thread unread fix -->
+<!-- v1.74.2 — Error tracking added -->
+<!-- v1.74.1 — Unread state fix -->
+<!-- v1.71 and earlier — initial builds through v1.73 -->
 <!-- Google Analytics -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-S8FMXZ1YJL"></script>
 <script>
@@ -2737,7 +2719,7 @@ function vendorNextLine(vendor) {
       const m = getMarket(mid);
       if(!m) return;
       if(!activeDays.some(d => marketHasDay(m, d))) return;
-      const diff = (dayOrder.indexOf(getNextMarketDay(m)) - todayIdx + 7) % 7;
+      const diff = getNextMarketDate(m);
       if(diff < bestDiff) { bestDiff = diff; best = m; }
     });
     if(best) anchor = { market: best, diff: bestDiff, inSeason: isOpen(best) };
@@ -2752,7 +2734,7 @@ function vendorNextLine(vendor) {
 
   let dayLabel;
   if(anchor.inSeason) {
-    dayLabel = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : DAY_SHORT[nextDay] || nextDay.slice(0,3);
+    dayLabel = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : diff > 6 ? farOutDateLabel(first, DAY_SHORT[nextDay] || nextDay.slice(0,3)) : DAY_SHORT[nextDay] || nextDay.slice(0,3);
   } else {
     dayLabel = DAY_SHORT[nextDay] || nextDay.slice(0,3);
   }
@@ -2894,19 +2876,58 @@ function marketHasDay(m, dayName) {
   return true;
 }
 
-// Returns the soonest upcoming day name for a market, relative to today.
-// For multi-day markets, finds which day comes next.
+// Returns the number of DAYS AHEAD (0-60) of the market's next valid occurrence,
+// respecting monthly-frequency constraints (e.g. 3rd-Saturday-only markets).
+// This is the canonical "how soon" value — use it for all sorting/comparison.
+function getNextMarketDate(m) {
+  const dayOrder = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const today = new Date();
+  const days = getMarketDays(m);
+  if(!days.length) return 0;
+
+  for(let daysAhead = 0; daysAhead <= 60; daysAhead++) {
+    const checkDate = new Date(today);
+    checkDate.setDate(checkDate.getDate() + daysAhead);
+    const checkDayName = dayOrder[checkDate.getDay()];
+
+    if(!days.includes(checkDayName)) continue;
+
+    if(m.frequency && m.frequency.startsWith('monthly-')) {
+      const dayOfMonth = checkDate.getDate();
+      const weekOfMonth = Math.ceil(dayOfMonth / 7);
+      if(m.frequency === 'monthly-last') {
+        const daysInMonth = new Date(checkDate.getFullYear(), checkDate.getMonth()+1, 0).getDate();
+        if(dayOfMonth <= daysInMonth - 7) continue;
+      } else {
+        const freqMap = {'monthly-1st':1,'monthly-2nd':2,'monthly-3rd':3,'monthly-4th':4};
+        const required = freqMap[m.frequency];
+        if(required && weekOfMonth !== required) continue;
+      }
+    }
+
+    return daysAhead;
+  }
+
+  return 0; // Fallback (shouldn't happen within 60 days)
+}
+
+// Returns the soonest upcoming day NAME for a market, relative to today.
+// Respects monthly-frequency constraints via getNextMarketDate.
 function getNextMarketDay(m) {
   const dayOrder = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  const todayIdx = new Date().getDay();
   const days = getMarketDays(m);
   if(!days.length) return m.day_of_week || '';
-  let best = null, bestDiff = 8;
-  days.forEach(d => {
-    const diff = (dayOrder.indexOf(d) - todayIdx + 7) % 7;
-    if(diff < bestDiff) { bestDiff = diff; best = d; }
-  });
-  return best || days[0];
+  const d = new Date();
+  d.setDate(d.getDate() + getNextMarketDate(m));
+  return dayOrder[d.getDay()];
+}
+
+// "Sat Aug 15" style label for a market whose next occurrence is more than a week out
+const MONTH_SHORT_LBL = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function farOutDateLabel(m, shortDayName) {
+  const d = new Date();
+  d.setDate(d.getDate() + getNextMarketDate(m));
+  return shortDayName + ' ' + MONTH_SHORT_LBL[d.getMonth()] + ' ' + d.getDate();
 }
 
 const LOGO_SVG = `<svg width="24" height="24" viewBox="0 0 26 26" fill="none"><circle cx="13" cy="13" r="2.8" fill="#5C7A4E"/><line x1="13" y1="9.8" x2="13" y2="2" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="13" y1="16.2" x2="13" y2="24" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="9.8" y1="13" x2="2" y2="13" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="16.2" y1="13" x2="24" y2="13" stroke="#5C7A4E" stroke-width="2" stroke-linecap="round"/><line x1="11.4" y1="11.4" x2="5.5" y2="5.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><line x1="14.6" y1="14.6" x2="20.5" y2="20.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><line x1="14.6" y1="11.4" x2="20.5" y2="5.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/><line x1="11.4" y1="14.6" x2="5.5" y2="20.5" stroke="#C4622D" stroke-width="1.3" stroke-linecap="round" opacity=".65"/></svg>`;
@@ -3566,6 +3587,9 @@ function resetScroll() {
 }
 
 function navigate(page, id) {
+  // v1.74.61 — a real user navigation ends the admin boot-restore window,
+  // so clicking "Dashboard" in the nav goes to the dashboard as expected
+  ST._adminTabPendingRestore = null;
   ST.previousPage = ST.currentPage;
   ST.previousId = ST.currentId;
   // Clear globalSearchOverride when navigating away from markets/vendors
@@ -3599,7 +3623,10 @@ function renderCurrentPage() {
   // Show/hide view site return bar
   const vsBar = document.getElementById('viewSiteBar');
   if(vsBar) {
-    const isVendorOrOp = ST.user && (ST.user.role === 'vendor' || ST.user.role === 'operator');
+    // v1.74.62 — check the EFFECTIVE role (ST.role), not the signed-in account's
+    // role, so the bar also shows during admin preview/impersonation of a vendor.
+    // Safe: viewSiteMode can only be enabled from vendor/operator dashboards.
+    const isVendorOrOp = ST.role === 'vendor' || ST.role === 'operator';
     vsBar.style.display = (ST.viewSiteMode && isVendorOrOp) ? 'flex' : 'none';
   }
   // Remove explore-mode class when not on explore
@@ -3643,8 +3670,8 @@ function renderCurrentPage() {
   }
   if(p === 'demo-operator-free') return renderDemoOperatorFree();
   if(p === 'demo-operator-pro') return renderDemoOperatorPro();
-  if(ST.role === 'vendor') return renderVendorSubPage();
-  if(ST.role === 'operator') return renderOperatorSubPage();
+  if(ST.role === 'vendor' && !ST.viewSiteMode) return renderVendorSubPage();
+  if(ST.role === 'operator' && !ST.viewSiteMode) return renderOperatorSubPage();
   if(ST.role === 'admin') return renderAdminSubPage();
   // customer views — update meta + URL for each tab
   if(ST.tab === 'home') { updatePageMeta('Windmill — Discover Local Markets & Vendors','Find farmers markets and local vendors near you. Browse fresh produce, artisan goods, and more.','/', 'home'); return renderHome(); }
@@ -3685,6 +3712,8 @@ function renderAdminSubPage() {
   if(sub === 'me') return setAdminTab('messages');
   if(sub === 'admin-ads') return setAdminTab('ads');
   if(sub === 'admin-settings') return renderAdminSettings();
+  // v1.74.61 — during boot, land on the tab the admin was on before the reload
+  if(ST._adminTabPendingRestore) return setAdminTab(ST._adminTabPendingRestore);
   setAdminTab('dashboard'); // home = dashboard overview
 }
 
@@ -3712,7 +3741,11 @@ function renderSidebar() {
   };
   const navRole = ST.viewSiteMode ? 'customer' : ST.role;
   const isAdminPanel = navRole === 'admin';
-  nav.innerHTML = (maps[navRole]||maps.customer).map(item=>{
+  // View-site mode: drop My Account — vendor/operator account lives in their dashboard
+  const navItems = (ST.viewSiteMode && (ST.role === 'vendor' || ST.role === 'operator'))
+    ? (maps[navRole]||maps.customer).filter(i => i.id !== 'me')
+    : (maps[navRole]||maps.customer);
+  nav.innerHTML = navItems.map(item=>{
     if(isAdminPanel) {
       const active = ST.adminTab === item.id;
       const onclick = item.id === 'settings' ? `renderAdminSettings();renderSidebar()` : `setAdminTab('${item.id}')`;
@@ -4046,8 +4079,8 @@ function applyAllFilters(markets) {
     const bOpen = isOpen(b);
     if(aOpen && !bOpen) return -1;
     if(!aOpen && bOpen) return 1;
-    const aDiff = (dayOrder.indexOf(getNextMarketDay(a)) - todayIdx + 7) % 7;
-    const bDiff = (dayOrder.indexOf(getNextMarketDay(b)) - todayIdx + 7) % 7;
+    const aDiff = getNextMarketDate(a);
+    const bDiff = getNextMarketDate(b);
     if(aDiff !== bDiff) return aDiff - bDiff;
     return vendorCount(b.id) - vendorCount(a.id);
   });
@@ -4081,8 +4114,8 @@ function applyVendorFilters(vendors) {
     if(aInSeason && !bInSeason) return -1;
     if(!aInSeason && bInSeason) return 1;
     // Within same season group, sort by next upcoming day (region-scoped)
-    const aNext = Math.min(...a.markets.map(mid => { const m = getMarket(mid); return m && (!sortActiveRegions || sortActiveRegions.includes(m.region)) ? (dayOrder.indexOf(getNextMarketDay(m)) - todayIdx + 7) % 7 : 7; }));
-    const bNext = Math.min(...b.markets.map(mid => { const m = getMarket(mid); return m && (!sortActiveRegions || sortActiveRegions.includes(m.region)) ? (dayOrder.indexOf(getNextMarketDay(m)) - todayIdx + 7) % 7 : 7; }));
+    const aNext = Math.min(...a.markets.map(mid => { const m = getMarket(mid); return m && (!sortActiveRegions || sortActiveRegions.includes(m.region)) ? getNextMarketDate(m) : 999; }));
+    const bNext = Math.min(...b.markets.map(mid => { const m = getMarket(mid); return m && (!sortActiveRegions || sortActiveRegions.includes(m.region)) ? getNextMarketDate(m) : 999; }));
     return aNext - bNext;
   });
   return vs;
@@ -4100,7 +4133,7 @@ function vendorAnchorMarket(vendor) {
     const m = getMarket(mid);
     if(!m) return;
     if(activeRegions && !activeRegions.includes(m.region)) return;
-    const diff = (dayOrder.indexOf(getNextMarketDay(m)) - todayIdx + 7) % 7;
+    const diff = getNextMarketDate(m);
     if(isOpen(m)) {
       if(diff < bestInSeasonDiff) { bestInSeasonDiff = diff; bestInSeason = m; }
     } else {
@@ -4137,16 +4170,20 @@ function renderBottom() {
   const MSG_I='<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>';
   const maps = {
     customer:[{id:'home',l:t('nav_home'),i:HOME_I},{id:'explore',l:t('nav_explore'),i:EXPL_I},{id:'markets',l:t('nav_markets'),i:MARK_I},{id:'following',l:t('nav_following'),i:FOLL_I},{id:'me',l:t('nav_me'),i:ME_I}],
+    // View-site mode (vendor/operator browsing as a shopper): 4 tabs, no My Account —
+    // their account lives in their dashboard; the green Back bar is the way home
+    viewsite:[{id:'home',l:t('nav_home'),i:HOME_I},{id:'explore',l:t('nav_explore'),i:EXPL_I},{id:'markets',l:t('nav_markets'),i:MARK_I},{id:'following',l:t('nav_following'),i:FOLL_I}],
     vendor:[{id:'home',l:t('dashboard'),i:DASH_I},{id:'explore',l:t('my_profile'),i:ME_I},{id:'markets',l:t('my_schedule'),i:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>'},{id:'following',l:'Messages',i:MSG_I},{id:'me',l:t('settings'),i:SETT_I}],
     operator:[{id:'home',l:t('dashboard'),i:DASH_I},{id:'markets',l:t('your_markets'),i:MARK_I},{id:'explore',l:t('vendor_roster'),i:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'},{id:'following',l:'Scheduling',i:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>'},{id:'me',l:t('settings'),i:SETT_I}],
     admin:[{id:'home',l:'Dashboard',i:DASH_I},{id:'explore',l:'Vendors',i:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>'},{id:'markets',l:'Markets',i:MARK_I},{id:'following',l:'Claims',i:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>'},{id:'me',l:'Messages',i:MSG_I}]
   };
-  el.innerHTML = (maps[ST.role]||maps.customer).map(item=>`
+  const navRole = (ST.viewSiteMode && (ST.role === 'vendor' || ST.role === 'operator')) ? 'viewsite' : ST.role;
+  el.innerHTML = (maps[navRole]||maps.customer).map(item=>`
     <button class="nav-item ${ST.tab===item.id?'active':''}" onclick="navigate('${item.id}')" style="position:relative">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${item.i}</svg>
       ${item.id==='me' && ST.role==='customer' && ST._shopperUnreadCount>0 ? '<span style="position:absolute;top:2px;right:calc(50% - 16px);width:8px;height:8px;background:var(--terra);border-radius:50%;border:1.5px solid var(--surface)"></span>' : ''}
       ${item.id==='me' && ST.role==='admin' && ST._adminUnreadCount>0 ? '<span style="position:absolute;top:2px;right:calc(50% - 16px);width:8px;height:8px;background:var(--terra);border-radius:50%;border:1.5px solid var(--surface)"></span>' : ''}
-      ${item.id==='following' && ST.role==='vendor' && ST._vendorUnreadCount>0 ? '<span style="position:absolute;top:2px;right:calc(50% - 16px);width:8px;height:8px;background:var(--terra);border-radius:50%;border:1.5px solid var(--surface)"></span>' : ''}
+      ${item.id==='following' && ST.role==='vendor' && navRole!=='viewsite' && ST._vendorUnreadCount>0 ? '<span style="position:absolute;top:2px;right:calc(50% - 16px);width:8px;height:8px;background:var(--terra);border-radius:50%;border:1.5px solid var(--surface)"></span>' : ''}
       <span class="nav-label">${item.l}</span>
     </button>`).join('');
 }
@@ -5219,8 +5256,8 @@ function getMapFilteredMarkets() {
     const bOpen = isOpen(b);
     if(aOpen && !bOpen) return -1;
     if(!aOpen && bOpen) return 1;
-    const aDiff = (dayOrder2.indexOf(getNextMarketDay(a)) - todayIdx2 + 7) % 7;
-    const bDiff = (dayOrder2.indexOf(getNextMarketDay(b)) - todayIdx2 + 7) % 7;
+    const aDiff = getNextMarketDate(a);
+    const bDiff = getNextMarketDate(b);
     if(aDiff !== bDiff) return aDiff - bDiff;
     return vendorCount(b.id) - vendorCount(a.id);
   });
@@ -5274,6 +5311,10 @@ function initWindmillMap() {
     if(!ST.mapReady) return; // don't fire during initial fitBounds
     clearTimeout(moveTimer);
     moveTimer = setTimeout(() => {
+      // Guard: user may have navigated away before this debounced timer fired —
+      // the map DOM is gone but the Leaflet object lingers; getBounds() on a
+      // detached pane throws "_leaflet_pos undefined" (Sentry issue 7620368184)
+      if(ST.mapInstance !== map || !map.getContainer() || !map.getContainer().isConnected) return;
       if(!ST.mapBoundsMode) return;
       const bounds = map.getBounds();
       const allMarkets = getMapFilteredMarkets();
@@ -6232,20 +6273,16 @@ async function renderVendorProfile(id) {
             let markets = (v.markets||[]).map(id => getMarket(id)).filter(Boolean);
             const inSeason = markets.filter(m => isOpen(m));
             const outOfSeason = markets.filter(m => !isOpen(m));
-            const sortByNextDay = arr => [...arr].sort((a,b) => {
-              const aDiff = (dayOrder.indexOf(getNextMarketDay(a)) - todayIdx + 7) % 7;
-              const bDiff = (dayOrder.indexOf(getNextMarketDay(b)) - todayIdx + 7) % 7;
-              return aDiff - bDiff;
-            });
+            const sortByNextDay = arr => [...arr].sort((a,b) => getNextMarketDate(a) - getNextMarketDate(b));
             const hasInSeason = inSeason.length > 0;
             const sorted = hasInSeason ? [...sortByNextDay(inSeason), ...sortByNextDay(outOfSeason)] : sortByNextDay(outOfSeason);
             const first = sorted[0];
             if(!first) return '';
             const nextDay = getNextMarketDay(first);
-            const diff = (dayOrder.indexOf(nextDay) - todayIdx + 7) % 7;
+            const diff = getNextMarketDate(first);
             let dayLabel;
             if(hasInSeason && isOpen(first)) {
-              dayLabel = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : DAY_SHORT[nextDay] || nextDay.slice(0,3);
+              dayLabel = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : diff > 6 ? farOutDateLabel(first, DAY_SHORT[nextDay] || nextDay.slice(0,3)) : DAY_SHORT[nextDay] || nextDay.slice(0,3);
             } else {
               dayLabel = DAY_SHORT[nextDay] || nextDay.slice(0,3);
             }
@@ -6311,11 +6348,7 @@ async function renderVendorProfile(id) {
         const schedMarkets = v.markets.map(mid => getMarket(mid)).filter(Boolean);
         const inSeason = schedMarkets.filter(m => isOpen(m));
         const outOfSeason = schedMarkets.filter(m => !isOpen(m));
-        const sortByDay = arr => [...arr].sort((a,b) => {
-          const aDiff = (dayOrder.indexOf(getNextMarketDay(a)) - todayIdx + 7) % 7;
-          const bDiff = (dayOrder.indexOf(getNextMarketDay(b)) - todayIdx + 7) % 7;
-          return aDiff - bDiff;
-        });
+        const sortByDay = arr => [...arr].sort((a,b) => getNextMarketDate(a) - getNextMarketDate(b));
         const sorted = [...sortByDay(inSeason), ...sortByDay(outOfSeason)];
         return sorted.map(m => {
           const mid = m.id;
@@ -6585,17 +6618,15 @@ function renderOtherMarketsCarousel(currentId, region) {
     const aOpen = isOpen(a), bOpen = isOpen(b);
     if(aOpen && !bOpen) return -1;
     if(!aOpen && bOpen) return 1;
-    const aDiff = (dayOrder.indexOf(getNextMarketDay(a)) - todayIdx + 7) % 7;
-    const bDiff = (dayOrder.indexOf(getNextMarketDay(b)) - todayIdx + 7) % 7;
-    return aDiff - bDiff;
+    return getNextMarketDate(a) - getNextMarketDate(b);
   });
   const shown = others.slice(0, 6);
   let cards = '';
   shown.forEach(om => {
     const omOpen = isOpen(om);
     const omDay = getNextMarketDay(om);
-    const omDiff = (dayOrder.indexOf(omDay) - todayIdx + 7) % 7;
-    const dayLabel = omOpen ? (omDiff===0?'Today':omDiff===1?'Tomorrow':DAY_SHORT[omDay]||omDay.slice(0,3)) : (DAY_SHORT[omDay]||omDay.slice(0,3));
+    const omDiff = getNextMarketDate(om);
+    const dayLabel = omOpen ? (omDiff===0?'Today':omDiff===1?'Tomorrow':omDiff>6?farOutDateLabel(om, DAY_SHORT[omDay]||omDay.slice(0,3)):DAY_SHORT[omDay]||omDay.slice(0,3)) : (DAY_SHORT[omDay]||omDay.slice(0,3));
     const timeLabel = om.start_time ? ' · ' + formatTime(om.start_time) : '';
     const photo = DATA.market_photos[om.id];
     const photoHtml = photo
@@ -12116,6 +12147,8 @@ function renderAdminPanel() {
         <select onchange="setAdminViewsRange(this.value)" style="padding:9px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:12px;font-family:var(--font-sans);background:var(--surface);color:var(--text)">
           ${viewsRanges.map(([key,label])=>`<option value="${key}" ${ST.adminViewsRange===key?'selected':''}>${label}</option>`).join('')}
         </select>
+        ${!ST.adminViewsAsType ? `<select onchange="setAdminViewsWho(this.value)" style="padding:9px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:12px;font-family:var(--font-sans);background:var(--surface);color:var(--text)">${[['all','👥 Everyone'],['member','Members only'],['guest','Guests only']].map(([k,l])=>`<option value="${k}" ${(ST.adminViewsWho||'all')===k?'selected':''}>${l}</option>`).join('')}</select>` : ''}
+        ${!ST.adminViewsAsType ? `<select onchange="setAdminViewsSource(this.value)" style="padding:9px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:12px;font-family:var(--font-sans);background:var(--surface);color:var(--text)">${[['all','🌐 All sources'],['direct','📱 Direct'],['google','🔍 Google'],['facebook','📘 Facebook'],['instagram','📸 Instagram'],['other','🔗 Other']].map(([k,l])=>`<option value="${k}" ${(ST.adminViewsSource||'all')===k?'selected':''}>${l}</option>`).join('')}</select>` : ''}
         ${!ST.adminViewsAsType ? `<select onchange="setAdminViewsSort(this.value)" style="padding:9px 10px;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:12px;font-family:var(--font-sans);background:var(--surface);color:var(--text)">${(ST.adminViewsMode==='unique'?[['most','Most views'],['fewest','Fewest views'],['recent','Recently seen'],['az','A–Z'],['za','Z–A']]:[['newest','Newest first'],['oldest','Oldest first']]).map(([k,l])=>`<option value="${k}" ${((ST.adminViewsMode==='unique'?(ST.adminViewsSortUnique||'most'):(ST.adminViewsSortAll||'newest'))===k)?'selected':''}>${l}</option>`).join('')}</select>` : ''}
         ${!ST.adminViewsAsType ? `<div class="views-mode-toggle" style="display:flex;border:0.5px solid var(--border-med);border-radius:var(--r-md);overflow:hidden">
           <div onclick="setAdminViewsMode('all')" style="flex:1;text-align:center;padding:9px 10px;font-size:11px;cursor:pointer;white-space:nowrap;background:${ST.adminViewsMode==='all'?'var(--green-lt)':'var(--surface)'};color:${ST.adminViewsMode==='all'?'var(--green-dk)':'var(--text2)'};font-weight:${ST.adminViewsMode==='all'?'600':'400'}">All Views</div>
@@ -12141,6 +12174,16 @@ function renderAdminPanel() {
 
 function setAdminViewsSort(v) {
   if(ST.adminViewsMode === 'unique') ST.adminViewsSortUnique = v; else ST.adminViewsSortAll = v;
+  ST.adminViewsPage = 0;
+  renderAdminPanel();
+}
+function setAdminViewsWho(v) {
+  ST.adminViewsWho = v;
+  ST.adminViewsPage = 0;
+  renderAdminPanel();
+}
+function setAdminViewsSource(v) {
+  ST.adminViewsSource = v;
   ST.adminViewsPage = 0;
   renderAdminPanel();
 }
@@ -12228,22 +12271,62 @@ async function loadAdminViews() {
 
   const withCommon = q => { if(filter !== 'all') q = q.eq('page_type', filter); if(rangeCutoff) q = q.gte('created_at', rangeCutoff); return q; };
 
+  // v1.74.61 — Who/Source filters. Applied SERVER-SIDE to All Views queries (keeps
+  // pagination correct); applied CLIENT-SIDE at the VISITOR level in Unique mode
+  // (a member who browsed one session logged-out must still count as a Member,
+  // so per-row server filtering would misclassify them).
+  const whoFilter = ST.adminViewsWho || 'all';
+  const srcFilter = ST.adminViewsSource || 'all';
+  const withWhoSource = q => {
+    if(whoFilter === 'member') q = q.not('viewer_email','is',null);
+    if(whoFilter === 'guest') q = q.is('viewer_email', null);
+    if(srcFilter === 'direct') q = q.is('referrer', null);
+    else if(srcFilter === 'google') q = q.ilike('referrer','%google%');
+    else if(srcFilter === 'facebook') q = q.ilike('referrer','%facebook%');
+    else if(srcFilter === 'instagram') q = q.ilike('referrer','%instagram%');
+    else if(srcFilter === 'other') q = q.not('referrer','is',null).not('referrer','ilike','%google%').not('referrer','ilike','%facebook%').not('referrer','ilike','%instagram%');
+    return q;
+  };
+  // Row-level source category — must mirror the withWhoSource server logic
+  const srcCat = ref => { if(!ref) return 'direct'; const r = String(ref).toLowerCase(); if(r.includes('google')) return 'google'; if(r.includes('facebook')) return 'facebook'; if(r.includes('instagram')) return 'instagram'; return 'other'; };
+  const srcCatLabels = {direct:'📱 Direct',google:'🔍 Google',facebook:'📘 Facebook',instagram:'📸 Instagram',other:'🔗 Other'};
+
   try {
-    let countQuery = withCommon(supabaseClient.from('page_views').select('*', {count:'exact',head:true}));
-    let uniqueQuery = withCommon(supabaseClient.from('page_views').select('visitor_id,viewer_email,city,region,page_type,entity_id,created_at').not('visitor_id','is',null).order('created_at',{ascending:false}).limit(3000));
+    let countQuery = withWhoSource(withCommon(supabaseClient.from('page_views').select('*', {count:'exact',head:true})));
+    let uniqueQuery = withCommon(supabaseClient.from('page_views').select('visitor_id,viewer_email,city,region,page_type,entity_id,created_at,referrer').not('visitor_id','is',null).order('created_at',{ascending:false}).limit(3000));
 
     const [{count: totalCount}, breakdownCounts, {data: sampleRows}] = await Promise.all([
       countQuery,
       filter === 'all'
         ? Promise.all(Object.keys(pageTypeLabels).map(pt => {
-            let q = supabaseClient.from('page_views').select('*', {count:'exact',head:true}).eq('page_type', pt);
+            let q = withWhoSource(supabaseClient.from('page_views').select('*', {count:'exact',head:true}).eq('page_type', pt));
             if(rangeCutoff) q = q.gte('created_at', rangeCutoff);
             return q.then(r=>[pt, r.count||0]);
           }))
         : Promise.resolve([]),
       uniqueQuery
     ]);
-    const uniqueVisitors = new Set((sampleRows||[]).map(r=>r.visitor_id)).size;
+
+    // Group the sample into visitors ONCE, then apply Who/Source at the visitor
+    // level — used by both the Unique-visitors stat and the Unique mode list.
+    const byVisitor = {};
+    (sampleRows||[]).forEach(r => {
+      if(!byVisitor[r.visitor_id]) byVisitor[r.visitor_id] = { visitorId:r.visitor_id, count:0, email:null, city:null, region:null, lastSeen:r.created_at, sources:new Set(), rows:[] };
+      const v = byVisitor[r.visitor_id];
+      v.count++;
+      if(r.viewer_email) v.email = r.viewer_email;
+      if(!v.city && r.city) v.city = r.city;
+      if(!v.region && r.region) v.region = r.region;
+      if(r.created_at > v.lastSeen) v.lastSeen = r.created_at;
+      v.sources.add(srcCat(r.referrer));
+      v.rows.push(r);
+    });
+    let filteredVisitors = Object.values(byVisitor);
+    if(whoFilter === 'member') filteredVisitors = filteredVisitors.filter(v=>v.email);
+    if(whoFilter === 'guest') filteredVisitors = filteredVisitors.filter(v=>!v.email);
+    if(srcFilter !== 'all') filteredVisitors = filteredVisitors.filter(v=>v.sources.has(srcFilter));
+
+    const uniqueVisitors = filteredVisitors.length;
     const sampleCapped = sampleRows && sampleRows.length >= 3000;
 
     if(!totalCount) {
@@ -12294,21 +12377,10 @@ async function loadAdminViews() {
     if(!listEl) return;
 
     if(mode === 'unique') {
-      /* ── CONSOLIDATED: ONE ROW PER VISITOR ── */
-      const byVisitor = {};
-      (sampleRows||[]).forEach(r => {
-        if(!byVisitor[r.visitor_id]) byVisitor[r.visitor_id] = { visitorId:r.visitor_id, count:0, email:null, city:null, region:null, lastSeen:r.created_at, rows:[] };
-        const v = byVisitor[r.visitor_id];
-        v.count++;
-        if(r.viewer_email) v.email = r.viewer_email;
-        if(!v.city && r.city) v.city = r.city;
-        if(!v.region && r.region) v.region = r.region;
-        if(r.created_at > v.lastSeen) v.lastSeen = r.created_at;
-        v.rows.push(r);
-      });
+      /* ── CONSOLIDATED: ONE ROW PER VISITOR (grouped + filtered above) ── */
       const uSort = ST.adminViewsSortUnique || 'most';
       const uName = v => (v.email || 'zzzz guest ' + v.visitorId).toLowerCase();
-      const visitorList = Object.values(byVisitor).sort((a,b)=>{
+      const visitorList = [...filteredVisitors].sort((a,b)=>{
         if(uSort==='fewest') return a.count - b.count;
         if(uSort==='recent') return new Date(b.lastSeen) - new Date(a.lastSeen);
         if(uSort==='az') return uName(a).localeCompare(uName(b));
@@ -12328,16 +12400,17 @@ async function loadAdminViews() {
       pageItems.forEach(v => {
         const who = fmtWho(v.email, v.visitorId);
         const where = (v.city || v.region) ? ` · ${[v.city, v.region].filter(Boolean).join(', ')}` : '';
+        const sourcesStr = [...v.sources].map(s=>srcCatLabels[s]||s).join(' · ');
         const lastSeenStr = new Date(v.lastSeen).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
         const safeId = v.visitorId.replace(/[^a-zA-Z0-9-]/g,'');
         const detailRows = [...v.rows].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(r => {
           const d = new Date(r.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
-          return `<div style="font-size:11px;color:var(--text2);padding:5px 0;border-bottom:0.5px solid var(--border)">${fmtEntity(r)} <span style="color:var(--text3)">· ${pageTypeLabels[r.page_type]||r.page_type} · ${d}</span></div>`;
+          return `<div style="font-size:11px;color:var(--text2);padding:5px 0;border-bottom:0.5px solid var(--border)">${fmtEntity(r)} <span style="color:var(--text3)">· ${pageTypeLabels[r.page_type]||r.page_type} · ${fmtSource(r.referrer)} · ${d}</span></div>`;
         }).join('');
         listHtml += `<div class="admin-row" onclick="toggleAdminVisitorDetail('${safeId}')" style="cursor:pointer">
           <div class="admin-row-info">
             <div class="admin-row-name">${esc(who)}</div>
-            <div class="admin-row-meta">${v.count} page view${v.count===1?'':'s'}${where} · Last seen ${lastSeenStr}</div>
+            <div class="admin-row-meta">${v.count} page view${v.count===1?'':'s'}${where} · ${sourcesStr} · Last seen ${lastSeenStr}</div>
           </div>
           <span class="status-pill ${esc(v.email?'claimed':'draft')}">${esc(v.email?'Member':'Guest')}</span>
         </div>
@@ -12356,7 +12429,7 @@ async function loadAdminViews() {
     }
 
     /* ── ALL VIEWS: ONE ROW PER PAGE LOAD (existing behavior) ── */
-    let rowsQuery = withCommon(supabaseClient.from('page_views').select('*').order('created_at', {ascending: (ST.adminViewsSortAll||'newest')==='oldest'}).range(pageStart, pageEnd));
+    let rowsQuery = withWhoSource(withCommon(supabaseClient.from('page_views').select('*').order('created_at', {ascending: (ST.adminViewsSortAll||'newest')==='oldest'}).range(pageStart, pageEnd)));
     const { data: rows } = await rowsQuery;
 
     let listHtml = `<div style="font-size:11px;font-weight:500;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">${(ST.adminViewsSortAll||'newest')==='oldest'?'Oldest views first':'Recent views'}</div>
@@ -12984,6 +13057,18 @@ async function onAuthSuccess(user) {
   // Set role — always reflect the real, database-confirmed role from an actual login,
   // even if dev mode happens to be on in this browser (a genuine sign-in should never be ignored)
   ST.role = role;
+
+  // v1.74.61 — restore the admin tab from before a reload/tab-discard. Held in a
+  // pending flag (not consumed once) because boot renders the admin sub-page more
+  // than once; the flag is cleared by the first real user navigation instead.
+  if(role === 'admin') {
+    let savedAdminTab = null;
+    try { savedAdminTab = sessionStorage.getItem('wm_admin_tab'); } catch(e) {}
+    const validAdminTabs = ['dashboard','areas','markets','vendors','claims','messages','users','follows','ads','views'];
+    if(savedAdminTab && validAdminTabs.includes(savedAdminTab) && savedAdminTab !== 'dashboard') {
+      ST._adminTabPendingRestore = savedAdminTab;
+    }
+  }
 
   // If vendor, also fetch fresh trial_start from vendors table to ensure tier is accurate
   // Skip for test/demo vendors — their pro state is managed by setTestVendorTier
@@ -13823,6 +13908,9 @@ async function refreshAdminUnread() {
 
 function setAdminTab(tab) {
   ST.adminTab = tab;
+  // v1.74.61 — remember the admin tab across reloads/tab discards (same
+  // sessionStorage pattern as vendor/operator wm_dash_tab from v1.74.48)
+  try { sessionStorage.setItem('wm_admin_tab', tab); } catch(e) {}
   ST.adminMsgThread = null;
   if(!ST.adminClaimsTab) ST.adminClaimsTab = 'pending';
   if(!ST.adminAnnouncements) ST.adminAnnouncements = [];
@@ -16294,7 +16382,7 @@ async function saveAttendance(vendorId, marketId, confirmed) {
 }
 
 function buildMoreVendorsStrip(v) {
-  const sameCategory = DATA.vendors.filter(x=>x.id!==v.id&&x.category===v.category);
+  const sameCategory = DATA.vendors.filter(x=>x.id!==v.id&&x.category===v.category&&x.published===true);
   if(!sameCategory.length) return '';
   const sorted = [...sameCategory].sort((a,b)=>(b.pro?2:b.claimed?1:0)-(a.pro?2:a.claimed?1:0)).slice(0,3);
   const cards = sorted.map(x=>{
@@ -16317,7 +16405,7 @@ function renderAlsoAtStrip(v) {
   if(!v.markets||!v.markets.length) { el.innerHTML=''; return; }
   const primaryMarket = getMarket(v.markets[0]);
   if(!primaryMarket) { el.innerHTML=''; return; }
-  let others = DATA.vendors.filter(x=>x.id!==v.id&&x.category!==v.category&&x.markets&&x.markets.some(mid=>v.markets.includes(mid)));
+  let others = DATA.vendors.filter(x=>x.id!==v.id&&x.category!==v.category&&x.markets&&x.markets.some(mid=>v.markets.includes(mid))&&x.published===true);
   if(!others.length) { el.innerHTML=''; return; }
   others = others.sort((a,b)=>(b.pro?2:b.claimed?1:0)-(a.pro?2:a.claimed?1:0));
   const stripId = 'alsoAtTrack_'+v.id;
@@ -18501,7 +18589,7 @@ function renderAdminSettings() {
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Platform Info</div>
-        <div class="admin-row-meta">Version 1.74.57 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
+        <div class="admin-row-meta">Version 1.74.62 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Coverage Area</div>
