@@ -8,7 +8,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.74.62 — View-site return badge fix in admin preview; version comments condensed -->
+<!-- v1.74.74 — Fix: infinite loop / stack overflow when a non-shopper role (vendor, operator, admin) landed on the 'me' tab — pre-existing bug, not from tonight's other changes -->
+<!-- v1.74.73 — New: Terms of Service page (/terms), linked alongside Privacy Policy in all 5 existing spots. New: required Terms agreement checkbox on account sign-up (shoppers, vendors, operators — shared modal), timestamped in signup metadata -->
+<!-- v1.74.72 — Activity tab: added All/Vendors/Markets filter and Load more pagination (25 at a time) -->
+<!-- v1.74.71 — Fix: Spotlight cards didn't navigate anywhere on click (referenced a nonexistent field, so navigate() got 'undefined' as the page) -->
+<!-- v1.74.70 — New: Activity tab in admin panel — rolling feed of vendor/market profile changes (field edits + market add/remove), logged automatically via Supabase triggers, no changes to save code -->
+<!-- v1.74.69 — Real homepage Spotlight now shows Keith's hand-picked, ordered real vendors/markets (no fake demo entries). /demo keeps the old fully-baked showcase for pitching. -->
+<!-- v1.74.68 — Add ?demo=1 query-string fallback so demo mode can be tested on a local file (file:// URLs can't use a real /demo path) -->
+<!-- v1.74.67 — Fix: market schedule badge selector typo (scroll-to-info tap). Fix: share-cancel no longer logged as error. New: /demo route — self-contained live pitch mirror, all navigation stays under /demo -->
+<!-- v1.74.66 — Fix: market schedule badge selector typo prevented scroll-to-info on tap (superseded by v1.74.67 — do not deploy this version on its own) -->
 <!-- v1.74.61 — Map stability guard; view-site shopper nav + routing; admin tab persistence; Views tab source data + filters -->
 <!-- v1.74.60 — Monthly-market "next date" sorting corrected across all displays -->
 <!-- v1.74.59 — Monthly market scheduling fix; test listings hidden from public carousels -->
@@ -88,6 +96,7 @@
 <meta name="twitter:description" content="Discover local farmers markets and vendors near you. Find fresh produce, artisan goods, and more at markets in your area.">
 <meta name="twitter:image" content="https://shopwindmill.com/share-image.png">
 <link rel="canonical" href="https://shopwindmill.com/" id="canonicalTag">
+<meta name="robots" content="index, follow" id="robotsTag">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
@@ -1771,6 +1780,7 @@ let ST = {
   role:'customer', lang:(()=>{try{const l=localStorage.getItem('wm_lang');return ['en','es','pt'].includes(l)?l:'en'}catch(e){return 'en'}})(), tab:'home',
   weekend:true, location:'Fort Myers, FL',
   searchQuery:'', currentPage:null, currentId:null,
+  demoMode:false, // v1.74.67 — true when browsing under /demo (self-contained pitch mirror)
   filters:{days:[],cats:[],pet:false,open:false,parking:false},
   adminTab:'dashboard',
   devMode:false,
@@ -1838,7 +1848,9 @@ let ST = {
   adminViewsPage: 0,
   adminViewsMode: 'all',
   adminViewsAsMode: 'vendor',
-  adminViewsRange: 'alltime'
+  adminViewsRange: 'alltime',
+  adminActivityFilter: 'all', // 'all' | 'vendor' | 'market'
+  adminActivityLimit: 25,
 };
 
 /* ── VISITOR IDENTITY + APPROX LOCATION (anonymous, for analytics) ── */
@@ -2803,6 +2815,18 @@ function getMarketDays(m) {
   return m.day_of_week ? [m.day_of_week] : [];
 }
 
+// v1.74.63: single source of truth for the admin frequency dropdown.
+// 'biweekly' is intentionally NOT offered — the display code handles it but no
+// market uses it, and its week-anchor logic is unverified.
+const MARKET_FREQ_OPTIONS = [
+  {v:'weekly',       label:'Every week'},
+  {v:'monthly-1st',  label:'1st week of the month'},
+  {v:'monthly-2nd',  label:'2nd week of the month'},
+  {v:'monthly-3rd',  label:'3rd week of the month'},
+  {v:'monthly-4th',  label:'4th week of the month'},
+  {v:'monthly-last', label:'Last week of the month'}
+];
+
 // Returns a human-readable schedule label for display on cards.
 // e.g. "Saturdays", "Tues & Thurs", "3rd Saturdays"
 function getMarketScheduleLabel(m) {
@@ -3482,15 +3506,22 @@ function updatePageMeta(title, desc, path, pageType, entityId) {
   let metaDesc = document.querySelector('meta[name="description"]');
   if(!metaDesc) { metaDesc = document.createElement('meta'); metaDesc.name = 'description'; document.head.appendChild(metaDesc); }
   metaDesc.content = desc;
+  // v1.74.67 — /demo is a self-contained pitch mirror: keep every pushed URL
+  // under /demo so navigating during a demo never drops back to the real site.
+  const effectivePath = ST.demoMode && path ? ('/demo' + (path === '/' ? '' : path)) : path;
   // Canonical
   const canon = document.getElementById('canonicalTag');
-  if(canon) canon.href = 'https://shopwindmill.com' + (path || '/');
+  if(canon) canon.href = 'https://shopwindmill.com' + (effectivePath || '/');
+  // Demo pages are a duplicate mirror for pitching — keep them out of search results
+  const robots = document.getElementById('robotsTag');
+  if(robots) robots.content = ST.demoMode ? 'noindex, nofollow' : 'index, follow';
   // Push URL to browser bar (no reload) — only on real domain, not local file
-  if(path && window.location.protocol !== 'file:' && window.location.pathname !== path) {
-    history.pushState({page: ST.currentPage, id: ST.currentId, tab: ST.tab}, title, path);
+  if(effectivePath && window.location.protocol !== 'file:' && window.location.pathname !== effectivePath) {
+    history.pushState({page: ST.currentPage, id: ST.currentId, tab: ST.tab, demoMode: ST.demoMode}, title, effectivePath);
   }
   // Track page view (non-blocking, only for page types we explicitly pass in)
-  if(pageType) trackPageView(pageType, entityId || null, path || window.location.pathname);
+  // Demo-mode browsing is Keith's own pitch activity, not real traffic — don't log it.
+  if(pageType && !ST.demoMode) trackPageView(pageType, entityId || null, effectivePath || window.location.pathname);
 }
 
 /* ── PAGE VIEW TRACKING ── */
@@ -3526,10 +3557,14 @@ window.addEventListener('popstate', function(e) {
     ST.currentPage = e.state.page || null;
     ST.currentId = e.state.id || null;
     ST.tab = e.state.tab || 'home';
+    ST.demoMode = !!e.state.demoMode;
   } else {
     ST.currentPage = null;
     ST.currentId = null;
     ST.tab = 'home';
+    // v1.74.67 — no state (e.g. user edited the URL bar directly) — fall back
+    // to re-parsing the current path so /demo/... still stays in demo mode.
+    ST.demoMode = window.location.pathname === '/demo' || window.location.pathname.startsWith('/demo/');
   }
   const sb = document.getElementById('scrollBody');
   window.scrollTo(0, 0);
@@ -3540,7 +3575,18 @@ window.addEventListener('popstate', function(e) {
 
 /* ── HISTORY API: parse URL on first load ── */
 function routeFromURL() {
-  const path = window.location.pathname;
+  let path = window.location.pathname;
+  // v1.74.68 — local file:// testing can't use a real /demo path (there's no
+  // server behind it), so also accept ?demo=1 as a fallback trigger.
+  const demoQueryParam = new URLSearchParams(window.location.search).get('demo') === '1';
+  // v1.74.67 — /demo is a self-contained pitch mirror of the live site: same
+  // app, same live data, just tagged so internal navigation stays under /demo.
+  if(path === '/demo' || path.startsWith('/demo/') || demoQueryParam) {
+    ST.demoMode = true;
+    path = path.slice('/demo'.length) || '/';
+  } else {
+    ST.demoMode = false;
+  }
   // Check specific vendor sub-pages BEFORE the vendor regex
   if(path === '/vendors/join') { ST.currentPage = 'vendors-join'; return; }
   if(path === '/vendors/login') { ST.currentPage = 'vendors-login'; return; }
@@ -3557,6 +3603,7 @@ function routeFromURL() {
     return;
   }
   if(path === '/privacy') { ST.currentPage = 'privacy-policy'; return; }
+  if(path === '/terms') { ST.currentPage = 'terms-of-service'; return; }
   const marketMatch = path.match(/^\/markets\/([^/]+)\/?$/);
   const vendorMatch = path.match(/^\/vendors\/([^/]+)\/?$/);
   if(marketMatch) {
@@ -3643,6 +3690,7 @@ function renderCurrentPage() {
   if(p === 'market') return renderMarketDetail(ST.currentId);
   if(p === 'area-request') { updatePageMeta('Request Your Area | Windmill','Ask us to bring Windmill to your city.','/area-request'); return renderAreaRequest(); }
   if(p === 'privacy-policy') { updatePageMeta('Privacy Policy | Windmill','How Windmill collects, uses, and protects your information.','/privacy'); return renderPrivacyPolicy(); }
+  if(p === 'terms-of-service') { updatePageMeta('Terms of Service | Windmill','The terms that govern use of Windmill by shoppers, vendors, and market operators.','/terms'); return renderTermsOfService(); }
   if(p === 'vendors-list') { updatePageMeta('Browse Vendors | Windmill','Browse all local market vendors on Windmill.','/vendors', 'vendors_list'); return renderVendorsList(); }
   if(p === 'category-hub') { updatePageMeta('Explore by Category | Windmill','Browse farmers market vendors and markets by category.','/categories', 'category_hub'); return renderCategoryHub(); }
   if(p === 'category') { updatePageMeta('Category | Windmill','Browse vendors and markets by category.','/categories/'+ST.currentId, 'category', ST.currentId); return renderCategoryPage(ST.currentId); }
@@ -4437,54 +4485,81 @@ function renderHome() {
     annCards.push({ id: op.id, name: op.name, text: ann.text, expiresLabel, catLabel, colors, nav });
   });
 
-  // Build pro profile cards — pin demo cards first, shuffle the rest
-  const spotlightItems = DATA.spotlight[ST.region] || DATA.spotlight['lee-county'];
-  const pinnedIds = ['demo-vendor-pro', 'demo-operator-pro'];
-  const pinnedCards = pinnedIds.map(id => spotlightItems.find(s => s.id === id)).filter(Boolean).map(s => ({ type: 'pro', s }));
-  const remainingCards = spotlightItems.filter(s => !pinnedIds.includes(s.id));
+  // v1.74.69 — Real homepage now shows a hand-picked, ordered Spotlight (set by
+  // Keith directly in code, no admin UI yet — see MANUAL_SPOTLIGHT below).
+  // /demo keeps the old fully-baked fake-pro showcase (Empanada Queen, Suncoast
+  // Market Collective) since that's Keith's iPad pitch tool, never seen by
+  // real visitors — see ST.demoMode branch.
+  let allCards;
 
-  // Shuffle remaining pro cards seeded by day
-  const daySeed = new Date().getDate();
-  const shuffledRest = [...remainingCards].sort((a,b) => {
-    const ha = (a.id.charCodeAt(0) + daySeed) % 7;
-    const hb = (b.id.charCodeAt(0) + daySeed) % 7;
-    return ha - hb;
-  }).map(s => ({ type: 'pro', s }));
+  if(ST.demoMode) {
+    // ── DEMO MODE: original pinned-demo + shuffled-pro + announcements ──
+    const spotlightItems = DATA.spotlight[ST.region] || DATA.spotlight['lee-county'];
+    const pinnedIds = ['demo-vendor-pro', 'demo-operator-pro'];
+    const pinnedCards = pinnedIds.map(id => spotlightItems.find(s => s.id === id)).filter(Boolean).map(s => ({ type: 'pro', s }));
+    const remainingCards = spotlightItems.filter(s => !pinnedIds.includes(s.id));
 
-  // Build hardwired demo announcement cards
-  const eqAnnCards = [];
-  const eqVendor = DATA.demo_vendors ? DATA.demo_vendors.find(v => v.id === 'demo-vendor-pro') : null;
-  if(eqVendor?.weekly_update) {
-    const wu = typeof eqVendor.weekly_update === 'object' ? eqVendor.weekly_update : { text: eqVendor.weekly_update, expires: 'week' };
-    if(wu.text) {
-      const expiresLabel = wu.badge || (wu.expires === 'month' ? 'This month' : wu.expires === 'weekend' ? 'This weekend' : wu.expires === 'permanent' ? 'Ongoing' : 'This week');
-      const colors = annColorForId(eqVendor.id);
-      const catLabel = annCategoryLabel(eqVendor.id, false);
-      eqAnnCards.push({ type: 'ann', a: { id: eqVendor.id, name: eqVendor.name, text: wu.text, expiresLabel, catLabel, colors, nav: `navigate('demo-vendor-pro')` } });
+    const daySeed = new Date().getDate();
+    const shuffledRest = [...remainingCards].sort((a,b) => {
+      const ha = (a.id.charCodeAt(0) + daySeed) % 7;
+      const hb = (b.id.charCodeAt(0) + daySeed) % 7;
+      return ha - hb;
+    }).map(s => ({ type: 'pro', s }));
+
+    const eqAnnCards = [];
+    const eqVendor = DATA.demo_vendors ? DATA.demo_vendors.find(v => v.id === 'demo-vendor-pro') : null;
+    if(eqVendor?.weekly_update) {
+      const wu = typeof eqVendor.weekly_update === 'object' ? eqVendor.weekly_update : { text: eqVendor.weekly_update, expires: 'week' };
+      if(wu.text) {
+        const expiresLabel = wu.badge || (wu.expires === 'month' ? 'This month' : wu.expires === 'weekend' ? 'This weekend' : wu.expires === 'permanent' ? 'Ongoing' : 'This week');
+        const colors = annColorForId(eqVendor.id);
+        const catLabel = annCategoryLabel(eqVendor.id, false);
+        eqAnnCards.push({ type: 'ann', a: { id: eqVendor.id, name: eqVendor.name, text: wu.text, expiresLabel, catLabel, colors, nav: `navigate('demo-vendor-pro')` } });
+      }
     }
-  }
 
-  const suncoastAnnCards = [];
-  const suncoastOp = DATA.demo_operators ? DATA.demo_operators.find(op => op.id === 'demo-operator-pro') : null;
-  if(suncoastOp?.announcement) {
-    const ann = typeof suncoastOp.announcement === 'object' ? suncoastOp.announcement : { text: suncoastOp.announcement, expires: 'week' };
-    if(ann.text) {
-      const expiresLabel = ann.badge || (ann.expires === 'month' ? 'This month' : ann.expires === 'weekend' ? 'This weekend' : ann.expires === 'permanent' ? 'Ongoing' : 'This week');
-      const colors = annColorForId(suncoastOp.id);
-      const catLabel = annCategoryLabel(suncoastOp.id, true);
-      suncoastAnnCards.push({ type: 'ann', a: { id: suncoastOp.id, name: suncoastOp.name, text: ann.text, expiresLabel, catLabel, colors, nav: `navigate('demo-operator-pro')` } });
+    const suncoastAnnCards = [];
+    const suncoastOp = DATA.demo_operators ? DATA.demo_operators.find(op => op.id === 'demo-operator-pro') : null;
+    if(suncoastOp?.announcement) {
+      const ann = typeof suncoastOp.announcement === 'object' ? suncoastOp.announcement : { text: suncoastOp.announcement, expires: 'week' };
+      if(ann.text) {
+        const expiresLabel = ann.badge || (ann.expires === 'month' ? 'This month' : ann.expires === 'weekend' ? 'This weekend' : ann.expires === 'permanent' ? 'Ongoing' : 'This week');
+        const colors = annColorForId(suncoastOp.id);
+        const catLabel = annCategoryLabel(suncoastOp.id, true);
+        suncoastAnnCards.push({ type: 'ann', a: { id: suncoastOp.id, name: suncoastOp.name, text: ann.text, expiresLabel, catLabel, colors, nav: `navigate('demo-operator-pro')` } });
+      }
     }
-  }
 
-  // Final order: EQ pro → Suncoast pro → EQ announcement → first shuffled pro card → Suncoast announcement → rest
-  const allCards = [
-    ...pinnedCards,
-    ...eqAnnCards,
-    ...(shuffledRest.length > 0 ? [shuffledRest[0]] : []),
-    ...suncoastAnnCards,
-    ...annCards.filter(a => a.id !== 'demo-vendor-pro' && a.id !== 'demo-operator-pro').map(a=>({type:'ann',a})),
-    ...(shuffledRest.length > 1 ? shuffledRest.slice(1) : [])
-  ].slice(0, 8);
+    allCards = [
+      ...pinnedCards,
+      ...eqAnnCards,
+      ...(shuffledRest.length > 0 ? [shuffledRest[0]] : []),
+      ...suncoastAnnCards,
+      ...annCards.filter(a => a.id !== 'demo-vendor-pro' && a.id !== 'demo-operator-pro').map(a=>({type:'ann',a})),
+      ...(shuffledRest.length > 1 ? shuffledRest.slice(1) : [])
+    ].slice(0, 8);
+  } else {
+    // ── LIVE MODE: hand-picked, ordered, real accounts only ──
+    // To change what's featured or the order, edit this list and redeliver.
+    const MANUAL_SPOTLIGHT = [
+      { type: 'market', id: 'cape-coral-downtown' },
+      { type: 'vendor', id: 'killrose-design',                badge: 'Pro' },
+      { type: 'market', id: 'fort-myers-downtown' },
+      { type: 'vendor', id: 'the-bald-baker',                 badge: 'Spotlight' },
+      { type: 'market', id: 'mcgregor-local-farmers-market' },
+      { type: 'vendor', id: 'auramanda-jewelry',               badge: 'Pro' }
+    ];
+    const curatedCards = MANUAL_SPOTLIGHT.map(entry => {
+      const coll = entry.type === 'market' ? DATA.markets : DATA.vendors;
+      const rec = coll.find(x => x.id === entry.id);
+      if(!rec) return null; // record renamed/removed — skip rather than break the row
+      const badge = entry.badge || (entry.type === 'market' && rec.day_of_week ? rec.day_of_week + 's' : entry.type === 'market' ? 'Market' : 'Featured');
+      const tagline = entry.type === 'market' ? (rec.venue || `${rec.city}, ${rec.state}`) : (rec.tagline || rec.category || '');
+      return { type: 'pro', s: { id: rec.id, name: rec.name, tagline, photo: rec.photo, route: entry.type, badge } };
+    }).filter(Boolean);
+
+    allCards = [...curatedCards].slice(0, 8);
+  }
 
   allCards.forEach(item => {
     if(item.type === 'ann') {
@@ -4502,10 +4577,11 @@ function renderHome() {
       </div>`;
     } else {
       const s = item.s;
-      h += `<div class="spotlight-card" onclick="navigate('${s.route==='demo-vendor-pro'||s.route==='demo-operator-pro'?s.route:s.type}','${s.id}')">
-        <span class="spotlight-badge">Pro</span>
+      const badgeLabel = s.badge || 'Pro';
+      h += `<div class="spotlight-card" onclick="navigate('${s.route}','${s.id}')">
+        <span class="spotlight-badge">${esc(badgeLabel)}</span>
         <div class="spotlight-img">
-          <img src="${s.photo}" alt="${esc(s.name)}" style="width:100%;height:100%;object-fit:cover" loading="lazy">
+          ${s.photo ? `<img src="${s.photo}" alt="${esc(s.name)}" style="width:100%;height:100%;object-fit:cover" loading="lazy">` : `<span style="font-family:var(--font-serif);font-size:20px;font-weight:600;color:var(--green-dk)">${initials(s.name)}</span>`}
         </div>
         <div class="spotlight-info">
           <div class="spotlight-name">${esc(s.name)}</div>
@@ -6710,7 +6786,7 @@ function renderMarketDetail(id) {
         </div>
         <div class="market-badges">
           <span class="badge-pill ${isOpen(m)?'green':'amber'}" style="cursor:pointer" onclick="scrollToSection('mkt-info','marketSectionNav',document.querySelector('#marketSectionNav .section-nav-btn:nth-child(2)'))">${isOpen(m)?(m.season_start==='All Year'?'✓ Year Round':t('open_season')):t('seasonal')}</span>
-          <span class="badge-pill gray" style="cursor:pointer" onclick="scrollToSection('mkt-info','marketSectionNav',document.querySelector('#marketSectionNav .section-nav-btn:nth-child(2))'))">📅 ${getMarketScheduleLabel(m)}</span>
+          <span class="badge-pill gray" style="cursor:pointer" onclick="scrollToSection('mkt-info','marketSectionNav',document.querySelector('#marketSectionNav .section-nav-btn:nth-child(2)'))">📅 ${getMarketScheduleLabel(m)}</span>
           <span class="badge-pill gray" style="cursor:pointer" onclick="scrollToSection('mkt-info','marketSectionNav',document.querySelector('#marketSectionNav .section-nav-btn:nth-child(2)'))">🕗 ${formatTimeRange(m.start_time,m.end_time)}</span>
           ${m.pet_friendly?`<span class="badge-pill green">${t('pets_welcome')}</span>`:`<span class="badge-pill terra">${t('no_pets')}</span>`}
           <span class="badge-pill gray" style="cursor:pointer" onclick="scrollToSection('mkt-vendors','marketSectionNav',document.querySelector('#marketSectionNav .section-nav-btn:nth-child(5)'))">👥 ${mvs.length} ${t('vendors_c')}</span>
@@ -7305,7 +7381,7 @@ function renderVendorsJoin() {
       <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">${c.footer_q}</div>
       <button onclick="openContactWindmill()" style="background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);padding:8px 18px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-sans)">${t('vd_contact_btn')}</button>
       <div style="margin-top:12px;font-size:12px;color:var(--text3)">${c.footer_signin} <span style="color:var(--terra);cursor:pointer" onclick="navigate('vendors-login')">${c.footer_signin_link}</span></div>
-      <div style="margin-top:8px;font-size:11px;color:var(--text3)"><span style="color:var(--terra);cursor:pointer" onclick="navigate('privacy-policy')">${t('vd_privacy_policy')}</span></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--text3)"><span style="color:var(--terra);cursor:pointer" onclick="navigate('privacy-policy')">${t('vd_privacy_policy')}</span> · <span style="color:var(--terra);cursor:pointer" onclick="navigate('terms-of-service')">Terms of Service</span></div>
     </div>
 
   </div>`;
@@ -8526,7 +8602,7 @@ function renderMarketsJoin() {
       <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">${c.footer_q}</div>
       <button onclick="openContactWindmill()" style="background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);padding:8px 18px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-sans)">Contact Windmill</button>
       <div style="margin-top:12px;font-size:12px;color:var(--text3)">${c.footer_signin} <span style="color:var(--terra);cursor:pointer" onclick="navigate('markets-login')">${c.footer_signin_link}</span></div>
-      <div style="margin-top:8px;font-size:11px;color:var(--text3)"><span style="color:var(--terra);cursor:pointer" onclick="navigate('privacy-policy')">Privacy Policy</span></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--text3)"><span style="color:var(--terra);cursor:pointer" onclick="navigate('privacy-policy')">Privacy Policy</span> · <span style="color:var(--terra);cursor:pointer" onclick="navigate('terms-of-service')">Terms of Service</span></div>
     </div>
 
   </div>`;
@@ -9125,6 +9201,47 @@ function renderPrivacyPolicy() {
   </div>`;
 }
 
+// v1.74.73 — Terms of Service. English-only for now, matching how the Privacy
+// Policy above is currently handled (not run through the es/pt translation
+// system) — keeps the one legal document that exists consistent with the
+// other. Full translation can be added later if/when Privacy Policy also gets one.
+function renderTermsOfService() {
+  hideFilterUI();
+  const section = (title, body) => `<div style="margin-bottom:18px"><div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;font-family:var(--font-serif)">${title}</div><p style="font-size:12px;color:var(--text2);line-height:1.7;margin:0">${body}</p></div>`;
+  const subhead = (label) => `<div style="font-size:11px;font-weight:600;color:var(--green-dk);text-transform:uppercase;letter-spacing:.04em;margin:26px 0 10px">${label}</div>`;
+  document.getElementById('scrollBody').innerHTML = `<div style="padding:0 16px 32px">
+    <div class="profile-back" onclick="goBack()" style="padding-top:14px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> ${t('back')}</div>
+    <div style="font-family:var(--font-serif);font-size:20px;font-weight:600;color:var(--text);margin:16px 0 2px">Terms of Service</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Last updated: July 2026</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:20px;font-style:italic">These Terms are currently available in English only. If a translated version is offered in the future, the English version will govern in case of any conflict.</div>
+
+    ${section('1. What Windmill Is', `Windmill is a discovery platform that connects shoppers with local farmers market vendors and market operators in the regions we serve. We help people find markets, vendors, and products near them. We do not manufacture, sell, inspect, or take possession of any goods listed on the platform, and we are not a party to any transaction that happens at a market.`)}
+    ${section('2. Accounts', `You're responsible for keeping your account information accurate and your login credentials secure. Windmill reserves the right to review, approve, reject, or revoke any account or claim at our discretion — for example, if information provided is false or a listing violates these Terms.`)}
+    ${section('3. General Liability', `Windmill provides the platform "as is." We don't guarantee the accuracy of any listing, the availability of any market or vendor, or the outcome of any transaction. To the fullest extent permitted by law, Windmill is not liable for any loss, damage, or dispute arising from your use of the platform or from any interaction with a vendor or market operator.`)}
+    ${section('4. Changes to These Terms', `We may update these Terms from time to time. Continued use of Windmill after changes are posted means you accept the updated Terms.`)}
+    ${section('5. Contact', `Questions about these Terms can be sent to hello@shopwindmill.com.`)}
+
+    ${subhead('For Vendors')}
+    ${section('6. Your Listing', `You're solely responsible for the accuracy of your business information, descriptions, photos, pricing, and any claims you make about your products. Windmill does not review, verify, or guarantee vendor content before it's published, and does not endorse any specific vendor or product.`)}
+    ${section('7. Prohibited Content', `You may not post content that is illegal, harassing, defamatory, or that targets, names, or disparages a specific private individual. Windmill reserves the right to remove any listing or content that violates this policy.`)}
+    ${section('8. Your Products & Transactions', `Windmill is not responsible for product quality, safety, accuracy of claims, delivery, refunds, or any dispute between you and a shopper. Those matters are between you and your customer directly.`)}
+
+    ${subhead('For Market Operators')}
+    ${section('9. Your Market Listing', `You're solely responsible for the accuracy of your market's information — schedule, location, vendor roster, and any content you post. Windmill does not verify market details before publishing and does not guarantee attendance, vendor participation, or event outcomes.`)}
+    ${section('10. Representation', `By claiming a market listing, you confirm you're authorized to represent that market or its operating organization.`)}
+
+    ${subhead('For Shoppers')}
+    ${section('11. No Guarantee of Availability', `Windmill helps you discover markets and vendors, but we don't guarantee any market will be open, any vendor will attend, or any product will be available as listed.`)}
+    ${section('12. Purchases Are Between You and the Vendor', `Windmill is not a party to any purchase you make at a market. Any issue with a product, refund, or vendor interaction is between you and that vendor.`)}
+    ${section('13. Conduct', `Please treat vendors, operators, and other shoppers respectfully. Harassment or abusive behavior toward any user of the platform may result in account suspension.`)}
+
+    <div style="margin-top:24px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px">
+      <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">✉️ Questions about these Terms?</div>
+      <button onclick="openContactWindmill()" style="background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);padding:8px 18px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-sans)">${t('vd_contact_btn')}</button>
+    </div>
+  </div>`;
+}
+
 /* ── FOLLOWING ── */
 function renderFollowing() {
   hideFilterUI();
@@ -9628,6 +9745,8 @@ async function renderMeSection(section) {
       <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-top:12px">
         <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">🔒 Privacy</div>
         <span onclick="navigate('privacy-policy')" style="font-size:12px;color:var(--terra);cursor:pointer">${t('vd_privacy_policy')}</span>
+        <span style="color:var(--text3);margin:0 4px">·</span>
+        <span onclick="navigate('terms-of-service')" style="font-size:12px;color:var(--terra);cursor:pointer">Terms of Service</span>
       </div>
     </div></div>`;
   }
@@ -9908,7 +10027,10 @@ async function refreshShopperUnreadCount() {
 
 async function renderMe() {
   hideFilterUI();
-  if(ST.role !== 'customer' && ST.role !== 'friends-family') { renderCurrentPage(); return; }
+  // v1.74.74 — was calling renderCurrentPage() with ST.tab still 'me', which
+  // just called renderMe() right back — infinite loop / stack overflow for any
+  // non-shopper role that ends up on the 'me' tab. Redirect to home instead.
+  if(ST.role !== 'customer' && ST.role !== 'friends-family') { ST.tab = 'home'; renderCurrentPage(); return; }
 
   // Signed in view
   if(ST.user) {
@@ -11280,7 +11402,7 @@ function renderAdminPanel() {
   const unreadMsgs = ST.adminMessages.filter(isAdminThreadUnread).length;
   const pendingClaims = ST.adminClaims.filter(c=>c.status==='pending').length;
 
-  const tabs = ['areas','markets','vendors','claims','messages','users','follows','ads','views'];
+  const tabs = ['areas','markets','vendors','claims','messages','users','follows','ads','views','activity'];
   const tabLabels = {
     vendors:`Vendors`,
     markets:`Markets`,
@@ -11290,7 +11412,8 @@ function renderAdminPanel() {
     ads:'Ads',
     users:`Users`,
     follows:`Follows`,
-    views:'Views'
+    views:'Views',
+    activity:'Activity'
   };
 
   const isDashboard = !tabs.includes(ST.adminTab);
@@ -11766,9 +11889,23 @@ function renderAdminPanel() {
             </div>
             ${msg.replies.map(r=>{
               const fromAdmin = (r.role==='admin') || (r.from==='Windmill Admin');
+              // v1.74.65 — read receipt on messages YOU sent. This view only loads
+              // threads addressed to admin, so the other party is always the thread
+              // starter, whose read time is sender_last_read_at.
+              let receipt = '';
+              if(fromAdmin) {
+                const readT = msg.sender_last_read_at ? new Date(msg.sender_last_read_at).getTime() : 0;
+                const sentT = r.created_at ? new Date(r.created_at).getTime() : 0;
+                if(readT && sentT && readT >= sentT) {
+                  const when = new Date(msg.sender_last_read_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+                  receipt = `<div style="font-size:10px;color:var(--green-dk);margin-top:3px">✓✓ Viewed ${when}</div>`;
+                } else {
+                  receipt = `<div style="font-size:10px;color:var(--text3);margin-top:3px">Unread</div>`;
+                }
+              }
               return `<div class="msg-bubble ${fromAdmin?'admin':'sender'}">
               <div class="msg-bubble-meta">${fromAdmin ? 'You (Admin)' : (r.from || msg.from || 'User')} · ${r.date}</div>
-              ${esc(r.body)}
+              ${esc(r.body)}${receipt}
             </div>`;
             }).join('')}
           </div>
@@ -12167,9 +12304,19 @@ function renderAdminPanel() {
     <div id="adminViewsList"><div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Loading views...</div></div>`;
   }
 
+  if(ST.adminTab==='activity') {
+    const activityFilters = [['all','All'],['vendor','Vendors'],['market','Markets']];
+    h += `<div style="font-size:12px;color:var(--text2);margin-bottom:12px">A rolling feed of vendor and market profile changes — no need to check each page manually.</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+      ${activityFilters.map(([key,label])=>`<div onclick="setAdminActivityFilter('${key}')" style="padding:6px 12px;border-radius:var(--r-pill);font-size:11px;cursor:pointer;border:0.5px solid ${ST.adminActivityFilter===key?'var(--green)':'var(--border-med)'};background:${ST.adminActivityFilter===key?'var(--green-lt)':'var(--surface)'};color:${ST.adminActivityFilter===key?'var(--green-dk)':'var(--text2)'};font-weight:${ST.adminActivityFilter===key?'600':'400'}">${label}</div>`).join('')}
+    </div>
+    <div id="adminActivityList"><div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Loading activity...</div></div>`;
+  }
+
   h += `</div>`;
   document.getElementById('scrollBody').innerHTML = h;
   if(ST.adminTab === 'views') loadAdminViews();
+  if(ST.adminTab === 'activity') loadAdminActivity();
 }
 
 function setAdminViewsSort(v) {
@@ -12186,6 +12333,53 @@ function setAdminViewsSource(v) {
   ST.adminViewsSource = v;
   ST.adminViewsPage = 0;
   renderAdminPanel();
+}
+function setAdminActivityFilter(type) {
+  ST.adminActivityFilter = type;
+  ST.adminActivityLimit = 25;
+  renderAdminPanel();
+}
+function loadMoreActivity() {
+  ST.adminActivityLimit += 25;
+  loadAdminActivity();
+}
+async function loadAdminActivity() {
+  const listEl = document.getElementById('adminActivityList');
+  if(!listEl) return;
+  if(!supabaseClient) {
+    listEl.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Supabase not connected.</div>`;
+    return;
+  }
+  try {
+    const limit = ST.adminActivityLimit || 25;
+    let q = supabaseClient.from('activity_log').select('*').order('changed_at', { ascending: false }).range(0, limit); // fetch one extra to detect "more"
+    if(ST.adminActivityFilter !== 'all') q = q.eq('entity_type', ST.adminActivityFilter);
+    const { data, error } = await q;
+    if(error) throw error;
+    if(!data || !data.length) {
+      listEl.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">No activity yet — this fills in as vendors and markets make changes to their pages.</div>`;
+      return;
+    }
+    const hasMore = data.length > limit;
+    const rows = data.slice(0, limit);
+    listEl.innerHTML = rows.map(row => {
+      const isMarketChange = row.field_key === 'market_added' || row.field_key === 'market_removed';
+      const text = isMarketChange ? `${esc(row.entity_name)} ${row.field_label}` : `${esc(row.entity_name)} updated their ${row.field_label}`;
+      const icon = row.entity_type === 'market' ? '🏪' : '🛍️';
+      const when = new Date(row.changed_at);
+      const dateLabel = when.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' · ' + when.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+      return `<div onclick="navigate('${row.entity_type}','${row.entity_id}')" style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--border);cursor:pointer">
+        <div style="font-size:16px;flex-shrink:0">${icon}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;color:var(--text)">${text}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">${dateLabel}</div>
+        </div>
+      </div>`;
+    }).join('') + (hasMore ? `<div onclick="loadMoreActivity()" style="padding:12px 0;text-align:center;font-size:12px;color:var(--green-dk);cursor:pointer;font-weight:500">Load more</div>` : `<div style="padding:12px 0;text-align:center;font-size:11px;color:var(--text3)">That's everything</div>`);
+  } catch(e) {
+    console.warn('Could not load activity log:', e);
+    listEl.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Couldn't load activity right now.</div>`;
+  }
 }
 async function loadAdminViews() {
   const statsEl = document.getElementById('adminViewsStats');
@@ -12732,9 +12926,13 @@ function renderAuthModal(mode, prefillRole) {
           <option value="operator" ${role==='operator'?'selected':''}>${t('am_role_operator')}</option>
         </select>
       </div>
-      <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--text2);margin-bottom:16px;cursor:pointer">
+      <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--text2);margin-bottom:10px;cursor:pointer">
         <input type="checkbox" id="authOptIn" checked style="margin-top:2px;flex-shrink:0">
         <span>${t('am_optin')}</span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--text2);margin-bottom:16px;cursor:pointer">
+        <input type="checkbox" id="authTermsAgree" style="margin-top:2px;flex-shrink:0">
+        <span>I agree to Windmill's <span style="color:var(--terra);cursor:pointer" onclick="event.stopPropagation();navigate('terms-of-service')">Terms of Service</span> and <span style="color:var(--terra);cursor:pointer" onclick="event.stopPropagation();navigate('privacy-policy')">Privacy Policy</span></span>
       </label>
       <div id="authError" style="color:var(--terra);font-size:12px;margin-bottom:8px;display:none"></div>
       <button class="btn-primary" id="authSubmitBtn" onclick="authSignUp()">${t('am_create_btn')}</button>
@@ -12817,17 +13015,19 @@ async function authSignUp() {
   const password = document.getElementById('authPassword')?.value;
   const role = document.getElementById('authRole')?.value || 'customer';
   const optIn = document.getElementById('authOptIn')?.checked !== false;
+  const termsAgreed = document.getElementById('authTermsAgree')?.checked === true;
 
   if(!name) { authShowError('Please enter your name.'); return; }
   if(!email) { authShowError('Please enter your email address.'); return; }
   if(!password || password.length < 8) { authShowError('Password must be at least 8 characters.'); return; }
+  if(!termsAgreed) { authShowError('Please agree to the Terms of Service and Privacy Policy to continue.'); return; }
   if(await checkPwnedPassword(password)) { authShowError(t('vl_err_pw_breached')); return; }
 
   authSetLoading(true);
   try {
     const { data, error } = await supabaseClient.auth.signUp({
       email, password,
-      options: { data: { name, role, email_opt_in: optIn } }
+      options: { data: { name, role, email_opt_in: optIn, terms_agreed_at: new Date().toISOString() } }
     });
     if(error) throw error;
 
@@ -13937,6 +14137,7 @@ function setAdminTab(tab) {
           recipient_name: m.recipient_name,
           last_emailed_at: m.last_emailed_at,
           last_read_at: m.last_read_at,
+          sender_last_read_at: m.sender_last_read_at, // v1.74.65 — already in select('*'), just wasn't mapped
           created_at: m.created_at,
           date: new Date(m.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}),
           read: m.read || false,
@@ -13947,7 +14148,8 @@ function setAdminTab(tab) {
             role: r.role,
             body: r.body,
             created_at: r.created_at,
-            date: new Date(r.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+            // v1.74.65 — replies were date-only; now match the parent's date + time
+            date: new Date(r.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})
           })),
           fromDB: true
         }));
@@ -14323,7 +14525,7 @@ async function adminApproveClaimFinalize(claimId, resolvedEmail) {
       from:c.claimant, role:'Market Operator',
       subject:'Market claim approved: '+c.vendorName,
       body:'Approved. Approval email sent to ' + finalOperatorEmail + '. 6-month Pro trial started.',
-      date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
+      date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}), // v1.74.65
       read:true, resolved:true, replies:[], isSystem:true
     });
   } else {
@@ -14371,7 +14573,7 @@ async function adminApproveClaimFinalize(claimId, resolvedEmail) {
       from:c.claimant, role:'Vendor',
       subject:'Claim approved: '+c.vendorName,
       body:'Approved. Approval email sent to ' + finalEmail + '. Trial started.',
-      date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
+      date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}), // v1.74.65
       read:true, resolved:true, replies:[], isSystem:true
     });
   }
@@ -14698,6 +14900,11 @@ function openAdminEditMarket(id) {
   const m = DATA.markets.find(x=>x.id===id);
   if(!m) return;
   const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  // v1.74.63: frequency is now editable from admin. Null legacy rows fall back to
+  // 'weekly', which matches how the display logic already treats them.
+  const freqOpts = MARKET_FREQ_OPTIONS.slice();
+  const curFreq = m.frequency || 'weekly';
+  if(!freqOpts.some(o => o.v === curFreq)) freqOpts.push({v:curFreq, label:curFreq});
   openAdminModal('Edit Market', m.name, `
     <div class="form-field"><label class="form-label">Name</label><input class="form-input" id="em_name" value="${esc(m.name)}"></div>
     <div class="form-field"><label class="form-label">Venue</label><input class="form-input" id="em_venue" value="${m.venue||''}"></div>
@@ -14705,6 +14912,10 @@ function openAdminEditMarket(id) {
     <div class="form-field"><label class="form-label">City</label><input class="form-input" id="em_city" value="${esc(m.city||'')}"></div>
     <div class="form-field"><label class="form-label">Day of week</label>
       <select class="form-input" id="em_day">${days.map(d=>`<option value="${d}" ${m.day_of_week===d?'selected':''}>${d}</option>`).join('')}</select>
+    </div>
+    <div class="form-field"><label class="form-label">How often</label>
+      <select class="form-input" id="em_freq">${freqOpts.map(o=>`<option value="${o.v}" ${curFreq===o.v?'selected':''}>${o.label}</option>`).join('')}</select>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">Combines with the day above — e.g. Saturday + 4th week = 4th Saturday of every month.</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <div class="form-field"><label class="form-label">Start time</label><input class="form-input" id="em_start" value="${m.start_time||''}"></div>
@@ -14738,6 +14949,7 @@ function openAdminEditMarket(id) {
     <div class="form-field"><label class="form-label">Facebook URL</label><input class="form-input" id="em_fb" value="${esc(m.facebook||'')}"></div>
     <div class="form-field"><label class="form-label">Instagram URL</label><input class="form-input" id="em_ig" value="${esc(m.instagram||'')}" placeholder="https://instagram.com/..."></div>
     <div class="form-field"><label class="form-label">Phone</label><input class="form-input" id="em_phone" value="${esc(m.phone||'')}" placeholder="+1 (239) 000-0000" type="tel"></div>
+    <div class="form-field"><label class="form-label">Public email</label><input class="form-input" id="em_email" value="${esc(m.email||'')}" placeholder="shown on the market page" type="email"></div>
     <div style="display:flex;gap:10px;margin-bottom:16px">
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
         <input type="checkbox" id="em_pet" ${m.pet_friendly?'checked':''} style="width:16px;height:16px"> Pet friendly
@@ -14758,6 +14970,7 @@ function adminSaveMarket(id) {
   m.address = document.getElementById('em_address').value.trim();
   m.city = document.getElementById('em_city').value.trim();
   m.day_of_week = document.getElementById('em_day').value;
+  m.frequency = document.getElementById('em_freq').value; // v1.74.63
   m.start_time = document.getElementById('em_start').value.trim();
   m.end_time = document.getElementById('em_end').value.trim();
   const allYear = document.getElementById('em_all_year').checked;
@@ -14771,6 +14984,7 @@ function adminSaveMarket(id) {
   m.facebook = normalizeSocialUrl(document.getElementById('em_fb').value);
   m.instagram = normalizeSocialUrl(document.getElementById('em_ig').value);
   m.phone = document.getElementById('em_phone').value.trim();
+  m.email = document.getElementById('em_email').value.trim(); // v1.74.63
   m.pet_friendly = document.getElementById('em_pet').checked;
   m.published = document.getElementById('em_pub').checked;
   dbSaveMarket(m); // sync to Supabase
@@ -14812,6 +15026,10 @@ function openAdminAddMarket() {
     <div class="form-field"><label class="form-label">Day of week</label>
       <select class="form-input" id="nm_day">${days.map(d=>`<option value="${d}">${d}</option>`).join('')}</select>
     </div>
+    <div class="form-field"><label class="form-label">How often</label>
+      <select class="form-input" id="nm_freq">${MARKET_FREQ_OPTIONS.map(o=>`<option value="${o.v}">${o.label}</option>`).join('')}</select>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">Combines with the day above — e.g. Saturday + 4th week = 4th Saturday of every month.</div>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <div class="form-field"><label class="form-label">Start time</label><input class="form-input" id="nm_start" placeholder="09:00" value="09:00"></div>
       <div class="form-field"><label class="form-label">End time</label><input class="form-input" id="nm_end" placeholder="13:00" value="13:00"></div>
@@ -14826,6 +15044,7 @@ function openAdminAddMarket() {
     </div>
     <div class="form-field"><label class="form-label">Website</label><input class="form-input" id="nm_website" placeholder="https://"></div>
     <div class="form-field"><label class="form-label">Facebook URL</label><input class="form-input" id="nm_fb" placeholder="https://facebook.com/..."></div>
+    <div class="form-field"><label class="form-label">Public email</label><input class="form-input" id="nm_email" placeholder="shown on the market page" type="email"></div>
     <div class="form-field"><label class="form-label">Description</label><textarea class="form-textarea" id="nm_desc" placeholder="Describe this market..."></textarea></div>
     <div class="form-field"><label class="form-label">Parking notes</label><input class="form-input" id="nm_parking" placeholder="Free parking on site."></div>
     <div class="form-field"><label class="form-label">Special notes</label><input class="form-input" id="nm_notes" placeholder="e.g. Closed Thanksgiving"></div>
@@ -14898,7 +15117,9 @@ async function adminCreateMarket() {
   const region = document.getElementById('nm_region').value;
   if(!name || !city) { alert('Name and city are required.'); return; }
   const id = name.toLowerCase().replace(/['"]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
-  const slug = id + '-market';
+  // v1.74.64: only append '-market' when the name doesn't already end in it,
+  // otherwise "Ada's Golden Hour Farmers Market" became ...farmers-market-market.
+  const slug = /-market$/.test(id) ? id : id + '-market';
   const seasonStart = document.getElementById('nm_season_start').value;
   const seasonEnd = document.getElementById('nm_season_end').value;
 
@@ -14928,12 +15149,14 @@ async function adminCreateMarket() {
     venue: document.getElementById('nm_venue').value.trim(),
     address: document.getElementById('nm_address').value.trim(),
     day_of_week: document.getElementById('nm_day').value,
+    frequency: document.getElementById('nm_freq').value, // v1.74.63
     start_time: document.getElementById('nm_start').value.trim() || '09:00',
     end_time: document.getElementById('nm_end').value.trim() || '13:00',
     season_start: seasonStart === 'All Year' ? 'All Year' : seasonStart,
     season_end: seasonEnd === 'All Year' ? 'All Year' : seasonEnd,
     website: document.getElementById('nm_website').value.trim(),
     facebook: document.getElementById('nm_fb').value.trim(),
+    email: document.getElementById('nm_email').value.trim(), // v1.74.63
     description: document.getElementById('nm_desc').value.trim(),
     parking_notes: document.getElementById('nm_parking').value.trim(),
     special_notes: document.getElementById('nm_notes').value.trim(),
@@ -15147,7 +15370,7 @@ async function adminSendIndividualMessage() {
     role:'Admin',
     subject:'[To: '+recipient+'] '+subject,
     body,
-    date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
+    date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}), // v1.74.65
     read:true, resolved:false, replies:[], isOutbound:true
   });
 
@@ -16954,6 +17177,8 @@ function renderVendorSettingsSection(section) {
       <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-top:12px">
         <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">${t('vd_privacy')}</div>
         <span onclick="navigate('privacy-policy')" style="font-size:12px;color:var(--terra);cursor:pointer">${t('vd_privacy_policy')}</span>
+        <span style="color:var(--text3);margin:0 4px">·</span>
+        <span onclick="navigate('terms-of-service')" style="font-size:12px;color:var(--terra);cursor:pointer">Terms of Service</span>
       </div>
     </div>`;
   } else if(section === 'support') {
@@ -18178,6 +18403,8 @@ function renderOperatorSettingsSection(section) {
       <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-top:12px">
         <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">🔒 Privacy</div>
         <span onclick="navigate('privacy-policy')" style="font-size:12px;color:var(--terra);cursor:pointer">Privacy Policy</span>
+        <span style="color:var(--text3);margin:0 4px">·</span>
+        <span onclick="navigate('terms-of-service')" style="font-size:12px;color:var(--terra);cursor:pointer">Terms of Service</span>
       </div>
     </div>`;
   } else if(section === 'support') {
@@ -18589,7 +18816,7 @@ function renderAdminSettings() {
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Platform Info</div>
-        <div class="admin-row-meta">Version 1.74.62 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
+        <div class="admin-row-meta">Version 1.74.74 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Coverage Area</div>
@@ -18623,7 +18850,12 @@ function shareProfile(slug, type) {
   // the words appear AND still unfurls the preview card.
   const shareText = `I wanted to share ${name} with you on Windmill: ${url}`;
   if(navigator.share) {
-    navigator.share({title: name + ' on Windmill', text: shareText});
+    // v1.74.67 — user canceling the native share sheet throws AbortError; that's
+    // expected behavior, not a bug, so don't let it surface as an unhandled error.
+    navigator.share({title: name + ' on Windmill', text: shareText}).catch(err => {
+      if(err && err.name === 'AbortError') return;
+      if(window.Sentry) Sentry.captureException(err);
+    });
   } else {
     navigator.clipboard.writeText(url).then(()=>{
       const btn = document.getElementById('shareBtn');
