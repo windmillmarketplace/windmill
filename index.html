@@ -8,6 +8,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
+<!-- v1.74.75 — New: page-view tracking added to 9 previously-untracked pages (vendor join, market join, vendor login, market login, area request, privacy, terms, following, my account) — admin Views tab filter/labels updated to match -->
 <!-- v1.74.74 — Fix: infinite loop / stack overflow when a non-shopper role (vendor, operator, admin) landed on the 'me' tab — pre-existing bug, not from tonight's other changes -->
 <!-- v1.74.73 — New: Terms of Service page (/terms), linked alongside Privacy Policy in all 5 existing spots. New: required Terms agreement checkbox on account sign-up (shoppers, vendors, operators — shared modal), timestamped in signup metadata -->
 <!-- v1.74.72 — Activity tab: added All/Vendors/Markets filter and Load more pagination (25 at a time) -->
@@ -3688,16 +3689,16 @@ function renderCurrentPage() {
   if(p === 'vendor') { renderVendorProfile(ST.currentId); return; }
   if(p === 'vendor-pending') return renderVendorPending();
   if(p === 'market') return renderMarketDetail(ST.currentId);
-  if(p === 'area-request') { updatePageMeta('Request Your Area | Windmill','Ask us to bring Windmill to your city.','/area-request'); return renderAreaRequest(); }
-  if(p === 'privacy-policy') { updatePageMeta('Privacy Policy | Windmill','How Windmill collects, uses, and protects your information.','/privacy'); return renderPrivacyPolicy(); }
-  if(p === 'terms-of-service') { updatePageMeta('Terms of Service | Windmill','The terms that govern use of Windmill by shoppers, vendors, and market operators.','/terms'); return renderTermsOfService(); }
+  if(p === 'area-request') { updatePageMeta('Request Your Area | Windmill','Ask us to bring Windmill to your city.','/area-request', 'area_request'); return renderAreaRequest(); }
+  if(p === 'privacy-policy') { updatePageMeta('Privacy Policy | Windmill','How Windmill collects, uses, and protects your information.','/privacy', 'privacy_policy'); return renderPrivacyPolicy(); }
+  if(p === 'terms-of-service') { updatePageMeta('Terms of Service | Windmill','The terms that govern use of Windmill by shoppers, vendors, and market operators.','/terms', 'terms_of_service'); return renderTermsOfService(); }
   if(p === 'vendors-list') { updatePageMeta('Browse Vendors | Windmill','Browse all local market vendors on Windmill.','/vendors', 'vendors_list'); return renderVendorsList(); }
   if(p === 'category-hub') { updatePageMeta('Explore by Category | Windmill','Browse farmers market vendors and markets by category.','/categories', 'category_hub'); return renderCategoryHub(); }
   if(p === 'category') { updatePageMeta('Category | Windmill','Browse vendors and markets by category.','/categories/'+ST.currentId, 'category', ST.currentId); return renderCategoryPage(ST.currentId); }
-  if(p === 'vendors-join') { updatePageMeta('Join Windmill as a Vendor | Grow Your Farmers Market Business','Claim your free vendor listing on Windmill. Be found between markets, showcase your products, and connect with customers.','/vendors/join'); return renderVendorsJoin(); }
-  if(p === 'vendors-login') { updatePageMeta('Vendor Sign In | Windmill','Sign in to your Windmill vendor dashboard.','/vendors/login'); return renderVendorsLogin(); }
-  if(p === 'markets-join') { updatePageMeta('List Your Market on Windmill | Reach More Shoppers','Claim your market listing on Windmill. Help shoppers find your market, follow your vendors, and come back every week.','/markets/join'); return renderMarketsJoin(); }
-  if(p === 'markets-login') { updatePageMeta('Market Operator Sign In | Windmill','Sign in to your Windmill operator dashboard.','/markets/login'); return renderMarketsLogin(); }
+  if(p === 'vendors-join') { updatePageMeta('Join Windmill as a Vendor | Grow Your Farmers Market Business','Claim your free vendor listing on Windmill. Be found between markets, showcase your products, and connect with customers.','/vendors/join', 'vendors_join', ST.currentId); return renderVendorsJoin(); }
+  if(p === 'vendors-login') { updatePageMeta('Vendor Sign In | Windmill','Sign in to your Windmill vendor dashboard.','/vendors/login', 'vendors_login'); return renderVendorsLogin(); }
+  if(p === 'markets-join') { updatePageMeta('List Your Market on Windmill | Reach More Shoppers','Claim your market listing on Windmill. Help shoppers find your market, follow your vendors, and come back every week.','/markets/join', 'markets_join'); return renderMarketsJoin(); }
+  if(p === 'markets-login') { updatePageMeta('Market Operator Sign In | Windmill','Sign in to your Windmill operator dashboard.','/markets/login', 'markets_login'); return renderMarketsLogin(); }
   if(p === 'demo-vendor-free') return renderDemoVendorFree();
   if(p === 'demo-vendor-pro') {    // Inject Empanada Queen demo data into vendors if not already there
     const dv = DATA.demo_vendors[1];
@@ -3725,8 +3726,8 @@ function renderCurrentPage() {
   if(ST.tab === 'home') { updatePageMeta('Windmill — Discover Local Markets & Vendors','Find farmers markets and local vendors near you. Browse fresh produce, artisan goods, and more.','/', 'home'); return renderHome(); }
   if(ST.tab === 'explore') { updatePageMeta('Explore Markets | Windmill','Explore farmers markets on the map near you.','/explore', 'explore'); return renderExplore(); }
   if(ST.tab === 'markets') { updatePageMeta('Markets | Windmill','Browse all farmers markets on Windmill.','/markets', 'markets_list'); return renderMarketsPage(); }
-  if(ST.tab === 'following') { updatePageMeta('Following | Windmill','Markets and vendors you follow on Windmill.','/following'); return renderFollowing(); }
-  if(ST.tab === 'me') { updatePageMeta('My Account | Windmill','Manage your Windmill account.','/me'); return renderMe(); }
+  if(ST.tab === 'following') { updatePageMeta('Following | Windmill','Markets and vendors you follow on Windmill.','/following', 'following'); return renderFollowing(); }
+  if(ST.tab === 'me') { updatePageMeta('My Account | Windmill','Manage your Windmill account.','/me', 'me'); return renderMe(); }
   updatePageMeta('Windmill — Discover Local Markets & Vendors','Find farmers markets and local vendors near you.','/');
   renderHome();
 }
@@ -12259,7 +12260,7 @@ function renderAdminPanel() {
   }
 
   if(ST.adminTab==='views') {
-    const viewsPageTypes = [['all','All'],['home','Home'],['explore','Explore'],['markets_list','Markets List'],['vendors_list','Vendors List'],['vendor','Vendor Pages'],['market','Market Pages'],['category','Categories'],['vendor_dashboard','Vendor Dash'],['operator_dashboard','Market Dash']];
+    const viewsPageTypes = [['all','All'],['home','Home'],['explore','Explore'],['markets_list','Markets List'],['vendors_list','Vendors List'],['vendor','Vendor Pages'],['market','Market Pages'],['category','Categories'],['vendor_dashboard','Vendor Dash'],['operator_dashboard','Market Dash'],['vendors_join','Vendor Join'],['markets_join','Market Join'],['vendors_login','Vendor Login'],['markets_login','Market Login'],['area_request','Area Request'],['following','Following'],['me','My Account'],['privacy_policy','Privacy Policy'],['terms_of_service','Terms']];
     const viewsRanges = [['today','Today'],['week','This Week'],['month','This Month'],['year','This Year'],['alltime','All Time']];
     h += `<div style="font-size:12px;color:var(--text2);margin-bottom:12px">Page views across the site</div>
 
@@ -12391,7 +12392,7 @@ async function loadAdminViews() {
     return;
   }
 
-  const pageTypeLabels = {home:'Home',explore:'Explore',markets_list:'Markets List',vendors_list:'Vendors List',vendor:'Vendor Page',market:'Market Page',category:'Category',category_hub:'Categories',vendor_dashboard:'Vendor Dash',operator_dashboard:'Market Dash'};
+  const pageTypeLabels = {home:'Home',explore:'Explore',markets_list:'Markets List',vendors_list:'Vendors List',vendor:'Vendor Page',market:'Market Page',category:'Category',category_hub:'Categories',vendor_dashboard:'Vendor Dash',operator_dashboard:'Market Dash',vendors_join:'Vendor Join',markets_join:'Market Join',vendors_login:'Vendor Login',markets_login:'Market Login',area_request:'Area Request',following:'Following',me:'My Account',privacy_policy:'Privacy Policy',terms_of_service:'Terms'};
   const rangeLabels = {today:'today',week:'this week',month:'this month',year:'this year',alltime:'all time'};
   const rangeCutoff = getAdminViewsRangeCutoff();
   const rangeNote = (ST.adminViewsRange && ST.adminViewsRange !== 'alltime') ? ` (${rangeLabels[ST.adminViewsRange]})` : '';
@@ -12565,6 +12566,7 @@ async function loadAdminViews() {
       if(view.page_type === 'category') return 'Category: ' + view.entity_id;
       if(view.page_type === 'vendor_dashboard') { const vd = DATA.vendors.find(x=>x.id===view.entity_id); return `${vd?.name || view.entity_id} (dashboard)`; }
       if(view.page_type === 'operator_dashboard') { const op = DATA.operators.find(x=>x.id===view.entity_id); return `${esc(op?.name || view.entity_id)} (dashboard)`; }
+      if(view.page_type === 'vendors_join' && view.entity_id) { const vd = DATA.vendors.find(x=>x.id===view.entity_id); return `Vendor Join: ${esc(vd?.name || view.entity_id)}`; }
       return pageTypeLabels[view.page_type] || view.page_type;
     };
 
@@ -18816,7 +18818,7 @@ function renderAdminSettings() {
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Platform Info</div>
-        <div class="admin-row-meta">Version 1.74.74 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
+        <div class="admin-row-meta">Version 1.74.75 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Coverage Area</div>
