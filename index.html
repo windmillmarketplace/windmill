@@ -8,6 +8,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
+<!-- v1.74.76 — New: admin vendor claim modal replaces instant-toggle pill. Unclaimed→claim modal offers "with email" (sends in-person onboarding email, writes claims row) or "without email" (quiet flag flip, still logs minimal claims row). Claimed→unclaim now requires explicit confirm. All paths show success/fail toast. -->
 <!-- v1.74.75 — New: page-view tracking added to 9 previously-untracked pages (vendor join, market join, vendor login, market login, area request, privacy, terms, following, my account) — admin Views tab filter/labels updated to match -->
 <!-- v1.74.74 — Fix: infinite loop / stack overflow when a non-shopper role (vendor, operator, admin) landed on the 'me' tab — pre-existing bug, not from tonight's other changes -->
 <!-- v1.74.73 — New: Terms of Service page (/terms), linked alongside Privacy Policy in all 5 existing spots. New: required Terms agreement checkbox on account sign-up (shoppers, vendors, operators — shared modal), timestamped in signup metadata -->
@@ -11602,7 +11603,7 @@ function renderAdminPanel() {
           ${trialStart && v.pro ? `<div style="font-size:10px;color:var(--green-dk);margin-top:2px">✓ Pro · trial started ${trialStart.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>` : ''}
         </div>
         <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;align-items:flex-end">
-          <span class="status-pill ${v.claimed?'claimed':'unclaimed'}" style="cursor:pointer" onclick="adminToggleVendorClaimed('${v.id}',this)">${v.claimed?'Claimed':'Unclaimed'}</span>
+          <span class="status-pill ${v.claimed?'claimed':'unclaimed'}" style="cursor:pointer" onclick="openVendorClaimModal('${v.id}')">${v.claimed?'Claimed':'Unclaimed'}</span>
           <span class="status-pill ${v.pro?'live':onTrial?'claimed':trialExpired?'draft':'draft'}" style="cursor:pointer${trialExpired?';background:#FEE2E2;color:#B91C1C;border-color:#FECACA':''}" onclick="adminToggleVendorPro('${v.id}',this)">${v.pro?'Pro':onTrial?'Trial':trialExpired?'Expired':'Free'}</span>
           <span class="status-pill ${v.published!==false?'live':'draft'}" id="vndpill-${v.id}" style="cursor:pointer" onclick="adminVendorPublishConfirm('${v.id}',this)">${v.published!==false?'Active':'Inactive'}</span>
         </div>
@@ -14203,14 +14204,185 @@ function adminFilterMarkets(q) {
   });
 }
 
-/* Toggle vendor claimed/pro */
-function adminToggleVendorClaimed(id, el) {
-  const v = DATA.vendors.find(x=>x.id===id);
+/* v1.74.76 — admin claim modal, replaces the old instant-toggle pill.
+   Unclaimed → modal offers "claim with email" (sends the in-person onboarding
+   email, writes a real claims row) or "claim without email" (quiet flag flip,
+   still logs a minimal claims row for the audit trail). Claimed → modal requires
+   an explicit confirm before unclaiming, so a stray click can't undo a real
+   vendor's claimed status. */
+function openVendorClaimModal(vendorId) {
+  document.getElementById('vendorClaimModal')?.remove();
+  const v = DATA.vendors.find(x=>x.id===vendorId);
   if(!v) return;
-  v.claimed = !v.claimed;
-  el.textContent = v.claimed ? 'Claimed' : 'Unclaimed';
-  el.className = 'status-pill ' + (v.claimed ? 'claimed' : 'unclaimed');
-  if(supabaseClient) vUpdate('vendors', {claimed:v.claimed}, q => q.eq('id',id));
+  const modal = document.createElement('div');
+  modal.id = 'vendorClaimModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(44,32,22,.55);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
+  document.body.appendChild(modal);
+  renderVendorClaimModalStep(vendorId, v.claimed ? 'unclaim' : 'choice');
+}
+
+function renderVendorClaimModalStep(vendorId, step) {
+  const modal = document.getElementById('vendorClaimModal');
+  if(!modal) return;
+  const v = DATA.vendors.find(x=>x.id===vendorId);
+  if(!v) { modal.remove(); return; }
+  const wrap = (body) => `<div style="background:var(--surface);border-radius:var(--r-lg);width:100%;max-width:380px;padding:24px">${body}</div>`;
+  let inner = '';
+
+  if(step === 'unclaim') {
+    inner = wrap(`
+      <div style="font-size:16px;font-weight:600;font-family:var(--font-serif);margin-bottom:4px">Unclaim ${esc(v.name)}?</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.5">This removes their claimed status. Only do this if you're correcting a mistake — a real claimed vendor will lose access to their page.</div>
+      <div style="display:flex;gap:10px">
+        <button onclick="document.getElementById('vendorClaimModal').remove()" style="flex:1;padding:10px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans)">Cancel</button>
+        <button onclick="adminUnclaimVendorConfirm('${vendorId}')" style="flex:1;padding:10px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Unclaim</button>
+      </div>`);
+  } else if(step === 'choice') {
+    inner = wrap(`
+      <div style="font-size:16px;font-weight:600;font-family:var(--font-serif);margin-bottom:4px">Claim ${esc(v.name)}</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.5">Choose how to claim this listing.</div>
+      <button onclick="renderVendorClaimModalStep('${vendorId}','email')" style="width:100%;padding:12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans);margin-bottom:10px">Claim with email — sends onboarding email</button>
+      <button onclick="renderVendorClaimModalStep('${vendorId}','noemail')" style="width:100%;padding:12px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans);margin-bottom:10px">Claim without email — no message sent</button>
+      <button onclick="document.getElementById('vendorClaimModal').remove()" style="width:100%;padding:10px;background:none;border:none;font-size:13px;cursor:pointer;font-family:var(--font-sans);color:var(--text3)">Cancel</button>`);
+  } else if(step === 'email') {
+    inner = wrap(`
+      <div style="font-size:16px;font-weight:600;font-family:var(--font-serif);margin-bottom:4px">Claim ${esc(v.name)}</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.5">Sends the onboarding email right away.</div>
+      <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:6px">Their name (optional)</label>
+      <input id="vcmName" type="text" class="form-input" style="width:100%;margin-bottom:14px" placeholder="e.g. Amanda">
+      <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:6px">Email <span style="color:var(--terra)">*</span></label>
+      <input id="vcmEmail" type="email" class="form-input" style="width:100%;margin-bottom:14px" placeholder="their@email.com" value="${esc(v.email||'')}">
+      <label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:6px">Phone (optional)</label>
+      <input id="vcmPhone" type="tel" class="form-input" style="width:100%;margin-bottom:14px" placeholder="">
+      <div id="vcmError" style="color:var(--terra);font-size:12px;margin-bottom:10px;display:none">Email is required.</div>
+      <div style="display:flex;gap:10px">
+        <button onclick="renderVendorClaimModalStep('${vendorId}','choice')" style="flex:1;padding:10px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans)">Back</button>
+        <button onclick="adminClaimVendorWithEmail('${vendorId}')" style="flex:1;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Send &amp; Claim</button>
+      </div>`);
+  } else if(step === 'noemail') {
+    inner = wrap(`
+      <div style="font-size:16px;font-weight:600;font-family:var(--font-serif);margin-bottom:4px">Claim ${esc(v.name)} without email?</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.5">Marks this listing as claimed. No email will be sent — use this only if the vendor already knows how to sign in, or you're correcting existing data.</div>
+      <div style="display:flex;gap:10px">
+        <button onclick="renderVendorClaimModalStep('${vendorId}','choice')" style="flex:1;padding:10px;background:var(--surface2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans)">Back</button>
+        <button onclick="adminClaimVendorNoEmail('${vendorId}')" style="flex:1;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">Confirm claim</button>
+      </div>`);
+  }
+  modal.innerHTML = inner;
+}
+
+async function adminClaimVendorWithEmail(vendorId) {
+  const v = DATA.vendors.find(x=>x.id===vendorId);
+  if(!v) return;
+  const name = document.getElementById('vcmName')?.value?.trim() || '';
+  const email = document.getElementById('vcmEmail')?.value?.trim() || '';
+  const phone = document.getElementById('vcmPhone')?.value?.trim() || '';
+  if(!email) {
+    const errEl = document.getElementById('vcmError');
+    if(errEl) errEl.style.display = 'block';
+    return;
+  }
+
+  const claimRow = {
+    vendor_id: vendorId,
+    vendor_name: v.name,
+    claimant_name: name || null,
+    email: email,
+    phone: phone || '',
+    message: '',
+    status: 'approved',
+    pro_requested: true,
+    upgrade_request: false,
+    email_status: 'matching',
+    listing_email_at_submission: v.email || null
+  };
+
+  let claimOk = true;
+  if(supabaseClient) {
+    const { error: claimErr } = await supabaseClient.from('claims').insert(claimRow);
+    if(claimErr) { console.error('[adminClaimVendorWithEmail] claims insert failed:', claimErr); claimOk = false; }
+  }
+
+  const upd = await vUpdate('vendors', { claimed: true, email: email, login_email: email }, q => q.eq('id', vendorId));
+  if(!upd.ok || !claimOk) {
+    showToast('✗ ' + v.name + ' was not claimed — please try again', 'var(--terra)');
+    return;
+  }
+
+  v.claimed = true;
+  v.email = email;
+
+  sendWindmillEmail(
+    'Great meeting you today, your Windmill page is ready',
+    '<p>Hi ' + esc(name || 'there') + ',</p>' +
+    '<p>Great talking with you at the market today. Like I mentioned, your page for <strong>' + esc(v.name) + '</strong> is already up on Windmill. I\'ve started it and now you can make it your own. Just takes 3 minutes.</p>' +
+    '<p><strong>Free to use, always. Plus 6 months of Pro on us, no credit card needed.</strong> Once you\'re in, you can:</p>' +
+    '<div style="background:#f0f7ee;border-radius:8px;padding:16px;margin:16px 0;font-size:14px;line-height:2">' +
+    '✓ Add your photos and story<br>' +
+    '✓ List your products and prices<br>' +
+    '✓ Confirm your market schedule<br>' +
+    '✓ Post weekly updates to your followers</div>' +
+    '<p style="text-align:center;margin:24px 0">' +
+    '<a href="https://shopwindmill.com/vendors/login?email=' + encodeURIComponent(email) + '" style="background:#5C7A4E;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:15px;font-weight:600;display:inline-block">Set up your profile →</a></p>' +
+    '<p>Talk soon,<br>Keith<br>Windmill</p>' +
+    '<p style="color:#666;font-size:12px">P.S. Here\'s how your page looks right now to shoppers: <a href="https://shopwindmill.com/vendors/' + v.slug + '">shopwindmill.com/vendors/' + v.slug + '</a></p>',
+    email
+  );
+
+  document.getElementById('vendorClaimModal')?.remove();
+  showToast('✓ ' + v.name + ' claimed — email sent to ' + email);
+  renderAdminPanel();
+}
+
+async function adminClaimVendorNoEmail(vendorId) {
+  const v = DATA.vendors.find(x=>x.id===vendorId);
+  if(!v) return;
+
+  const claimRow = {
+    vendor_id: vendorId,
+    vendor_name: v.name,
+    claimant_name: null,
+    email: '',
+    phone: '',
+    message: 'Claimed via dashboard, no email sent',
+    status: 'approved',
+    pro_requested: true,
+    upgrade_request: false,
+    email_status: 'matching',
+    listing_email_at_submission: v.email || null
+  };
+
+  let claimOk = true;
+  if(supabaseClient) {
+    const { error: claimErr } = await supabaseClient.from('claims').insert(claimRow);
+    if(claimErr) { console.error('[adminClaimVendorNoEmail] claims insert failed:', claimErr); claimOk = false; }
+  }
+
+  const upd = await vUpdate('vendors', { claimed: true }, q => q.eq('id', vendorId));
+  if(!upd.ok || !claimOk) {
+    showToast('✗ ' + v.name + ' was not claimed — please try again', 'var(--terra)');
+    return;
+  }
+
+  v.claimed = true;
+  document.getElementById('vendorClaimModal')?.remove();
+  showToast('✓ ' + v.name + ' marked claimed');
+  renderAdminPanel();
+}
+
+async function adminUnclaimVendorConfirm(vendorId) {
+  const v = DATA.vendors.find(x=>x.id===vendorId);
+  if(!v) return;
+  const upd = await vUpdate('vendors', { claimed: false }, q => q.eq('id', vendorId));
+  if(!upd.ok) {
+    showToast('✗ Could not unclaim ' + v.name + ' — please try again', 'var(--terra)');
+    return;
+  }
+  v.claimed = false;
+  document.getElementById('vendorClaimModal')?.remove();
+  showToast('✓ ' + v.name + ' marked unclaimed');
+  renderAdminPanel();
 }
 function adminToggleVendorPro(id, el) {
   /* v1.74.53 — explicit tier picker instead of a blind toggle. The pill displays four
@@ -18818,7 +18990,7 @@ function renderAdminSettings() {
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Platform Info</div>
-        <div class="admin-row-meta">Version 1.74.75 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
+        <div class="admin-row-meta">Version 1.74.76 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Coverage Area</div>
