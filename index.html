@@ -8,9 +8,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.74.76 — New: admin vendor claim modal replaces instant-toggle pill. Unclaimed→claim modal offers "with email" (sends in-person onboarding email, writes claims row) or "without email" (quiet flag flip, still logs minimal claims row). Claimed→unclaim now requires explicit confirm. All paths show success/fail toast. -->
+<!-- v1.74.78 — Message read-receipt fix; new-message notification improvements -->
+<!-- v1.74.77 — Trial status fix; Views tab default sort -->
+<!-- v1.74.76 — Admin vendor claim workflow improvements -->
 <!-- v1.74.75 — New: page-view tracking added to 9 previously-untracked pages (vendor join, market join, vendor login, market login, area request, privacy, terms, following, my account) — admin Views tab filter/labels updated to match -->
 <!-- v1.74.74 — Fix: infinite loop / stack overflow when a non-shopper role (vendor, operator, admin) landed on the 'me' tab — pre-existing bug, not from tonight's other changes -->
+<!-- v1.74.82 — Spotlight admin tool: badge label on each profile row (e.g. "Pro", "Featured") is now editable inline — tap it, type new text, saves on blur/Enter. Announcement-pinned rows don't show this (no badge concept for those). -->
+<!-- v1.74.81 — New: Spotlight admin tool. Homepage Spotlight row is now sourced from a new Supabase table (spotlight_items) instead of a hardcoded array — add/remove/reorder featured vendors & markets from a new admin Spotlight tab, no deploy needed. Suggests recently-activated Pro vendors to add. Can also pin a vendor/market's own live weekly update/announcement into the Spotlight row (pulls their current text/name/photo live, not a snapshot). region:null on an entry = shown everywhere, so today's single shared list can later support per-region curation without a rebuild. -->
+<!-- v1.74.80 — Activity tab grouping fix: legacy rows (written before batch_id existed) now fall back to grouping by same entity + same moment (3-second window), so old multi-field saves collapse into one line too — not just future saves. Previously only rows with a real batch_id grouped, so all existing activity still showed one line per field until new data came in. -->
+<!-- v1.74.79 — Activity tab: entries now group by save event (one line per save, click to expand field-level detail) instead of one line per field. Added actor attribution (You/Vendor/Operator). Fixed vendor_markets full delete+reinsert on every save — now only touches rows that actually changed, eliminating the "removed all markets / added all markets back" noise on unrelated saves. Backing Supabase migration: activity_log gained batch_id + actor_type columns, vendor/market/vendor_markets triggers rewritten to stamp both, new ensure_trial_start safety-net trigger guarantees trial_start is set the instant claimed becomes true regardless of path. -->
 <!-- v1.74.73 — New: Terms of Service page (/terms), linked alongside Privacy Policy in all 5 existing spots. New: required Terms agreement checkbox on account sign-up (shoppers, vendors, operators — shared modal), timestamped in signup metadata -->
 <!-- v1.74.72 — Activity tab: added All/Vendors/Markets filter and Load more pagination (25 at a time) -->
 <!-- v1.74.71 — Fix: Spotlight cards didn't navigate anywhere on click (referenced a nonexistent field, so navigate() got 'undefined' as the page) -->
@@ -1218,6 +1224,10 @@ async function loadFromSupabase() {
     const { data: vendorMarkets, error: vmErr } = await supabaseClient.from('vendor_markets').select('*');
     if(vmErr) throw vmErr;
 
+    // Load Spotlight curation list (admin-managed featured vendors/markets/updates)
+    const { data: spotlightItems, error: spErr } = await supabaseClient.from('spotlight_items').select('*').order('sort_order');
+    if(spErr) console.warn('Spotlight items failed to load:', spErr);
+
     // Load regions and cities for dynamic geography
     const { data: regions } = await supabaseClient.from('regions').select('*').order('sort_order');
     const { data: cities } = await supabaseClient.from('cities').select('*');
@@ -1253,6 +1263,7 @@ async function loadFromSupabase() {
       DATA.operators = operators || DATA.operators;
       DATA.markets = markets || DATA.markets;
       DATA.vendors = vendors || DATA.vendors;
+      DATA.spotlightItems = spotlightItems || [];
       if(regions && regions.length > 0) DATA.regions = regions;
       if(cities && cities.length > 0) DATA.cities = cities;
 
@@ -1390,6 +1401,7 @@ async function loadFromSupabase() {
 
 /* ── DATA ── */
 const DATA = {
+  spotlightItems:[], // populated from Supabase at boot — admin-curated Spotlight list
   regions:[
     {id:'lee-county',        label:'Lee County',              emoji:'🌴', super_region:'Southwest Florida',    sort_order:1},
     {id:'collier-county',    label:'Naples / Collier County', emoji:'🌺', super_region:'Southwest Florida',    sort_order:2},
@@ -1848,7 +1860,8 @@ let ST = {
   adminViewsAsType: '',
   adminViewsAsId: '',
   adminViewsPage: 0,
-  adminViewsMode: 'all',
+  adminViewsMode: 'unique',
+  adminViewsSortUnique: 'recent',
   adminViewsAsMode: 'vendor',
   adminViewsRange: 'alltime',
   adminActivityFilter: 'all', // 'all' | 'vendor' | 'market'
@@ -4542,22 +4555,41 @@ function renderHome() {
     ].slice(0, 8);
   } else {
     // ── LIVE MODE: hand-picked, ordered, real accounts only ──
-    // To change what's featured or the order, edit this list and redeliver.
-    const MANUAL_SPOTLIGHT = [
-      { type: 'market', id: 'cape-coral-downtown' },
-      { type: 'vendor', id: 'killrose-design',                badge: 'Pro' },
-      { type: 'market', id: 'fort-myers-downtown' },
-      { type: 'vendor', id: 'the-bald-baker',                 badge: 'Spotlight' },
-      { type: 'market', id: 'mcgregor-local-farmers-market' },
-      { type: 'vendor', id: 'auramanda-jewelry',               badge: 'Pro' }
-    ];
-    const curatedCards = MANUAL_SPOTLIGHT.map(entry => {
-      const coll = entry.type === 'market' ? DATA.markets : DATA.vendors;
-      const rec = coll.find(x => x.id === entry.id);
+    // v1.74.81 — Spotlight now sourced from DATA.spotlightItems (Supabase,
+    // admin-managed via the Spotlight admin tab) instead of a hardcoded array.
+    // region:null on an entry means "show everywhere" — lets today's single
+    // shared list coexist with future per-region curation with no rebuild.
+    const items = (DATA.spotlightItems || [])
+      .filter(it => !it.region || it.region === ST.region)
+      .sort((a,b) => a.sort_order - b.sort_order);
+
+    const curatedCards = items.map(entry => {
+      if(entry.entry_type === 'announcement') {
+        // Pin a vendor/market's own live update — pulls current text/name/photo
+        // at render time, so if they change their update later, this updates too.
+        const coll = entry.entity_kind === 'market' ? DATA.markets : DATA.vendors;
+        const rec = coll.find(x => x.id === entry.entity_id);
+        if(!rec) return null;
+        let updateObj = null, name = rec.name, navTarget = entry.entity_kind, navId = rec.id;
+        if(entry.entity_kind === 'vendor') {
+          updateObj = rec.weekly_update;
+        } else {
+          const op = DATA.operators.find(o => o.id === rec.operator_id);
+          updateObj = op ? op.announcement : null;
+        }
+        if(!updateObj || !updateObj.text) return null; // update expired/cleared since pinning — skip
+        const expiresLabel = updateObj.badge || (updateObj.expires === 'month' ? 'This month' : updateObj.expires === 'weekend' ? 'This weekend' : updateObj.expires === 'permanent' ? 'Ongoing' : 'This week');
+        const colors = annColorForId(rec.id);
+        const catLabel = annCategoryLabel(rec.id, entry.entity_kind === 'market');
+        return { type: 'ann', a: { id: rec.id, name, text: updateObj.text, expiresLabel, catLabel, colors, nav: `navigate('${navTarget}','${navId}')` } };
+      }
+      // Profile card (vendor or market)
+      const coll = entry.entity_kind === 'market' ? DATA.markets : DATA.vendors;
+      const rec = coll.find(x => x.id === entry.entity_id);
       if(!rec) return null; // record renamed/removed — skip rather than break the row
-      const badge = entry.badge || (entry.type === 'market' && rec.day_of_week ? rec.day_of_week + 's' : entry.type === 'market' ? 'Market' : 'Featured');
-      const tagline = entry.type === 'market' ? (rec.venue || `${rec.city}, ${rec.state}`) : (rec.tagline || rec.category || '');
-      return { type: 'pro', s: { id: rec.id, name: rec.name, tagline, photo: rec.photo, route: entry.type, badge } };
+      const badge = entry.badge || (entry.entity_kind === 'market' && rec.day_of_week ? rec.day_of_week + 's' : entry.entity_kind === 'market' ? 'Market' : 'Featured');
+      const tagline = entry.entity_kind === 'market' ? (rec.venue || `${rec.city}, ${rec.state}`) : (rec.tagline || rec.category || '');
+      return { type: 'pro', s: { id: rec.id, name: rec.name, tagline, photo: rec.photo, route: entry.entity_kind, badge } };
     }).filter(Boolean);
 
     allCards = [...curatedCards].slice(0, 8);
@@ -9953,6 +9985,13 @@ async function sendShopperReply(messageId, inputId, recipientType, recipientId) 
     // sendMessage's existing-conversation branch.
     await vUpdate('messages', { read: false }, q => q.eq('id', messageId));
 
+    // v1.74.78 — same fix as sendVendorReply: replying proves the shopper has
+    // seen the thread up to now, so re-stamp sender_last_read_at here too
+    // (previously only stamped once on first expanding the thread).
+    if(recipientType === 'admin') {
+      await vUpdate('messages', { sender_last_read_at: new Date().toISOString() }, q => q.eq('id', messageId), {silent:true});
+    }
+
     const { data: threadMsg } = await supabaseClient.from('messages').select('*').eq('id', messageId).single();
     if(threadMsg) {
       const recipientEmail = recipientType === 'admin' ? 'windmillmarketplace@gmail.com' : DATA.vendors.find(v=>v.id===recipientId)?.email;
@@ -11404,7 +11443,7 @@ function renderAdminPanel() {
   const unreadMsgs = ST.adminMessages.filter(isAdminThreadUnread).length;
   const pendingClaims = ST.adminClaims.filter(c=>c.status==='pending').length;
 
-  const tabs = ['areas','markets','vendors','claims','messages','users','follows','ads','views','activity'];
+  const tabs = ['areas','markets','vendors','claims','messages','users','follows','ads','views','activity','spotlight'];
   const tabLabels = {
     vendors:`Vendors`,
     markets:`Markets`,
@@ -11415,7 +11454,8 @@ function renderAdminPanel() {
     users:`Users`,
     follows:`Follows`,
     views:'Views',
-    activity:'Activity'
+    activity:'Activity',
+    spotlight:'Spotlight'
   };
 
   const isDashboard = !tabs.includes(ST.adminTab);
@@ -12315,10 +12355,16 @@ function renderAdminPanel() {
     <div id="adminActivityList"><div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Loading activity...</div></div>`;
   }
 
+  if(ST.adminTab==='spotlight') {
+    h += `<div style="font-size:12px;color:var(--text2);margin-bottom:14px">Curate what shoppers see in the homepage Spotlight row. Drag order with the arrows — changes go live immediately, no deploy needed.</div>
+    <div id="adminSpotlightBody"><div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Loading Spotlight...</div></div>`;
+  }
+
   h += `</div>`;
   document.getElementById('scrollBody').innerHTML = h;
   if(ST.adminTab === 'views') loadAdminViews();
   if(ST.adminTab === 'activity') loadAdminActivity();
+  if(ST.adminTab === 'spotlight') loadAdminSpotlight();
 }
 
 function setAdminViewsSort(v) {
@@ -12354,7 +12400,11 @@ async function loadAdminActivity() {
   }
   try {
     const limit = ST.adminActivityLimit || 25;
-    let q = supabaseClient.from('activity_log').select('*').order('changed_at', { ascending: false }).range(0, limit); // fetch one extra to detect "more"
+    // Fetch extra raw rows since several rows can collapse into a single grouped
+    // line (e.g. one save that touched 4 fields) — need enough raw material to
+    // fill `limit` grouped lines.
+    const fetchCount = limit * 6;
+    let q = supabaseClient.from('activity_log').select('*').order('changed_at', { ascending: false }).range(0, fetchCount);
     if(ST.adminActivityFilter !== 'all') q = q.eq('entity_type', ST.adminActivityFilter);
     const { data, error } = await q;
     if(error) throw error;
@@ -12362,20 +12412,73 @@ async function loadAdminActivity() {
       listEl.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">No activity yet — this fills in as vendors and markets make changes to their pages.</div>`;
       return;
     }
-    const hasMore = data.length > limit;
-    const rows = data.slice(0, limit);
-    listEl.innerHTML = rows.map(row => {
-      const isMarketChange = row.field_key === 'market_added' || row.field_key === 'market_removed';
-      const text = isMarketChange ? `${esc(row.entity_name)} ${row.field_label}` : `${esc(row.entity_name)} updated their ${row.field_label}`;
-      const icon = row.entity_type === 'market' ? '🏪' : '🛍️';
-      const when = new Date(row.changed_at);
+
+    // Group rows into save events. Rows sharing a batch_id came from one save
+    // and collapse into one line. Legacy rows from before batch_id existed
+    // (null) each stand alone, same as before.
+    const groupsByKey = {};
+    const groups = [];
+    data.forEach(row => {
+      // Prefer batch_id (exact, from new saves). For legacy rows written
+      // before batch_id existed, fall back to grouping by same entity +
+      // same moment (3-second window) — this is what makes old multi-field
+      // saves collapse into one line too, not just future ones.
+      const key = row.batch_id
+        ? row.batch_id
+        : row.entity_type + '_' + row.entity_id + '_' + Math.floor(new Date(row.changed_at).getTime() / 3000);
+      if(!groupsByKey[key]) { groupsByKey[key] = { key, rows: [], changed_at: row.changed_at }; groups.push(groupsByKey[key]); }
+      groupsByKey[key].rows.push(row);
+      if(new Date(row.changed_at) > new Date(groupsByKey[key].changed_at)) groupsByKey[key].changed_at = row.changed_at;
+    });
+    groups.sort((a,b) => new Date(b.changed_at) - new Date(a.changed_at));
+
+    const hasMore = groups.length > limit;
+    const shown = groups.slice(0, limit);
+
+    const actorLabel = (row) => {
+      if(row.actor_type === 'admin') return 'You';
+      if(row.actor_type === 'operator') return 'Operator';
+      if(row.actor_type === 'vendor') return 'Vendor';
+      return ''; // legacy rows with no actor recorded
+    };
+
+    listEl.innerHTML = shown.map(g => {
+      const first = g.rows[0];
+      const icon = first.entity_type === 'market' ? '🏪' : '🛍️';
+      const who = actorLabel(first);
+      const when = new Date(g.changed_at);
       const dateLabel = when.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' · ' + when.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
-      return `<div onclick="navigate('${row.entity_type}','${row.entity_id}')" style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--border);cursor:pointer">
-        <div style="font-size:16px;flex-shrink:0">${icon}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;color:var(--text)">${text}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px">${dateLabel}</div>
+      const metaLine = who ? `${who} · ${dateLabel}` : dateLabel;
+
+      let summary;
+      if(g.rows.length === 1) {
+        const r = g.rows[0];
+        const isMarketChange = r.field_key === 'market_added' || r.field_key === 'market_removed';
+        summary = isMarketChange ? `${esc(r.entity_name)} ${r.field_label}` : `${esc(r.entity_name)} updated their ${r.field_label}`;
+      } else {
+        summary = `${esc(first.entity_name)} updated ${g.rows.length} things`;
+      }
+
+      const detailId = 'act_' + g.key.replace(/[^a-zA-Z0-9_]/g,'');
+      const detailRows = g.rows.map(r => {
+        const isMarketChange = r.field_key === 'market_added' || r.field_key === 'market_removed';
+        const line = isMarketChange ? r.field_label : `updated their ${r.field_label}`;
+        return `<div style="font-size:12px;color:var(--text2);padding:3px 0 3px 26px">• ${esc(line)}</div>`;
+      }).join('');
+
+      const rowClickAction = g.rows.length > 1
+        ? `document.getElementById('${detailId}').style.display=document.getElementById('${detailId}').style.display==='none'?'block':'none'`
+        : `navigate('${first.entity_type}','${first.entity_id}')`;
+
+      return `<div style="border-bottom:0.5px solid var(--border);padding:10px 0">
+        <div onclick="${rowClickAction}" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+          <div style="font-size:16px;flex-shrink:0">${icon}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;color:var(--text)">${summary}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">${metaLine}</div>
+          </div>
         </div>
+        ${g.rows.length > 1 ? `<div id="${detailId}" style="display:none;margin-top:4px">${detailRows}<div onclick="navigate('${first.entity_type}','${first.entity_id}')" style="font-size:11px;color:var(--green-dk);cursor:pointer;padding:6px 0 0 26px;font-weight:500">View page →</div></div>` : ''}
       </div>`;
     }).join('') + (hasMore ? `<div onclick="loadMoreActivity()" style="padding:12px 0;text-align:center;font-size:12px;color:var(--green-dk);cursor:pointer;font-weight:500">Load more</div>` : `<div style="padding:12px 0;text-align:center;font-size:11px;color:var(--text3)">That's everything</div>`);
   } catch(e) {
@@ -12383,6 +12486,184 @@ async function loadAdminActivity() {
     listEl.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Couldn't load activity right now.</div>`;
   }
 }
+
+/* ── ADMIN: SPOTLIGHT CURATION ── */
+async function loadAdminSpotlight() {
+  const body = document.getElementById('adminSpotlightBody');
+  if(!body) return;
+  if(!supabaseClient) { body.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Supabase not connected.</div>`; return; }
+  try {
+    const { data, error } = await supabaseClient.from('spotlight_items').select('*').order('sort_order');
+    if(error) throw error;
+    ST.adminSpotlightItems = data || [];
+    renderAdminSpotlightBody();
+  } catch(e) {
+    console.warn('Could not load spotlight items:', e);
+    body.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Couldn't load Spotlight right now.</div>`;
+  }
+}
+
+function spotlightResolveEntity(entityKind, entityId) {
+  const coll = entityKind === 'market' ? DATA.markets : DATA.vendors;
+  return coll.find(x => x.id === entityId);
+}
+
+function renderAdminSpotlightBody() {
+  const body = document.getElementById('adminSpotlightBody');
+  if(!body) return;
+  const items = ST.adminSpotlightItems || [];
+
+  // ── Current lineup ──
+  const currentRows = items.map((it, idx) => {
+    const rec = spotlightResolveEntity(it.entity_kind, it.entity_id);
+    const name = rec ? rec.name : `(missing ${it.entity_kind})`;
+    const icon = it.entry_type === 'announcement' ? '📣' : (it.entity_kind === 'market' ? '🏪' : '🛍️');
+    const subDisplay = it.badge || (it.entity_kind === 'market' ? 'Market' : 'Featured');
+    const subHtml = it.entry_type === 'announcement'
+      ? `<div style="font-size:11px;color:var(--text3)">Pinned update</div>`
+      : `<div id="sb_${it.id}" onclick="editSpotlightBadge('${it.id}')" style="font-size:11px;color:var(--green-dk);cursor:pointer;text-decoration:underline dotted;text-decoration-color:var(--green-mid)">${esc(subDisplay)} ✎</div>`;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:0.5px solid var(--border)">
+      <div style="font-size:16px;flex-shrink:0">${icon}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}</div>
+        ${subHtml}
+      </div>
+      <div style="display:flex;gap:4px;flex-shrink:0">
+        <div onclick="moveSpotlightItem('${it.id}',-1)" style="width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:6px;background:var(--surface2,#f2f2f2);cursor:pointer;font-size:13px;${idx===0?'opacity:.3;pointer-events:none':''}">↑</div>
+        <div onclick="moveSpotlightItem('${it.id}',1)" style="width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:6px;background:var(--surface2,#f2f2f2);cursor:pointer;font-size:13px;${idx===items.length-1?'opacity:.3;pointer-events:none':''}">↓</div>
+        <div onclick="removeSpotlightItem('${it.id}')" style="width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:6px;background:var(--surface2,#f2f2f2);cursor:pointer;font-size:13px;color:var(--terra)">×</div>
+      </div>
+    </div>`;
+  }).join('') || `<div style="padding:16px 0;text-align:center;font-size:12px;color:var(--text3)">Nothing in Spotlight yet — add something below.</div>`;
+
+  // ── Suggested: vendors claimed/trialing in the last 14 days, not already featured ──
+  const featuredIds = new Set(items.map(it => it.entity_id));
+  const cutoff = Date.now() - 14*24*60*60*1000;
+  const suggested = (DATA.vendors || []).filter(v =>
+    v.published && v.claimed && !featuredIds.has(v.id) &&
+    v.trial_start && new Date(v.trial_start).getTime() > cutoff
+  ).slice(0, 6);
+  const suggestedHtml = suggested.length ? suggested.map(v => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border)">
+      <div style="flex:1;min-width:0;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(v.name)}</div>
+      <div onclick="addSpotlightProfile('vendor','${v.id}')" style="font-size:11px;font-weight:600;color:var(--green-dk);cursor:pointer;padding:5px 10px;border-radius:var(--r-pill);border:0.5px solid var(--green)">+ Add</div>
+    </div>`).join('') : `<div style="padding:10px 0;font-size:12px;color:var(--text3)">No recent Pro sign-ups outside the current lineup.</div>`;
+
+  // ── Pin an update: vendors/markets with a live update not already pinned ──
+  const pinnedUpdateIds = new Set(items.filter(it => it.entry_type === 'announcement').map(it => it.entity_id));
+  const vendorUpdates = (DATA.vendors || []).filter(v => v.published && v.weekly_update && (typeof v.weekly_update === 'object' ? v.weekly_update.text : v.weekly_update) && !pinnedUpdateIds.has(v.id));
+  const marketUpdates = (DATA.markets || []).filter(m => {
+    const op = (DATA.operators||[]).find(o => o.id === m.operator_id);
+    return op && op.announcement && op.announcement.text && !pinnedUpdateIds.has(m.id);
+  });
+  const updateCandidates = [
+    ...vendorUpdates.map(v => ({ kind:'vendor', id:v.id, name:v.name, text: typeof v.weekly_update === 'object' ? v.weekly_update.text : v.weekly_update })),
+    ...marketUpdates.map(m => ({ kind:'market', id:m.id, name:m.name, text: (DATA.operators||[]).find(o=>o.id===m.operator_id)?.announcement?.text || '' }))
+  ];
+  const updatesHtml = updateCandidates.length ? updateCandidates.map(u => `
+    <div style="padding:8px 0;border-bottom:0.5px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="flex:1;min-width:0;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(u.name)}</div>
+        <div onclick="addSpotlightAnnouncement('${u.kind}','${u.id}')" style="font-size:11px;font-weight:600;color:var(--green-dk);cursor:pointer;padding:5px 10px;border-radius:var(--r-pill);border:0.5px solid var(--green);flex-shrink:0">+ Pin</div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.text)}</div>
+    </div>`).join('') : `<div style="padding:10px 0;font-size:12px;color:var(--text3)">No active vendor or market updates to pin right now.</div>`;
+
+  body.innerHTML = `
+    <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">Current lineup (${items.length})</div>
+    <div style="margin-bottom:22px">${currentRows}</div>
+
+    <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">Search to add</div>
+    <input id="spotlightSearchInput" placeholder="Search vendors or markets..." oninput="filterSpotlightSearch(this.value)" style="width:100%;padding:9px 12px;border-radius:var(--r-md);border:0.5px solid var(--border-med);font-size:13px;margin-bottom:6px;font-family:var(--font-sans)">
+    <div id="spotlightSearchResults" style="margin-bottom:22px"></div>
+
+    <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">Suggested — recent Pro sign-ups</div>
+    <div style="margin-bottom:22px">${suggestedHtml}</div>
+
+    <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">Pin a vendor or market update</div>
+    <div>${updatesHtml}</div>
+  `;
+}
+
+function editSpotlightBadge(id) {
+  const el = document.getElementById('sb_'+id);
+  if(!el) return;
+  const it = (ST.adminSpotlightItems || []).find(x => x.id === id);
+  const current = (it && it.badge) || '';
+  el.outerHTML = `<input id="sb_${id}" value="${esc(current)}" placeholder="e.g. Pro" onkeydown="if(event.key==='Enter'){this.blur()}" onblur="saveSpotlightBadge('${id}', this.value)" style="font-size:11px;padding:3px 6px;border-radius:4px;border:0.5px solid var(--green);width:110px;font-family:var(--font-sans)">`;
+  const input = document.getElementById('sb_'+id);
+  if(input) { input.focus(); input.select(); }
+}
+
+async function saveSpotlightBadge(id, value) {
+  if(!supabaseClient) return;
+  const badge = (value || '').trim();
+  try {
+    await supabaseClient.from('spotlight_items').update({ badge: badge || null }).eq('id', id);
+    await loadAdminSpotlight();
+  } catch(e) { console.warn('Failed to save badge:', e); notifySaveError('Could not save badge — please try again.'); }
+}
+
+function filterSpotlightSearch(query) {
+  const resultsEl = document.getElementById('spotlightSearchResults');
+  if(!resultsEl) return;
+  const q = (query || '').trim().toLowerCase();
+  if(q.length < 2) { resultsEl.innerHTML = ''; return; }
+  const featuredIds = new Set((ST.adminSpotlightItems || []).map(it => it.entity_id));
+  const vMatches = (DATA.vendors || []).filter(v => v.published && v.name && v.name.toLowerCase().includes(q)).slice(0, 8);
+  const mMatches = (DATA.markets || []).filter(m => m.name && m.name.toLowerCase().includes(q)).slice(0, 8);
+  const rows = [
+    ...vMatches.map(v => ({ kind:'vendor', id:v.id, name:v.name })),
+    ...mMatches.map(m => ({ kind:'market', id:m.id, name:m.name }))
+  ];
+  resultsEl.innerHTML = rows.length ? rows.map(r => `
+    <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:0.5px solid var(--border)">
+      <div style="font-size:14px;flex-shrink:0">${r.kind==='market'?'🏪':'🛍️'}</div>
+      <div style="flex:1;min-width:0;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.name)}</div>
+      ${featuredIds.has(r.id) ? `<span style="font-size:11px;color:var(--text3)">Already in Spotlight</span>` : `<div onclick="addSpotlightProfile('${r.kind}','${r.id}')" style="font-size:11px;font-weight:600;color:var(--green-dk);cursor:pointer;padding:5px 10px;border-radius:var(--r-pill);border:0.5px solid var(--green);flex-shrink:0">+ Add</div>`}
+    </div>`).join('') : `<div style="padding:8px 0;font-size:12px;color:var(--text3)">No matches.</div>`;
+}
+
+async function addSpotlightProfile(entityKind, entityId) {
+  if(!supabaseClient) return;
+  const nextOrder = (ST.adminSpotlightItems || []).reduce((max, it) => Math.max(max, it.sort_order), -1) + 1;
+  try {
+    await supabaseClient.from('spotlight_items').insert({ entry_type:'profile', entity_kind: entityKind, entity_id: entityId, sort_order: nextOrder });
+    await loadAdminSpotlight();
+  } catch(e) { console.warn('Failed to add spotlight item:', e); notifySaveError('Could not add to Spotlight — please try again.'); }
+}
+
+async function addSpotlightAnnouncement(entityKind, entityId) {
+  if(!supabaseClient) return;
+  const nextOrder = (ST.adminSpotlightItems || []).reduce((max, it) => Math.max(max, it.sort_order), -1) + 1;
+  try {
+    await supabaseClient.from('spotlight_items').insert({ entry_type:'announcement', entity_kind: entityKind, entity_id: entityId, sort_order: nextOrder });
+    await loadAdminSpotlight();
+  } catch(e) { console.warn('Failed to pin update:', e); notifySaveError('Could not pin update — please try again.'); }
+}
+
+async function removeSpotlightItem(id) {
+  if(!supabaseClient) return;
+  try {
+    await supabaseClient.from('spotlight_items').delete().eq('id', id);
+    await loadAdminSpotlight();
+  } catch(e) { console.warn('Failed to remove spotlight item:', e); notifySaveError('Could not remove — please try again.'); }
+}
+
+async function moveSpotlightItem(id, direction) {
+  if(!supabaseClient) return;
+  const items = ST.adminSpotlightItems || [];
+  const idx = items.findIndex(it => it.id === id);
+  const swapIdx = idx + direction;
+  if(idx === -1 || swapIdx < 0 || swapIdx >= items.length) return;
+  const a = items[idx], b = items[swapIdx];
+  try {
+    await supabaseClient.from('spotlight_items').update({ sort_order: b.sort_order }).eq('id', a.id);
+    await supabaseClient.from('spotlight_items').update({ sort_order: a.sort_order }).eq('id', b.id);
+    await loadAdminSpotlight();
+  } catch(e) { console.warn('Failed to reorder spotlight items:', e); notifySaveError('Could not reorder — please try again.'); }
+}
+
 async function loadAdminViews() {
   const statsEl = document.getElementById('adminViewsStats');
   const listEl = document.getElementById('adminViewsList');
@@ -13847,11 +14128,22 @@ async function dbSaveVendor(vendor) {
     }
     const { error } = await supabaseClient.from('vendors').upsert(vendorData);
     if(error) throw error;
-    // Update vendor_markets
-    await supabaseClient.from('vendor_markets').delete().eq('vendor_id', vendor.id);
-    if(markets && markets.length > 0) {
+    // Update vendor_markets — only touch rows that actually changed (not a
+    // full wipe-and-rewrite every save), so the activity log only records
+    // real schedule changes instead of the entire roster every time.
+    const { data: existingRows } = await supabaseClient
+      .from('vendor_markets').select('market_id').eq('vendor_id', vendor.id);
+    const existingIds = (existingRows || []).map(r => r.market_id);
+    const newIds = markets || [];
+    const toAdd = newIds.filter(id => !existingIds.includes(id));
+    const toRemove = existingIds.filter(id => !newIds.includes(id));
+    if(toRemove.length > 0) {
+      await supabaseClient.from('vendor_markets').delete()
+        .eq('vendor_id', vendor.id).in('market_id', toRemove);
+    }
+    if(toAdd.length > 0) {
       await supabaseClient.from('vendor_markets').insert(
-        markets.map(mid => ({ vendor_id: vendor.id, market_id: mid }))
+        toAdd.map(mid => ({ vendor_id: vendor.id, market_id: mid }))
       );
     }
     return true;
@@ -14304,7 +14596,7 @@ async function adminClaimVendorWithEmail(vendorId) {
     if(claimErr) { console.error('[adminClaimVendorWithEmail] claims insert failed:', claimErr); claimOk = false; }
   }
 
-  const upd = await vUpdate('vendors', { claimed: true, email: email, login_email: email }, q => q.eq('id', vendorId));
+  const upd = await vUpdate('vendors', { claimed: true, email: email, login_email: email, trial_start: new Date().toISOString() }, q => q.eq('id', vendorId));
   if(!upd.ok || !claimOk) {
     showToast('✗ ' + v.name + ' was not claimed — please try again', 'var(--terra)');
     return;
@@ -14359,7 +14651,7 @@ async function adminClaimVendorNoEmail(vendorId) {
     if(claimErr) { console.error('[adminClaimVendorNoEmail] claims insert failed:', claimErr); claimOk = false; }
   }
 
-  const upd = await vUpdate('vendors', { claimed: true }, q => q.eq('id', vendorId));
+  const upd = await vUpdate('vendors', { claimed: true, trial_start: new Date().toISOString() }, q => q.eq('id', vendorId));
   if(!upd.ok || !claimOk) {
     showToast('✗ ' + v.name + ' was not claimed — please try again', 'var(--terra)');
     return;
@@ -14889,6 +15181,17 @@ function adminSendReply(msgId) {
   if(!text) return;
   const msg = ST.adminMessages.find(m=>m.id===msgId);
   if(!msg) return;
+
+  // v1.74.78 — if this reply breaks a real silence (48h+ since the last
+  // activity on this thread, either side), send an immediate "you have a
+  // new message" email now instead of waiting on the 24h nudge cron. Active
+  // back-and-forth is untouched — only the first reply after a real gap
+  // fires this, so vendors aren't inundated during a live conversation.
+  const SILENCE_MS = 48 * 60 * 60 * 1000;
+  let lastActivityAt = new Date(msg.created_at || msg.date || 0).getTime();
+  (msg.replies || []).forEach(r => { const rt = new Date(r.created_at || 0).getTime(); if(rt > lastActivityAt) lastActivityAt = rt; });
+  const brokeSilence = (Date.now() - lastActivityAt) > SILENCE_MS;
+
   const reply = {
     from:'Windmill Admin',
     from_email: 'hello@shopwindmill.com',
@@ -14899,9 +15202,30 @@ function adminSendReply(msgId) {
   };
   msg.replies.push(reply);
   dbSaveReply(msg.id, reply); // sync to Supabase
-  if(msg.from_email) {
-    notifyOnReply(msg, 'Windmill Admin', text, msg.from_email, msg.from || 'there');
+
+  if(brokeSilence && msg.from_email && supabaseClient) {
+    const firstName = (msg.from || 'there').split(' ')[0];
+    sendWindmillEmail(
+      'You have a new message on Windmill',
+      '<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">' +
+      '<h2 style="color:#5C7A4E;margin:0 0 12px">Windmill</h2>' +
+      '<p>Hi ' + esc(firstName) + ',</p>' +
+      '<p><strong>Windmill Admin</strong> sent you a new message.</p>' +
+      '<p><a href="https://shopwindmill.com" style="display:inline-block;background:#5C7A4E;color:#fff;padding:10px 22px;border-radius:20px;text-decoration:none;font-weight:600">Read &amp; reply</a></p>' +
+      '</div>',
+      msg.from_email
+    );
+    // Also stamp sender_nudge_sent_at (the field nudge-unread actually checks)
+    // so tomorrow's cron run doesn't send a second, duplicate email for the
+    // same message. last_emailed_at is bookkeeping only — see the edge
+    // function's own comment: "Instant new-message emails are separate
+    // (last_emailed_at) — this is only the 24h follow-up."
+    const now = new Date().toISOString();
+    msg.last_emailed_at = now;
+    msg.sender_nudge_sent_at = now;
+    vUpdate('messages', { last_emailed_at: now, sender_nudge_sent_at: now }, q => q.eq('id', msg.id), {silent:true});
   }
+
   renderAdminPanel();
   scrollThreadBottom('adminThreadScroll');
 }
@@ -15944,6 +16268,16 @@ async function sendVendorReply(messageId, inputId, recipientType) {
     await supabaseClient.from('message_replies').insert(reply);
     if(input) input.value = '';
     if(btn) { btn.textContent = 'Send'; btn.disabled = false; }
+
+    // v1.74.78 — Replying proves the vendor has seen everything in the thread
+    // up to now, so re-stamp sender_last_read_at here too. Previously this
+    // only got stamped once, on the initial collapsed→expanded click — so a
+    // vendor who stayed on an already-open thread through several new admin
+    // replies (reading and replying to each) never re-armed the read receipt,
+    // making those admin messages show "Unread" even after being answered.
+    if(recipientType === 'admin') {
+      await vUpdate('messages', { sender_last_read_at: new Date().toISOString() }, q => q.eq('id', messageId), {silent:true});
+    }
 
     // Notify the right party: support thread → notify admin; shopper thread
     // → notify the shopper directly by email (they have no in-app inbox yet,
@@ -18990,7 +19324,7 @@ function renderAdminSettings() {
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Platform Info</div>
-        <div class="admin-row-meta">Version 1.74.76 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
+        <div class="admin-row-meta">Version 1.74.78 · SW Florida · ${DATA.markets.length} markets · ${DATA.vendors.length} vendors · ${DATA.operators.length} operators</div>
       </div>
       <div class="admin-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="admin-row-name">Coverage Area</div>
