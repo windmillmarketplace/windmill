@@ -13,6 +13,8 @@
 <!-- v1.74.76 — Admin vendor claim workflow improvements -->
 <!-- v1.74.75 — New: page-view tracking added to 9 previously-untracked pages (vendor join, market join, vendor login, market login, area request, privacy, terms, following, my account) — admin Views tab filter/labels updated to match -->
 <!-- v1.74.74 — Fix: infinite loop / stack overflow when a non-shopper role (vendor, operator, admin) landed on the 'me' tab — pre-existing bug, not from tonight's other changes -->
+<!-- v1.74.88 — Added: Cover Photo upload to the admin "Edit Market" modal (Admin → Markets → Edit). Previously the only way to change a market's photo was through the operator dashboard (My Markets → edit), which requires an operator to be assigned — markets with no operator (e.g. Alliance of the Arts) had no path to a photo change at all. adminSaveMarket() is now async and uploads directly to market-covers/ storage, same code path as the operator-side save, before writing the record. -->
+<!-- v1.74.83 — Fixed onAuthSuccess() double-rendering the vendor dashboard on every login/session-refresh, which was logging two page_views rows per real visit (inflating view counts). Views tab now shows the viewer's name instead of raw email in "who" columns (admin-only), so vendors are recognizable at a glance instead of needing to memorize emails. -->
 <!-- v1.74.82 — Spotlight admin tool: badge label on each profile row (e.g. "Pro", "Featured") is now editable inline — tap it, type new text, saves on blur/Enter. Announcement-pinned rows don't show this (no badge concept for those). -->
 <!-- v1.74.81 — New: Spotlight admin tool. Homepage Spotlight row is now sourced from a new Supabase table (spotlight_items) instead of a hardcoded array — add/remove/reorder featured vendors & markets from a new admin Spotlight tab, no deploy needed. Suggests recently-activated Pro vendors to add. Can also pin a vendor/market's own live weekly update/announcement into the Spotlight row (pulls their current text/name/photo live, not a snapshot). region:null on an entry = shown everywhere, so today's single shared list can later support per-region curation without a rebuild. -->
 <!-- v1.74.80 — Activity tab grouping fix: legacy rows (written before batch_id existed) now fall back to grouping by same entity + same moment (3-second window), so old multi-field saves collapse into one line too — not just future saves. Previously only rows with a real batch_id grouped, so all existing activity still showed one line per field until new data came in. -->
@@ -811,7 +813,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
     <button onclick="ST.opProfileSetupComplete=false;ST.opPendingCoverPhotoFile=null;ST.opPendingPhoto=null;setTestOperatorTier('trial',document.getElementById('opTierBtnTrial'));showOperatorOnboarding(1)" style="font-size:9px;flex:none;padding:0 8px;background:#5C4A3A;color:#B0A89F;border:none;border-left:0.5px solid #3d3330;height:32px;cursor:pointer;font-family:var(--font-sans)">Onboarding</button>
   </div>
   <div id="adminVendorSearchBar" style="display:none;align-items:center;border-left:0.5px solid #3d3330;padding-left:8px;gap:6px;flex:1;position:relative">
-    <input id="adminVendorSearchInput" type="text" placeholder="View as vendor..." autocomplete="off"
+    <input id="adminVendorSearchInput" type="text" placeholder="View as vendor/operator..." autocomplete="off"
       style="background:#3A2E24;border:0.5px solid #5C4A3A;color:#E8DDD4;font-size:10px;padding:3px 8px;border-radius:4px;font-family:var(--font-sans);outline:none;width:140px"
       oninput="renderAdminVendorSuggestions(this.value)"
       onblur="setTimeout(()=>document.getElementById('adminVendorDropdown').style.display='none',200)">
@@ -1811,6 +1813,7 @@ let ST = {
   profileSetupComplete:false,
   pendingCoverPhoto:null,
   sandboxMode:false, sandboxOverwrite:false, sandboxVendorId:null, sandboxOriginalVendor:null,
+  operatorSandboxMode:false, operatorSandboxOverwrite:false, sandboxOperatorId:null, sandboxOriginalOperator:null,
   dateFilter:null, dateFilterLabel:'Any day',
   forcedView:null,
   mapInstance:null, mapMarkers:{}, mapSelectedId:null,
@@ -3052,8 +3055,9 @@ function switchRole(role, btn) {
     setTestOperatorTier('free', document.getElementById('opTierBtnFree'));
     return;
   }
-  // Exit any sandbox mode when switching away from vendor
+  // Exit any sandbox mode when switching away from vendor/operator
   if(ST.sandboxMode) exitVendorSandbox();
+  if(ST.operatorSandboxMode) exitOperatorSandbox();
   renderSidebar(); renderFilterStrip(); renderBottom(); renderCurrentPage();
 }
 
@@ -3112,19 +3116,61 @@ function renderAdminVendorSuggestions(q) {
   const dropdown = document.getElementById('adminVendorDropdown');
   if(!dropdown) return;
   if(!q || q.length < 1) { dropdown.style.display = 'none'; return; }
-  const matches = DATA.vendors.filter(v => v.name.toLowerCase().includes(q.toLowerCase())).slice(0, 8);
-  if(!matches.length) { dropdown.style.display = 'none'; return; }
+  const ql = q.toLowerCase();
+  const vendorMatches = DATA.vendors.filter(v => v.name.toLowerCase().includes(ql)).slice(0, 5);
+  const operatorMatches = (DATA.operators||[]).filter(o => o.name.toLowerCase().includes(ql)).slice(0, 5);
+  const marketMatches = (DATA.markets||[]).filter(m => m.name.toLowerCase().includes(ql)).slice(0, 5);
+  if(!vendorMatches.length && !operatorMatches.length && !marketMatches.length) { dropdown.style.display = 'none'; return; }
   dropdown.style.display = 'block';
-  dropdown.innerHTML = matches.map(v => `
-    <div onclick="selectAdminVendor('${v.id}')"
+  const rowHtml = (entity, type) => `
+    <div onclick="selectAdminEntity('${type}','${entity.id}')"
       style="padding:8px 12px;cursor:pointer;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:8px"
       onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
-      <div style="width:28px;height:28px;border-radius:6px;background:var(--green-lt);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--green-dk);flex-shrink:0">${initials(v.name)}</div>
+      <div style="width:28px;height:28px;border-radius:6px;background:var(--green-lt);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--green-dk);flex-shrink:0">${initials(entity.name)}</div>
       <div>
-        <div style="font-size:12px;font-weight:500;color:var(--text)">${esc(v.name)}</div>
-        <div style="font-size:10px;color:var(--text3)">${v.category} · ${v.claimed ? 'Claimed' : 'Unclaimed'}${v.pro ? ' · Pro' : ''}</div>
+        <div style="font-size:12px;font-weight:500;color:var(--text)">${esc(entity.name)}</div>
+        <div style="font-size:10px;color:var(--text3)">${type==='vendor' ? `${entity.category} · ${entity.claimed ? 'Claimed' : 'Unclaimed'}${entity.pro ? ' · Pro' : ''}` : type==='operator' ? `Operator · ${entity.claimed ? 'Claimed' : 'Unclaimed'}${entity.pro ? ' · Pro' : ''}` : (() => { const op = entity.operator_id ? DATA.operators.find(o=>o.id===entity.operator_id) : null; return op ? `Market · Operated by ${esc(op.name)}` : `Market · No operator assigned`; })()}</div>
       </div>
-    </div>`).join('');
+    </div>`;
+  let html = '';
+  if(marketMatches.length) {
+    html += `<div style="padding:5px 12px;font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;background:var(--surface2)">Markets</div>`;
+    html += marketMatches.map(m => rowHtml(m,'market')).join('');
+  }
+  if(vendorMatches.length) {
+    html += `<div style="padding:5px 12px;font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;background:var(--surface2)">Vendors</div>`;
+    html += vendorMatches.map(v => rowHtml(v,'vendor')).join('');
+  }
+  if(operatorMatches.length) {
+    html += `<div style="padding:5px 12px;font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;background:var(--surface2)">Operators</div>`;
+    html += operatorMatches.map(o => rowHtml(o,'operator')).join('');
+  }
+  dropdown.innerHTML = html;
+}
+
+function selectAdminEntity(type, id) {
+  if(type === 'operator') return selectAdminOperator(id);
+  if(type === 'market') return selectAdminMarket(id);
+  return selectAdminVendor(id);
+}
+
+function selectAdminMarket(marketId) {
+  const m = DATA.markets.find(x => x.id === marketId);
+  if(!m) return;
+  if(!m.operator_id) {
+    document.getElementById('adminVendorDropdown').style.display = 'none';
+    const toast = document.createElement('div');
+    toast.textContent = `${m.name}: No operator assigned yet`;
+    toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--terra);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:9999;font-family:var(--font-sans);white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+    return;
+  }
+  const op = DATA.operators.find(o => o.id === m.operator_id);
+  if(!op) return;
+  // Remember which market to land on once inside the operator dashboard
+  ST._sandboxTargetTab = 'markets';
+  selectAdminOperator(op.id);
 }
 
 function selectAdminVendor(vendorId) {
@@ -3154,6 +3200,38 @@ function selectAdminVendor(vendorId) {
           <div style="font-size:11px;color:var(--text2)">Changes save for real to their Supabase record. Use carefully.</div>
         </button>
         <button onclick="document.getElementById('adminModeSelector').remove()" style="padding:10px;background:transparent;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;color:var(--text2);cursor:pointer;font-family:var(--font-sans)">Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+function selectAdminOperator(operatorId) {
+  const o = DATA.operators.find(x => x.id === operatorId);
+  if(!o) return;
+  document.getElementById('adminVendorDropdown').style.display = 'none';
+  document.getElementById('adminVendorSearchInput').value = o.name;
+
+  // Show mode selector overlay
+  const existing = document.getElementById('adminModeSelector');
+  if(existing) existing.remove();
+
+  const el = document.createElement('div');
+  el.id = 'adminModeSelector';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+  el.innerHTML = `
+    <div style="background:var(--surface);border-radius:var(--r-lg);padding:24px;max-width:360px;width:100%">
+      <div style="font-family:var(--font-serif);font-size:17px;font-weight:600;color:var(--text);margin-bottom:6px">View as operator</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:20px">${ST._sandboxTargetTab==='markets' ? `That market is operated by <strong>${esc(o.name)}</strong>. You'll land on their My Markets tab. Choose a mode:` : `You're about to view <strong>${esc(o.name)}</strong> as if you were them. Choose a mode:`}</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button onclick="enterOperatorSandbox('${operatorId}',false)" style="padding:14px;background:var(--surface2);border:1.5px solid #E5A800;border-radius:var(--r-md);text-align:left;cursor:pointer;font-family:var(--font-sans)">
+          <div style="font-size:13px;font-weight:600;color:#7A5500;margin-bottom:3px">🧪 Sandbox mode</div>
+          <div style="font-size:11px;color:var(--text2)">See their experience, make test changes. Nothing saves to Supabase.</div>
+        </button>
+        <button onclick="enterOperatorSandbox('${operatorId}',true)" style="padding:14px;background:var(--surface2);border:1.5px solid var(--terra);border-radius:var(--r-md);text-align:left;cursor:pointer;font-family:var(--font-sans)">
+          <div style="font-size:13px;font-weight:600;color:#7A2E10;margin-bottom:3px">✏️ Overwrite mode</div>
+          <div style="font-size:11px;color:var(--text2)">Changes save for real to their Supabase record. Use carefully.</div>
+        </button>
+        <button onclick="ST._sandboxTargetTab=null;document.getElementById('adminModeSelector').remove()" style="padding:10px;background:transparent;border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;color:var(--text2);cursor:pointer;font-family:var(--font-sans)">Cancel</button>
       </div>
     </div>`;
   document.body.appendChild(el);
@@ -3228,6 +3306,108 @@ function exitVendorSandbox() {
   ST.currentPage = null;
   document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.role-btn').forEach(b => { if(b.textContent === 'Admin') b.classList.add('active'); });
+  renderSidebar(); renderFilterStrip(); renderBottom(); renderCurrentPage();
+}
+
+function enterOperatorSandbox(operatorId, overwrite) {
+  document.getElementById('adminModeSelector')?.remove();
+  const o = DATA.operators.find(x => x.id === operatorId);
+  if(!o) return;
+
+  // Store original operator data for revert on exit
+  ST.sandboxOriginalOperator = JSON.parse(JSON.stringify(o));
+  ST.sandboxOperatorId = operatorId;
+  ST.operatorSandboxMode = !overwrite;
+  ST.operatorSandboxOverwrite = overwrite;
+
+  // Set operator identity
+  ST.operatorId = operatorId;
+  ST.opIsPro = o.pro === true;
+  ST.opTrialStart = (!o.pro && o.claimed) ? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) : (o.trial_start ? new Date(o.trial_start) : null);
+  ST.opIsProTrial = !o.pro && !!ST.opTrialStart;
+  ST.opProfileSetupComplete = true;
+  ST.opOrgName = o.name || '';
+  ST.opPhone = o.phone || '';
+  ST.opAddress = o.address || '';
+  ST.opContactRole = o.contact_role || '';
+  ST.user = ST.user || { name: o.name, email: o.email || o.login_email || '' };
+  ST.role = 'operator';
+  ST.tab = ST._sandboxTargetTab || 'home';
+  ST._sandboxTargetTab = null;
+  ST.currentPage = null;
+
+  // Show persistent banner
+  const existing = document.getElementById('sandboxBanner');
+  if(existing) existing.remove();
+  const banner = document.createElement('div');
+  banner.id = 'sandboxBanner';
+  banner.style.cssText = `position:fixed;top:32px;left:0;right:0;z-index:9998;padding:6px 14px;display:flex;align-items:center;justify-content:space-between;font-size:12px;font-family:var(--font-sans);font-weight:500;${overwrite ? 'background:#C4622D;color:#fff;' : 'background:#E5A800;color:#3D2800;'}`;
+  banner.innerHTML = `
+    <span style="white-space:nowrap">${overwrite ? '✏️ Overwrite' : '🧪 Sandbox'} — <strong>${esc(o.name)}</strong> (operator)</span>
+    <div style="display:flex;align-items:center;gap:4px;margin:0 8px">
+      <span style="font-size:10px;opacity:.7">View as:</span>
+      <button onclick="setOperatorSandboxTier('free')" id="sbTierFree" style="padding:2px 7px;border-radius:var(--r-pill);border:none;font-size:10px;cursor:pointer;font-weight:500;background:rgba(0,0,0,.25);color:inherit;font-family:var(--font-sans)">Free</button>
+      <button onclick="setOperatorSandboxTier('trial')" id="sbTierTrial" style="padding:2px 7px;border-radius:var(--r-pill);border:none;font-size:10px;cursor:pointer;font-weight:500;background:rgba(0,0,0,.25);color:inherit;font-family:var(--font-sans)">Pro Trial</button>
+      <button onclick="setOperatorSandboxTier('pro')" id="sbTierPro" style="padding:2px 7px;border-radius:var(--r-pill);border:none;font-size:10px;cursor:pointer;font-weight:500;background:rgba(0,0,0,.25);color:inherit;font-family:var(--font-sans)">Pro</button>
+    </div>
+    <button onclick="exitOperatorSandbox()" style="padding:3px 10px;background:rgba(0,0,0,.2);color:inherit;border:none;border-radius:var(--r-pill);font-size:11px;cursor:pointer;font-weight:600;font-family:var(--font-sans);white-space:nowrap">Exit →</button>`;
+  document.body.appendChild(banner);
+
+  // Force full re-render after state is set
+  setTimeout(() => {
+    renderSidebar(); renderFilterStrip(); renderBottom(); renderCurrentPage();
+  }, 0);
+}
+
+function exitOperatorSandbox() {
+  // Revert operator data if in sandbox mode
+  if(ST.operatorSandboxMode && ST.sandboxOriginalOperator) {
+    const idx = DATA.operators.findIndex(x => x.id === ST.sandboxOperatorId);
+    if(idx !== -1) DATA.operators[idx] = JSON.parse(JSON.stringify(ST.sandboxOriginalOperator));
+  }
+  // Clear sandbox state
+  ST.operatorSandboxMode = false;
+  ST.operatorSandboxOverwrite = false;
+  ST.sandboxOriginalOperator = null;
+  ST.sandboxOperatorId = null;
+  ST.operatorId = null;
+  ST.opIsPro = false;
+  ST.opIsProTrial = false;
+  ST.opTrialStart = null;
+  // Remove banner
+  document.getElementById('sandboxBanner')?.remove();
+  document.querySelector('.role-bar').style.marginTop = '';
+  // Clear search input
+  const input = document.getElementById('adminVendorSearchInput');
+  if(input) input.value = '';
+  // Return to admin
+  ST.role = 'admin';
+  ST.tab = 'home';
+  ST.currentPage = null;
+  document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.role-btn').forEach(b => { if(b.textContent === 'Admin') b.classList.add('active'); });
+  renderSidebar(); renderFilterStrip(); renderBottom(); renderCurrentPage();
+}
+
+function setOperatorSandboxTier(tier) {
+  const o = ST.operatorId ? DATA.operators.find(x => x.id === ST.operatorId) : null;
+  if(!o) return;
+  // Update tier state
+  if(tier === 'free') {
+    o.pro = false; ST.opIsPro = false; ST.opIsProTrial = false; ST.opTrialStart = null;
+  } else if(tier === 'trial') {
+    o.pro = false; ST.opIsPro = false; ST.opIsProTrial = true; ST.opTrialStart = new Date(Date.now() - 30*24*60*60*1000);
+  } else if(tier === 'pro') {
+    o.pro = true; ST.opIsPro = true; ST.opIsProTrial = false; ST.opTrialStart = null;
+  }
+  // Highlight active tier button
+  ['Free','Trial','Pro'].forEach(t => {
+    const btn = document.getElementById('sbTier' + t);
+    if(btn) btn.style.background = tier === t.toLowerCase() ? 'rgba(0,0,0,.5)' : 'rgba(0,0,0,.25)';
+  });
+  // Reset to dashboard view so tier change is visible immediately
+  ST.currentPage = null;
+  ST.tab = 'home';
   renderSidebar(); renderFilterStrip(); renderBottom(); renderCurrentPage();
 }
 
@@ -7879,6 +8059,20 @@ async function onVendorLoginSuccess(user) {
       localV.trial_start = vendorRecord.trial_start;
     }
 
+    // v1.74.84 — determine whether this vendor has already completed onboarding, so a
+    // brand-new signup can auto-launch the onboarding wizard exactly like the other
+    // sign-in path (onAuthSuccess) already does. Previously this function never checked
+    // this at all — a real vendor's first login after claiming landed silently on the
+    // plain dashboard with no wizard, no matter how they got here.
+    let profileSetupComplete = false;
+    if(supabaseClient) {
+      try {
+        const { data: profileRow } = await supabaseClient.from('users').select('profile_setup_complete').eq('id', user.id).maybeSingle();
+        profileSetupComplete = profileRow?.profile_setup_complete || false;
+      } catch(e) { /* non-fatal — treat as not yet complete, safer to show onboarding than skip it */ }
+    }
+    ST.profileSetupComplete = profileSetupComplete;
+
     // Update users table
     if(supabaseClient) {
       /* v1.74.42: previously an empty catch AND the returned error was never checked
@@ -7896,9 +8090,16 @@ async function onVendorLoginSuccess(user) {
     ST.currentPage = null;
     ST.tab = 'home';
     renderCurrentPage();
+
+    // v1.74.84 — first-time vendor, same auto-launch onAuthSuccess already does elsewhere
+    if(!ST.profileSetupComplete && !ST._onboardingShownThisSession) {
+      ST._onboardingShownThisSession = true;
+      setTimeout(() => showVendorOnboarding(), 800);
+    }
+
     // Show welcome toast
     const toast = document.createElement('div');
-    toast.textContent = 'Welcome back, ' + (vendorRecord.name || 'Vendor') + '!';
+    toast.textContent = (ST.profileSetupComplete ? 'Welcome back, ' : 'Welcome to Windmill, ') + (vendorRecord.name || 'Vendor') + '!';
     toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#2C2016;color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;z-index:9999;font-family:var(--font-sans);white-space:nowrap';
     document.body.appendChild(toast);
     setTimeout(()=>toast.remove(), 2500);
@@ -12834,7 +13035,18 @@ async function loadAdminViews() {
     }
     statsEl.innerHTML = statsHtml;
 
-    const fmtWho = (email, visitorId) => email || (visitorId ? `Guest #${visitorId.slice(-4)}` : 'Guest (not signed in)');
+    // v1.74.83 — resolve viewer email to a recognizable name instead of showing
+    // the raw address, so vendors show up as themselves instead of an email you
+    // have to memorize. Built once per render from data already in memory
+    // (no extra Supabase round trip): vendors first (most common viewer), then
+    // operators. Falls back to the email itself if no match, then to a guest label.
+    const emailToName = {};
+    (DATA.vendors||[]).forEach(v => { if(v.email) emailToName[v.email.toLowerCase()] = v.name; if(v.login_email) emailToName[v.login_email.toLowerCase()] = v.name; });
+    (DATA.operators||[]).forEach(o => { if(o.email) emailToName[o.email.toLowerCase()] = o.name; if(o.login_email) emailToName[o.login_email.toLowerCase()] = o.name; });
+    const fmtWho = (email, visitorId) => {
+      if(email) return emailToName[email.toLowerCase()] || email;
+      return visitorId ? `Guest #${visitorId.slice(-4)}` : 'Guest (not signed in)';
+    };
     const fmtSource = referrer => {
       if(!referrer) return '📱 Direct';
       try {
@@ -13580,6 +13792,20 @@ async function onAuthSuccess(user) {
   renderBottom();
   renderFilterStrip();
   renderSidebar();
+
+  // Only navigate on fresh login — don't disrupt if user is already browsing
+  const alreadyInDash = ST.currentPage !== null || ST.tab !== 'home';
+  const isFreshLogin = !ST.user || ST._sessionInitialized === false;
+  ST._sessionInitialized = true;
+
+  // v1.74.83 — vendors used to get reset to their dashboard tab AFTER an initial
+  // "redraw whatever page is currently showing" render, meaning renderCurrentPage()
+  // ran twice per login/session-refresh — logging two page_views rows for one real
+  // visit. Reset the tab/page state first so there's only ever one render, one log.
+  if(role === 'vendor' && vendorId) {
+    ST.tab = 'home';
+    ST.currentPage = null;
+  }
   // Redraw whatever page is currently showing — follows may have loaded after
   // the initial page render (e.g. on a hard refresh), so without this, follow
   // buttons on an already-rendered vendor/market page stay stuck showing
@@ -13593,15 +13819,7 @@ async function onAuthSuccess(user) {
     btn.onclick = () => { ST.tab='me'; renderCurrentPage(); renderBottom(); };
   }
 
-  // Only navigate on fresh login — don't disrupt if user is already browsing
-  const alreadyInDash = ST.currentPage !== null || ST.tab !== 'home';
-  const isFreshLogin = !ST.user || ST._sessionInitialized === false;
-  ST._sessionInitialized = true;
-
   if(role === 'vendor' && vendorId) {
-    ST.tab = 'home';
-    ST.currentPage = null;
-    renderCurrentPage();
     if(!ST.profileSetupComplete && !ST._onboardingShownThisSession) {
       ST._onboardingShownThisSession = true;
       setTimeout(() => showVendorOnboarding(), 800);
@@ -14158,6 +14376,13 @@ async function dbSaveVendor(vendor) {
 
 async function dbSaveMarket(market) {
   if(!supabaseClient) return false;
+  // Operator sandbox mode — update local data only, don't write to Supabase
+  if(ST.operatorSandboxMode) {
+    const idx = DATA.markets.findIndex(x => x.id === market.id);
+    if(idx !== -1) Object.assign(DATA.markets[idx], market);
+    console.log('🧪 Sandbox: market updated locally only (not saved to Supabase)');
+    return true;
+  }
   try {
     const marketData = { ...market };
     if(marketData.gallery) {
@@ -15404,6 +15629,13 @@ function openAdminEditMarket(id) {
   const curFreq = m.frequency || 'weekly';
   if(!freqOpts.some(o => o.v === curFreq)) freqOpts.push({v:curFreq, label:curFreq});
   openAdminModal('Edit Market', m.name, `
+    <div class="form-field">
+      <label class="form-label">Cover Photo</label>
+      <div style="position:relative;height:120px;border-radius:var(--r-md);overflow:hidden;margin-bottom:4px;cursor:pointer;${m.photo?`background:url(${m.photo}) center/cover no-repeat`:'background:var(--surface2);border:0.5px dashed var(--border-med);display:flex;align-items:center;justify-content:center'}" onclick="document.getElementById('em_photo_input').click()">
+        ${m.photo ? `<div style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.5);color:#fff;font-size:11px;padding:4px 8px;border-radius:var(--r-pill)">Change photo</div>` : `<div style="text-align:center;color:var(--text3)"><div style="font-size:24px;margin-bottom:4px">📷</div><div style="font-size:12px">Add a cover photo</div></div>`}
+      </div>
+      <input type="file" id="em_photo_input" accept="image/jpeg,image/png,image/webp,image/heic" style="display:none" onchange="previewMarketCoverPhoto(this,'${id}')">
+    </div>
     <div class="form-field"><label class="form-label">Name</label><input class="form-input" id="em_name" value="${esc(m.name)}"></div>
     <div class="form-field"><label class="form-label">Venue</label><input class="form-input" id="em_venue" value="${m.venue||''}"></div>
     <div class="form-field"><label class="form-label">Address</label><input class="form-input" id="em_address" value="${esc(m.address||'')}"></div>
@@ -15461,6 +15693,7 @@ function openAdminEditMarket(id) {
   `);
 }
 function adminSaveMarket(id) {
+  return (async () => {
   const m = DATA.markets.find(x=>x.id===id);
   if(!m) return;
   m.name = document.getElementById('em_name').value.trim() || m.name;
@@ -15485,9 +15718,25 @@ function adminSaveMarket(id) {
   m.email = document.getElementById('em_email').value.trim(); // v1.74.63
   m.pet_friendly = document.getElementById('em_pet').checked;
   m.published = document.getElementById('em_pub').checked;
+
+  const pendingFile = (ST._pendingMarketCoverFiles || {})[id];
+  if(pendingFile && supabaseClient) {
+    try {
+      const compressed = await compressImage(pendingFile, 1200, 0.80);
+      const path = `market-covers/${id}/${Date.now()}.jpg`;
+      m.photo = await uploadToStorage(compressed, path);
+      DATA.market_photos[id] = m.photo;
+      delete ST._pendingMarketCoverFiles[id];
+    } catch(e) {
+      console.warn('Cover photo upload failed:', e);
+      notifySaveError('Cover photo could not be uploaded — please try again.');
+    }
+  }
+
   dbSaveMarket(m); // sync to Supabase
   closeAdminModal();
   renderAdminPanel();
+  })();
 }
 function adminDeleteMarket(id) {
   if(!confirm('Delete this market? This cannot be undone.')) return;
@@ -18106,7 +18355,12 @@ async function saveOperatorMarketEdit(id) {
   m.pet_friendly = document.getElementById('ome_pet')?.checked;
 
   const pendingFile = (ST._pendingMarketCoverFiles || {})[id];
-  if(pendingFile && supabaseClient) {
+  if(pendingFile && ST.operatorSandboxMode) {
+    // Sandbox mode — preview locally only, don't upload to Supabase storage
+    m.photo = URL.createObjectURL(pendingFile);
+    delete ST._pendingMarketCoverFiles[id];
+    console.log('🧪 Sandbox: cover photo previewed locally only (not uploaded)');
+  } else if(pendingFile && supabaseClient) {
     try {
       const compressed = await compressImage(pendingFile, 1200, 0.80);
       const path = `market-covers/${id}/${Date.now()}.jpg`;
@@ -18120,7 +18374,9 @@ async function saveOperatorMarketEdit(id) {
   }
 
   if(supabaseClient) {
-    try { await dbSaveMarket(m); } catch(e) { console.warn('Save failed:', e); }
+    let saveOk = true;
+    try { saveOk = await dbSaveMarket(m); } catch(e) { console.warn('Save failed:', e); saveOk = false; }
+    if(!saveOk) { renderOperatorMarkets(); return; }
   }
   const toast = document.createElement('div');
   toast.textContent = m.name + ' updated ✓';
@@ -18980,7 +19236,11 @@ async function saveOperatorSettingsProfile() {
   if(updates.phone) ST.opPhone = updates.phone;
   if(addressVal) ST.opAddress = addressVal;
   ST.opContactRole = updates.contact_role;
-  if(supabaseClient && ST.operatorId) {
+  if(ST.operatorSandboxMode) {
+    const op = DATA.operators.find(x => x.id === ST.operatorId);
+    if(op) Object.assign(op, updates);
+    console.log('🧪 Sandbox: operator profile updated locally only (not saved to Supabase)');
+  } else if(supabaseClient && ST.operatorId) {
     try {
       const { error } = await vUpdate('operators', updates, q => q.eq('id', ST.operatorId));
       if(error) { notifySaveError('Failed to save profile changes. Please try again.'); return; }
