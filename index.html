@@ -1678,11 +1678,11 @@ const DATA = {
         {url:"https://images.unsplash.com/photo-1547592180-85f173990554?w=600&q=80",caption:"Fresh ingredients prepped the night before every market"}
       ],
       products:[
-        {name:"Chicken & Sofrito",price:"$4",description:"Our bestseller. Slow-cooked chicken with sofrito, olives and raisins"},
-        {name:"Pulled Pork & Jalapeño",price:"$4",description:"Smoky pulled pork with pickled jalapeños and sharp cheddar"},
-        {name:"Black Bean & Plantain",price:"$3.50",description:"Vegan. Seasoned black beans with sweet fried plantains"},
-        {name:"Guava Cream Cheese",price:"$3.50",description:"Dessert empanada. Guava paste and cream cheese, dusted with sugar"},
-        {name:"Nutella Banana",price:"$4",description:"New this week! Nutella and caramelized banana. Only 24 per market."}
+        {name:"Chicken & Sofrito",price:"$4.00 each",price_numeric:4.00,price_unit:"each",description:"Our bestseller. Slow-cooked chicken with sofrito, olives and raisins",category:"Prepared Food",image_url:"https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=600&q=80",in_stock:true},
+        {name:"Pulled Pork & Jalapeño",price:"$4.00 each",price_numeric:4.00,price_unit:"each",description:"Smoky pulled pork with pickled jalapeños and sharp cheddar",category:"Prepared Food",image_url:"https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=600&q=80",in_stock:true},
+        {name:"Black Bean & Plantain",price:"$3.50 each",price_numeric:3.50,price_unit:"each",description:"Vegan. Seasoned black beans with sweet fried plantains",category:"Prepared Food",image_url:"https://images.unsplash.com/photo-1606755962773-d324e0a13086?w=600&q=80",in_stock:true},
+        {name:"Guava Cream Cheese",price:"$3.50 each",price_numeric:3.50,price_unit:"each",description:"Dessert empanada. Guava paste and cream cheese, dusted with sugar",category:"Prepared Food",image_url:"https://images.unsplash.com/photo-1484723091739-30a097e8f929?w=600&q=80",in_stock:true},
+        {name:"Nutella Banana",price:"$4.00 each",price_numeric:4.00,price_unit:"each",description:"New this week! Nutella and caramelized banana. Only 24 per market.",category:"Prepared Food",image_url:"https://images.unsplash.com/photo-1484723091739-30a097e8f929?w=600&q=80",in_stock:true}
       ]
     }
   ],
@@ -2055,7 +2055,9 @@ const T = {
     vd_upgrade_showcase:"Upgrade to showcase your products",vd_start_trial:"Start free trial",
     vd_no_products:"No products yet — add your first one below.",vd_products_used:"products used",
     vd_edit_product:"Edit Product",vd_add_product_title:"Add Product",vd_product_name:"Product name *",vd_price:"Price",vd_description:"Description",
-    vd_name_ph:"e.g. Heirloom Tomatoes",vd_price_ph:"e.g. $4/lb or $12 each",vd_desc_ph:"Brief description...",vd_add_product_btn:"Add product",
+    vd_name_ph:"e.g. Heirloom Tomatoes",vd_price_ph:"e.g. 4.00",vd_desc_ph:"Brief description...",vd_add_product_btn:"Add product",
+    vd_category_ph:"Select a category",vd_price_unit:"Unit (optional)",vd_price_unit_ph:"e.g. per lb, per dozen, each",
+    vd_in_stock:"In stock",vd_photo:"Photo",vd_choose_gallery:"Choose from your gallery",vd_upload_new_photo:"Upload a new photo",vd_out_of_stock:"Out of stock",
     vd_err_product_name:"Please enter a product name.",vd_limit_1:"You've reached the",vd_limit_2:"-product limit",
     vd_limit_trial:" for the founding trial. Upgrade to full Pro for up to 25 products",vd_limit_plan:" for your plan",
     vd_err_save_product:"Could not save product. Please try again.",vd_confirm_delete:"Delete this product?",vd_err_delete_product:"Could not delete this product — please try again.",
@@ -2324,7 +2326,9 @@ const T = {
     vd_upgrade_showcase:"Mejora para mostrar tus productos",vd_start_trial:"Iniciar prueba gratis",
     vd_no_products:"Aún no hay productos — agrega el primero abajo.",vd_products_used:"productos usados",
     vd_edit_product:"Editar Producto",vd_add_product_title:"Agregar Producto",vd_product_name:"Nombre del producto *",vd_price:"Precio",vd_description:"Descripción",
-    vd_name_ph:"ej. Tomates Heirloom",vd_price_ph:"ej. $4/lb o $12 cada uno",vd_desc_ph:"Descripción breve...",vd_add_product_btn:"Agregar producto",
+    vd_name_ph:"ej. Tomates Heirloom",vd_price_ph:"ej. 4.00",vd_desc_ph:"Descripción breve...",vd_add_product_btn:"Agregar producto",
+    vd_category_ph:"Selecciona una categoría",vd_price_unit:"Unidad (opcional)",vd_price_unit_ph:"ej. por libra, por docena, cada uno",
+    vd_in_stock:"En existencia",vd_photo:"Foto",vd_choose_gallery:"Elige de tu galería",vd_upload_new_photo:"Subir una foto nueva",vd_out_of_stock:"Agotado",
     vd_err_product_name:"Por favor ingresa un nombre de producto.",vd_limit_1:"Alcanzaste el límite de",vd_limit_2:" productos",
     vd_limit_trial:" de la prueba fundadora. Mejora a Pro completo para hasta 25 productos",vd_limit_plan:" de tu plan",
     vd_err_save_product:"No se pudo guardar el producto. Intenta de nuevo.",vd_confirm_delete:"¿Eliminar este producto?",vd_err_delete_product:"No se pudo eliminar este producto — intenta de nuevo.",
@@ -2593,7 +2597,9 @@ const T = {
     vd_upgrade_showcase:"Faça upgrade para mostrar seus produtos",vd_start_trial:"Iniciar teste grátis",
     vd_no_products:"Ainda não há produtos — adicione o primeiro abaixo.",vd_products_used:"produtos usados",
     vd_edit_product:"Editar Produto",vd_add_product_title:"Adicionar Produto",vd_product_name:"Nome do produto *",vd_price:"Preço",vd_description:"Descrição",
-    vd_name_ph:"ex. Tomates Heirloom",vd_price_ph:"ex. $4/lb ou $12 cada",vd_desc_ph:"Descrição breve...",vd_add_product_btn:"Adicionar produto",
+    vd_name_ph:"ex. Tomates Heirloom",vd_price_ph:"ex. 4.00",vd_desc_ph:"Descrição breve...",vd_add_product_btn:"Adicionar produto",
+    vd_category_ph:"Selecione uma categoria",vd_price_unit:"Unidade (opcional)",vd_price_unit_ph:"ex. por libra, por dúzia, cada",
+    vd_in_stock:"Em estoque",vd_photo:"Foto",vd_choose_gallery:"Escolha da sua galeria",vd_upload_new_photo:"Enviar uma nova foto",vd_out_of_stock:"Esgotado",
     vd_err_product_name:"Por favor, insira um nome de produto.",vd_limit_1:"Você atingiu o limite de",vd_limit_2:" produtos",
     vd_limit_trial:" do teste fundador. Faça upgrade para o Pro completo para até 25 produtos",vd_limit_plan:" do seu plano",
     vd_err_save_product:"Não foi possível salvar o produto. Tente novamente.",vd_confirm_delete:"Excluir este produto?",vd_err_delete_product:"Não foi possível excluir este produto — tente novamente.",
@@ -3801,6 +3807,12 @@ function routeFromURL() {
   if(path === '/terms') { ST.currentPage = 'terms-of-service'; return; }
   const marketMatch = path.match(/^\/markets\/([^/]+)\/?$/);
   const vendorMatch = path.match(/^\/vendors\/([^/]+)\/?$/);
+  const productMatch = path.match(/^\/vendors\/([^/]+)\/products\/([^/]+)\/?$/);
+  if(productMatch) {
+    ST.currentPage = 'product';
+    ST.currentId = productMatch[2];
+    return;
+  }
   if(marketMatch) {
     ST.currentPage = 'market';
     ST.currentId = marketMatch[1];
@@ -3880,7 +3892,11 @@ function renderCurrentPage() {
     ST.mapFilterToday = false;
     ST.mapVendorCats = [];
   }
+  // Product JSON-LD only belongs on the product page it describes — clear it here,
+  // renderProductDetail re-sets it immediately if we're actually headed there.
+  if(p !== 'product') clearProductStructuredData();
   if(p === 'vendor') { renderVendorProfile(ST.currentId); return; }
+  if(p === 'product') { renderProductDetail(ST.currentId); return; }
   if(p === 'vendor-pending') return renderVendorPending();
   if(p === 'market') return renderMarketDetail(ST.currentId);
   if(p === 'area-request') { updatePageMeta('Request Your Area | Windmill','Ask us to bring Windmill to your city.','/area-request', 'area_request'); return renderAreaRequest(); }
@@ -3906,7 +3922,7 @@ function renderCurrentPage() {
     ST.localProducts = ST.localProducts || [];
     if(!ST.localProducts.some(p=>p.vendor_id===dv.id)) {
       dv.products.forEach((p,i) => {
-        ST.localProducts.push({id:'demo-prod-'+i, vendor_id:dv.id, name:p.name, price:p.price, description:p.description, sort_order:i});
+        ST.localProducts.push({id:'demo-prod-'+i, vendor_id:dv.id, name:p.name, price:p.price, price_numeric:p.price_numeric, price_unit:p.price_unit, description:p.description, category:p.category, image_url:p.image_url, in_stock:p.in_stock, sort_order:i});
       });
     }
     return renderVendorProfile(dv.id);
@@ -6949,6 +6965,189 @@ function renderOtherMarketsCarousel(currentId, region) {
     + '<div style="font-size:13px;font-weight:600;color:var(--text);padding:0 16px;margin-bottom:12px">' + sectionTitle + '</div>'
     + '<div style="display:flex;gap:10px;overflow-x:auto;padding:0 16px 8px;scrollbar-width:none">' + cards + '</div>'
     + '</div>';
+}
+
+/* ── PRODUCT DETAIL PAGE ── */
+/* URL: /vendors/{slug}/products/{id} — dedicated landing page for feed listings
+   (Google Shopping / Meta / Pinterest) that also doubles as a browsable on-site page. */
+/* ── PRODUCT STRUCTURED DATA (JSON-LD) ──
+   Lets Google/Pinterest read price, availability, and image directly instead of
+   guessing from rendered HTML — this is what enables rich results in search. */
+function setProductStructuredData(p, v, slug) {
+  let tag = document.getElementById('productSchemaTag');
+  if(!tag) {
+    tag = document.createElement('script');
+    tag.type = 'application/ld+json';
+    tag.id = 'productSchemaTag';
+    document.head.appendChild(tag);
+  }
+  const data = {
+    "@context": "https://schema.org/",
+    "@type": "Product",
+    "name": p.name,
+    "description": p.description || (p.name + ' from ' + v.name + ' on Windmill.'),
+    "image": p.image_url || undefined,
+    "brand": { "@type": "Brand", "name": v.name },
+    "offers": {
+      "@type": "Offer",
+      "url": `https://shopwindmill.com/vendors/${slug}/products/${p.id}`,
+      "priceCurrency": "USD",
+      "price": (p.price_numeric != null && p.price_numeric !== '') ? String(p.price_numeric) : undefined,
+      "availability": p.in_stock === false ? "https://schema.org/OutOfStock" : "https://schema.org/InStock"
+    }
+  };
+  tag.textContent = JSON.stringify(data);
+}
+function clearProductStructuredData() {
+  const tag = document.getElementById('productSchemaTag');
+  if(tag) tag.remove();
+}
+
+async function renderProductDetail(productId) {
+  hideFilterUI();
+  const sbPd = document.getElementById('scrollBody');
+  if(sbPd) { sbPd.scrollTop = 0; sbPd.innerHTML = ''; }
+
+  // Look up the product — local/sandbox first, then Supabase
+  let p = (ST.localProducts || []).find(x => x.id === productId);
+  if(!p && supabaseClient) {
+    try {
+      const { data } = await supabaseClient.from('products').select('*').eq('id', productId).single();
+      p = data;
+    } catch(e) { console.warn('Could not load product:', e); }
+  }
+  if(!p) { document.getElementById('scrollBody').innerHTML = '<div style="padding:24px;text-align:center;color:var(--text2)">Product not found.</div>'; return; }
+
+  // Resolve the vendor this product belongs to
+  let v = DATA.vendors.find(x => x.id === p.vendor_id);
+  if(supabaseClient) {
+    try {
+      const { data } = await supabaseClient.from('vendors').select('*').eq('id', p.vendor_id).single();
+      if(data) {
+        if(v) Object.assign(v, data);
+        else { v = data; DATA.vendors.push(v); }
+      }
+    } catch(e) { console.warn('Could not load vendor for product:', e); }
+  }
+  if(!v) { document.getElementById('scrollBody').innerHTML = '<div style="padding:24px;text-align:center;color:var(--text2)">Vendor not found.</div>'; return; }
+
+  const slug = v.slug || v.id;
+  const outOfStock = p.in_stock === false;
+  const metaDesc = (p.description || (esc(p.name) + ' from ' + esc(v.name) + ' on Windmill.')).slice(0, 160);
+  updatePageMeta(`${esc(p.name)} — ${esc(v.name)} | Windmill`, metaDesc, `/vendors/${slug}/products/${p.id}`, 'product', p.id);
+  setProductStructuredData(p, v, slug);
+
+  const c = vc(DATA.vendors.indexOf(v));
+
+  // "Where to get this" — reuse the same anchor-market logic as the vendor page
+  const anchor = vendorAnchorMarket(v);
+  const allMarkets = (v.markets || []).map(mid => getMarket(mid)).filter(Boolean);
+
+  let whereHtml = '';
+  if(anchor && anchor.market) {
+    const m = anchor.market;
+    const nextDay = getNextMarketDay(m);
+    const DAY_SHORT = {Sunday:'Sun',Monday:'Mon',Tuesday:'Tue',Wednesday:'Wed',Thursday:'Thu',Friday:'Fri',Saturday:'Sat'};
+    let dayLabel;
+    if(anchor.inSeason) {
+      dayLabel = anchor.diff === 0 ? 'Today' : anchor.diff === 1 ? 'Tomorrow' : anchor.diff > 6 ? farOutDateLabel(m, DAY_SHORT[nextDay] || nextDay.slice(0,3)) : (DAY_SHORT[nextDay] || nextDay.slice(0,3));
+    } else {
+      dayLabel = DAY_SHORT[nextDay] || nextDay.slice(0,3);
+    }
+    const timeLabel = m.start_time ? ' · ' + formatTimeRange(m.start_time, m.end_time) : '';
+    whereHtml = `<div class="profile-section" style="background:var(--amber-lt);border-top:0.5px solid #F0D090;border-bottom:0.5px solid #F0D090;margin-top:0">
+      <div style="font-size:11px;font-weight:600;color:#7A4E08;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📍 Where to get ${esc(p.name)}</div>
+      <div style="cursor:pointer" onclick="navigate('market','${m.id}')">
+        <div style="font-size:15px;font-weight:600;color:#7A4E08">${esc(m.name)}</div>
+        <div style="font-size:13px;color:#A06820;margin-top:2px">${dayLabel}${timeLabel} · ${esc(m.city)}</div>
+      </div>
+      ${allMarkets.length > 1 ? `<div style="font-size:11px;color:#A06820;margin-top:8px">+ ${allMarkets.length - 1} more market${allMarkets.length > 2 ? 's' : ''} — see full schedule below</div>` : ''}
+    </div>`;
+  } else {
+    whereHtml = `<div class="profile-section" style="background:var(--amber-lt);border-top:0.5px solid #F0D090;border-bottom:0.5px solid #F0D090;margin-top:0">
+      <div style="font-size:13px;color:#7A4E08">This vendor hasn't listed any markets yet.</div>
+    </div>`;
+  }
+
+  const marketsListHtml = allMarkets.length ? allMarkets.map(m => {
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--border);cursor:pointer" onclick="navigate('market','${m.id}')">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:500;color:var(--text)">${esc(m.name)}</div>
+        <div style="font-size:11px;color:var(--text3)">${getMarketScheduleLabel(m)} · ${formatTimeRange(m.start_time, m.end_time)} · ${esc(m.city)}</div>
+      </div>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>`;
+  }).join('') : '<div style="font-size:12px;color:var(--text3);font-style:italic">No markets listed yet.</div>';
+
+  document.getElementById('scrollBody').innerHTML = `<div class="profile-page">
+    <div class="market-hero">
+      <div class="profile-back" onclick="goBack()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> ${t('back')}</div>
+      <div style="width:100%;aspect-ratio:4/3;max-height:280px;border-radius:var(--r-lg);overflow:hidden;background:var(--surface2);display:flex;align-items:center;justify-content:center;margin-bottom:14px;position:relative">
+        ${p.image_url ? `<img src="${p.image_url}" style="width:100%;height:100%;object-fit:cover${outOfStock ? ';opacity:.5' : ''}">` : `<span style="font-size:48px">📦</span>`}
+        ${outOfStock ? `<div style="position:absolute;top:10px;left:10px;background:var(--terra);color:#fff;font-size:11px;padding:4px 10px;border-radius:var(--r-pill);font-weight:600">Out of stock</div>` : ''}
+      </div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+        <div style="flex:1;min-width:0">
+          ${p.category ? `<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">${esc(p.category)}</div>` : ''}
+          <div class="profile-name">${esc(p.name)}</div>
+        </div>
+        ${p.price ? `<div style="font-size:18px;font-weight:600;color:var(--green-dk);flex-shrink:0;white-space:nowrap">${esc(p.price)}</div>` : ''}
+      </div>
+      ${p.description ? `<div style="font-size:13px;color:var(--text2);line-height:1.5;margin-top:8px">${esc(p.description)}</div>` : ''}
+    </div>
+
+    ${whereHtml}
+
+    <div class="profile-section">
+      <div class="profile-section-title">Full Schedule</div>
+      ${marketsListHtml}
+    </div>
+
+    <div class="profile-section" style="cursor:pointer" onclick="navigate('vendor','${slug}')">
+      <div class="profile-section-title">Sold By</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        ${vendorAvatar(v, c.bg, c.c, '48px', '10px')}
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:600;color:var(--text)">${esc(v.name)}</div>
+          <div style="font-size:12px;color:var(--text2)">${esc(v.category || '')}</div>
+        </div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
+      <button onclick="event.stopPropagation();openMessageModal('vendor','${v.id}')" style="width:100%;margin-top:12px;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">💬 Message via Windmill</button>
+    </div>
+
+    <div class="profile-section" style="margin-bottom:24px">
+      <div class="profile-section-title">More from ${esc(v.name)}</div>
+      <div id="moreFromVendorGrid"><div style="text-align:center;padding:12px;color:var(--text2);font-size:12px">Loading...</div></div>
+    </div>
+  </div>`;
+
+  loadMoreFromVendor(p.vendor_id, p.id);
+  if(!ST.demoMode) trackPageView('product', p.id, `/vendors/${slug}/products/${p.id}`);
+}
+
+async function loadMoreFromVendor(vendorId, excludeProductId) {
+  const el = document.getElementById('moreFromVendorGrid');
+  if(!el) return;
+  let products = (ST.localProducts || []).filter(x => x.vendor_id === vendorId);
+  if(!products.length && supabaseClient) {
+    try {
+      const { data } = await supabaseClient.from('products').select('*').eq('vendor_id', vendorId).order('sort_order', {ascending: true});
+      products = data || [];
+    } catch(e) { products = []; }
+  }
+  products = products.filter(x => x.id !== excludeProductId);
+  if(!products.length) { el.innerHTML = '<div style="font-size:12px;color:var(--text3);font-style:italic">No other products listed yet.</div>'; return; }
+  const html = '<div class="product-grid">' + products.map(function(item) {
+    const oos = item.in_stock === false;
+    return '<div class="product-card" style="cursor:pointer" onclick="navigate(\'product\',\''+item.id+'\')">'
+      + (oos ? '<div style="position:absolute;top:5px;left:5px;background:var(--terra);color:#fff;font-size:9px;padding:2px 6px;border-radius:var(--r-sm);font-weight:500;z-index:1">Out of stock</div>' : '')
+      + '<div class="product-img">'+(item.image_url?'<img loading="lazy" src="'+item.image_url+'" style="width:100%;height:100%;object-fit:cover'+(oos?';opacity:.5':'')+'">':'📦')+'</div>'
+      + '<div class="product-body"><div class="product-name">'+esc(item.name)+'</div>'
+      + (item.price?'<div class="product-price">'+esc(item.price)+'</div>':'')
+      + '</div></div>';
+  }).join('') + '</div>';
+  el.innerHTML = html;
 }
 
 function renderMarketDetail(id) {
@@ -10738,11 +10937,25 @@ function refreshGalleryGrid(v) {
   </div>`;
 }
 
-function deleteGalleryPhoto(idx) {
+async function deleteGalleryPhoto(idx) {
   const v = ST.vendorId ? DATA.vendors.find(x => x.id === ST.vendorId) : null;
   if(!v || !v.gallery) return;
+  const removed = v.gallery[idx];
   v.gallery.splice(idx, 1);
-  if(supabaseClient) dbSaveVendor(v);
+  if(supabaseClient) {
+    await dbSaveVendor(v);
+    // Best-effort cleanup of the actual file in storage — DB reference is already
+    // gone above regardless of whether this succeeds, so failures here are non-blocking.
+    try {
+      const url = typeof removed === 'object' ? removed.url : removed;
+      const marker = '/vendor-photos/';
+      const i = url ? url.indexOf(marker) : -1;
+      if(i !== -1) {
+        const path = url.substring(i + marker.length);
+        await supabaseClient.storage.from('vendor-photos').remove([path]);
+      }
+    } catch(e) { console.warn('Gallery file cleanup failed (non-blocking):', e); }
+  }
   refreshGalleryGrid(v);
 }
 
@@ -17453,8 +17666,16 @@ async function loadVendorProductsDisplay(vendorId) {
   if(!products.length) { el.innerHTML='<p style="font-size:13px;color:var(--text2);font-style:italic">No products listed yet.</p>'; return; }
   var html = '<div>';
   products.forEach(function(p){
-    html += '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--border)">'
-      +'<div style="flex:1"><div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:2px">'+p.name+'</div>'
+    var outOfStock = p.in_stock === false;
+    html += '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--border);opacity:'+(outOfStock?'.55':'1');
+    // Real (Supabase) and demo products both have stable data to resolve on the detail
+    // page. True sandbox-only products ('local-...', created with no live DB behind them)
+    // don't, so those stay non-clickable.
+    var linkable = p.id && !/^local-/.test(String(p.id));
+    html += (linkable ? ';cursor:pointer" onclick="navigate(\'product\',\''+p.id+'\')"' : '"');
+    html += '>'
+      +(p.image_url?'<img loading="lazy" src="'+p.image_url+'" style="width:44px;height:44px;object-fit:cover;border-radius:var(--r-sm);flex-shrink:0">':'')
+      +'<div style="flex:1"><div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:2px">'+p.name+(outOfStock?' <span style="font-size:10px;color:var(--terra);font-weight:500">· '+t('vd_out_of_stock')+'</span>':'')+'</div>'
       +(p.description?'<div style="font-size:11px;color:var(--text2)">'+p.description+'</div>':'')
       +'</div>'
       +(p.price?'<div style="font-size:13px;font-weight:600;color:var(--green-dk);flex-shrink:0">'+p.price+'</div>':'')
@@ -17517,13 +17738,33 @@ function openProductModalById(productId, vendorId, isTrial) {
 function openProductModal(product, vendorId, isTrial) {
   var isEdit = !!(product && product.id);
   var maxProducts = isTrial ? 10 : 25;
+  var v = DATA.vendors.find(function(x){return x.id===vendorId;});
+  var gallery = v ? parseGallery(v.gallery) : [];
+  var categories = ['Arts & Crafts','Baked Goods','Candy & Sweets','Clothing & Accessories','Coffee & Drinks','Dairy & Eggs','Food Trucks','Health & Wellness','Home & Candles','Honey & Preserves','Jewelry','Meat & Seafood','Pet Products','Plants & Flowers','Prepared Food','Produce','Recreation & Hobbies','Sauces & Pantry','Soaps & Body Care'];
   var modal = document.createElement('div');
   modal.id = 'productModal';
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(44,32,22,.55);z-index:3000;display:flex;align-items:flex-end;justify-content:center';
   var nameVal = product && product.name ? product.name : '';
-  var priceVal = product && product.price ? product.price : '';
+  var categoryVal = product && product.category ? product.category : '';
+  var priceAmountVal = product && product.price_numeric != null ? product.price_numeric : '';
+  var priceUnitVal = product && product.price_unit ? product.price_unit : '';
   var descVal = product && product.description ? product.description : '';
+  var inStockVal = product ? (product.in_stock !== false) : true;
+  var imageUrlVal = product && product.image_url ? product.image_url : '';
   var productId = product && product.id ? product.id : '';
+
+  var categoryOptions = '<option value="">'+t('vd_category_ph')+'</option>'+categories.map(function(cat){
+    var cd = DATA.categories.find(function(c){return c.label===cat;});
+    var cl = ST.lang==='es' ? ((cd&&cd.es)||cat) : ST.lang==='pt' ? ((cd&&cd.pt)||cat) : cat;
+    return '<option value="'+cat+'" '+(categoryVal===cat?'selected':'')+'>'+cl+'</option>';
+  }).join('');
+
+  var galleryHtml = gallery.map(function(p){
+    var url = typeof p === 'object' ? p.url : p;
+    var border = imageUrlVal===url ? 'var(--green)' : 'transparent';
+    return '<img src="'+url+'" data-url="'+url+'" onclick="selectProductPhoto(this)" style="width:56px;height:56px;object-fit:cover;border-radius:var(--r-sm);cursor:pointer;border:2px solid '+border+'">';
+  }).join('');
+
   modal.innerHTML = '<div style="background:var(--surface);border-radius:var(--r-lg) var(--r-lg) 0 0;width:100%;max-width:520px;padding:20px 20px 32px;max-height:90vh;overflow-y:auto">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">'
     +'<div style="font-size:16px;font-weight:600;font-family:var(--font-serif)">'+(isEdit?t('vd_edit_product'):t('vd_add_product_title'))+'</div>'
@@ -17531,11 +17772,28 @@ function openProductModal(product, vendorId, isTrial) {
     +'</div>'
     +'<div style="display:flex;flex-direction:column;gap:12px">'
     +'<div><label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:4px">'+t('vd_product_name')+'</label>'
-    +'<input id="pName" value="'+nameVal+'" placeholder="'+t('vd_name_ph')+'" class="form-input" style="width:100%"></div>'
-    +'<div><label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:4px">'+t('vd_price')+'</label>'
-    +'<input id="pPrice" value="'+priceVal+'" placeholder="'+t('vd_price_ph')+'" class="form-input" style="width:100%"></div>'
+    +'<input id="pName" value="'+esc(nameVal)+'" placeholder="'+t('vd_name_ph')+'" class="form-input" style="width:100%"></div>'
+    +'<div><label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:4px">'+t('vd_category')+'</label>'
+    +'<select id="pCategory" class="form-input" style="width:100%;cursor:pointer">'+categoryOptions+'</select></div>'
+    +'<div style="display:flex;gap:10px">'
+    +'<div style="flex:1"><label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:4px">'+t('vd_price')+'</label>'
+    +'<input id="pPrice" type="number" step="0.01" min="0" value="'+priceAmountVal+'" placeholder="'+t('vd_price_ph')+'" class="form-input" style="width:100%"></div>'
+    +'<div style="flex:1"><label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:4px">'+t('vd_price_unit')+'</label>'
+    +'<input id="pPriceUnit" value="'+esc(priceUnitVal)+'" placeholder="'+t('vd_price_unit_ph')+'" class="form-input" style="width:100%"></div>'
+    +'</div>'
     +'<div><label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:4px">'+t('vd_description')+'</label>'
     +'<textarea id="pDesc" placeholder="'+t('vd_desc_ph')+'" class="form-textarea" style="height:72px">'+descVal+'</textarea></div>'
+    +'<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text)">'
+    +'<input type="checkbox" id="pInStock" '+(inStockVal?'checked':'')+' style="width:16px;height:16px;accent-color:var(--green)">'+t('vd_in_stock')+'</label>'
+    +'<div><label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:4px">'+t('vd_photo')+'</label>'
+    +'<input type="hidden" id="pImageUrl" value="'+esc(imageUrlVal)+'">'
+    +'<div id="pPhotoPreview" style="width:100%;height:100px;background:var(--surface2);border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:8px">'
+    +(imageUrlVal?'<img src="'+imageUrlVal+'" style="width:100%;height:100%;object-fit:cover">':'<span style="font-size:24px">📷</span>')
+    +'</div>'
+    +(galleryHtml?'<div style="font-size:10px;color:var(--text3);margin-bottom:4px">'+t('vd_choose_gallery')+'</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px" id="pGalleryPicker">'+galleryHtml+'</div>':'')
+    +'<button type="button" onclick="document.getElementById(\'pPhotoFile\').click()" style="width:100%;padding:9px;background:var(--surface2);color:var(--text2);border:0.5px dashed var(--border-med);border-radius:var(--r-md);font-size:12px;cursor:pointer;font-family:var(--font-sans)">'+t('vd_upload_new_photo')+'</button>'
+    +'<input type="file" id="pPhotoFile" accept="image/jpeg,image/png,image/webp,image/heic" style="display:none" onchange="handleProductPhotoUpload(this,\''+vendorId+'\')">'
+    +'</div>'
     +'<div style="display:flex;gap:10px;margin-top:4px">'
     +'<button onclick="submitProductModal(\''+vendorId+'\',\''+productId+'\','+isTrial+','+maxProducts+')" style="flex:1;padding:11px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">'+(isEdit?t('vd_save_changes'):t('vd_add_product_btn'))+'</button>'
     +(isEdit?'<button onclick="confirmDeleteProduct(\''+productId+'\',\''+vendorId+'\','+isTrial+')" style="padding:11px 16px;background:var(--terra-lt);color:var(--terra);border:0.5px solid #ECC4B0;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans)">'+t('vd_delete')+'</button>':'')
@@ -17544,11 +17802,57 @@ function openProductModal(product, vendorId, isTrial) {
   modal.addEventListener('click',function(e){if(e.target===modal)modal.remove();});
 }
 
+function selectProductPhoto(imgEl) {
+  var url = imgEl.getAttribute('data-url');
+  var hidden = document.getElementById('pImageUrl');
+  if(hidden) hidden.value = url;
+  var preview = document.getElementById('pPhotoPreview');
+  if(preview) preview.innerHTML = '<img src="'+url+'" style="width:100%;height:100%;object-fit:cover">';
+  var picker = document.getElementById('pGalleryPicker');
+  if(picker) Array.from(picker.querySelectorAll('img')).forEach(function(im){
+    im.style.borderColor = im.getAttribute('data-url')===url ? 'var(--green)' : 'transparent';
+  });
+}
+
+async function handleProductPhotoUpload(input, vendorId) {
+  var file = input.files[0];
+  if(!file) return;
+  if(file.size > 5 * 1024 * 1024) { alert('Photo must be under 5MB'); return; }
+  var btn = input.previousElementSibling;
+  var origLabel = btn ? btn.textContent : '';
+  if(btn) { btn.textContent = 'Uploading...'; btn.disabled = true; }
+  try {
+    var url;
+    if(supabaseClient) {
+      var compressed = await compressImage(file, 1200, 0.80);
+      var path = 'products/' + vendorId + '/' + Date.now() + '.jpg';
+      url = await uploadToStorage(compressed, path);
+    } else {
+      url = URL.createObjectURL(file);
+    }
+    var hidden = document.getElementById('pImageUrl');
+    if(hidden) hidden.value = url;
+    var preview = document.getElementById('pPhotoPreview');
+    if(preview) preview.innerHTML = '<img src="'+url+'" style="width:100%;height:100%;object-fit:cover">';
+    var picker = document.getElementById('pGalleryPicker');
+    if(picker) Array.from(picker.querySelectorAll('img')).forEach(function(im){ im.style.borderColor = 'transparent'; });
+  } catch(e) {
+    console.warn('Product photo upload failed:', e);
+    alert('Upload failed — please try again');
+  } finally {
+    if(btn) { btn.textContent = origLabel; btn.disabled = false; }
+  }
+}
+
 async function submitProductModal(vendorId, existingId, isTrial, maxProducts) {
   var name = (document.getElementById('pName')||{}).value||'';
-  var price = (document.getElementById('pPrice')||{}).value||'';
+  var category = (document.getElementById('pCategory')||{}).value||'';
+  var priceAmount = (document.getElementById('pPrice')||{}).value||'';
+  var priceUnit = (document.getElementById('pPriceUnit')||{}).value||'';
   var desc = (document.getElementById('pDesc')||{}).value||'';
-  name = name.trim(); price = price.trim(); desc = desc.trim();
+  var inStock = !!(document.getElementById('pInStock')||{}).checked;
+  var imageUrl = (document.getElementById('pImageUrl')||{}).value||'';
+  name = name.trim(); priceAmount = priceAmount.trim(); priceUnit = priceUnit.trim(); desc = desc.trim(); imageUrl = imageUrl.trim();
   if(!name) { alert(t('vd_err_product_name')); return; }
   if(!existingId) {
     var existing = await loadVendorProductsDash(vendorId);
@@ -17557,7 +17861,21 @@ async function submitProductModal(vendorId, existingId, isTrial, maxProducts) {
       return;
     }
   }
-  var product = {vendor_id:vendorId, name:name, price:price||null, description:desc||null};
+  // price_numeric is the clean number for feed/checkout use; price stays a
+  // human-readable display string (kept for backward compat with existing rendering).
+  var priceNumeric = priceAmount !== '' && !isNaN(parseFloat(priceAmount)) ? parseFloat(priceAmount) : null;
+  var priceDisplay = priceNumeric !== null ? ('$' + priceNumeric.toFixed(2) + (priceUnit ? ' ' + priceUnit : '')) : (priceUnit || null);
+  var product = {
+    vendor_id: vendorId,
+    name: name,
+    description: desc || null,
+    category: category || null,
+    price: priceDisplay,
+    price_numeric: priceNumeric,
+    price_unit: priceUnit || null,
+    in_stock: inStock,
+    image_url: imageUrl || null
+  };
   if(existingId) product.id = existingId;
   var saved = await saveProduct(product);
   if(saved) {
@@ -17741,7 +18059,8 @@ async function renderVendorProducts() {
         products.forEach(function(p){
           html += '<div class="product-card">'
             +'<button class="product-edit-btn" onclick="openProductModalById(\''+p.id+'\',\''+vendorId+'\','+isTrial+')">'+t('vd_edit')+'</button>'
-            +'<div class="product-img">'+(p.photo?'<img loading="lazy" src="'+p.photo+'" style="width:100%;height:100%;object-fit:cover">':'📦')+'</div>'
+            +(p.in_stock===false?'<div style="position:absolute;top:5px;left:5px;background:var(--terra);color:#fff;font-size:9px;padding:2px 6px;border-radius:var(--r-sm);font-weight:500;z-index:1">'+t('vd_out_of_stock')+'</div>':'')
+            +'<div class="product-img">'+(p.image_url?'<img loading="lazy" src="'+p.image_url+'" style="width:100%;height:100%;object-fit:cover'+(p.in_stock===false?';opacity:.5':'')+'">':'📦')+'</div>'
             +'<div class="product-body"><div class="product-name">'+p.name+'</div>'
             +(p.description?'<div class="product-desc">'+p.description+'</div>':'')
             +(p.price?'<div class="product-price">'+p.price+'</div>':'')
@@ -18473,12 +18792,24 @@ function refreshMarketGalleryGrid(marketId) {
   </div>`;
 }
 
-function deleteMarketGalleryPhoto(marketId, idx) {
+async function deleteMarketGalleryPhoto(marketId, idx) {
   const m = DATA.markets.find(x => x.id === marketId);
   if(!m || !m.gallery) return;
   m.gallery = parseGallery(m.gallery);
+  const removed = m.gallery[idx];
   m.gallery.splice(idx, 1);
-  if(supabaseClient) dbSaveMarket(m);
+  if(supabaseClient) {
+    await dbSaveMarket(m);
+    try {
+      const url = typeof removed === 'object' ? removed.url : removed;
+      const marker = '/vendor-photos/';
+      const i = url ? url.indexOf(marker) : -1;
+      if(i !== -1) {
+        const path = url.substring(i + marker.length);
+        await supabaseClient.storage.from('vendor-photos').remove([path]);
+      }
+    } catch(e) { console.warn('Market gallery file cleanup failed (non-blocking):', e); }
+  }
   refreshMarketGalleryGrid(marketId);
 }
 
