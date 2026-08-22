@@ -1,0 +1,26 @@
+name: Shopify Product Sync
+
+on:
+  schedule:
+    # Runs daily at 4:00 AM ET (8:00 AM UTC)
+    - cron: '0 8 * * *'
+  workflow_dispatch: # allows manual trigger from GitHub Actions tab
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger shopify-sync Edge Function
+        run: |
+          response=$(curl -s -o /tmp/sync_response.json -w "%{http_code}" \
+            -X POST \
+            "${{ secrets.SUPABASE_URL }}/functions/v1/shopify-sync" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json")
+          echo "HTTP status: $response"
+          echo "Response:"
+          cat /tmp/sync_response.json
+          if [ "$response" != "200" ]; then
+            echo "Sync failed with status $response"
+            exit 1
+          fi
