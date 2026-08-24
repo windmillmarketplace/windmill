@@ -8,6 +8,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
+<!-- v1.74.94 — Product dashboard: Edit button replaced with full-width tappable bar at bottom of card (mobile-friendly); added cache-miss fallback for edit lookup; fix Edit button z-index over out-of-stock badge -->
+<!-- v1.74.93 — Shopify/external store link-out: new shopify_url column, "Online store link" field in product form with Shopify auto-fill on paste, "Buy" link on vendor product list, inline Buy button on product detail page; fixed product edit button (string/int id coercion); added Cancel button to product modal; fixed modal close button hidden by iOS browser chrome -->
 <!-- v1.74.78 — Message read-receipt fix; new-message notification improvements -->
 <!-- v1.74.77 — Trial status fix; Views tab default sort -->
 <!-- v1.74.76 — Admin vendor claim workflow improvements -->
@@ -558,7 +560,7 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);min-hei
 .product-name{font-size:12px;font-weight:500;color:var(--text);margin-bottom:2px}
 .product-desc{font-size:10px;color:var(--text2);line-height:1.4;margin-bottom:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .product-price{font-size:11px;color:var(--green-dk);font-weight:500}
-.product-edit-btn{position:absolute;top:5px;right:5px;background:rgba(255,255,255,.9);border:0.5px solid var(--border-med);border-radius:var(--r-sm);padding:3px 7px;font-size:10px;cursor:pointer;font-family:var(--font-sans)}
+.product-edit-bar{width:100%;padding:8px 0;background:var(--surface);border:none;border-top:0.5px solid var(--border);font-size:12px;font-weight:600;color:var(--green-dk);cursor:pointer;font-family:var(--font-sans);text-align:center;letter-spacing:.2px}
 .product-add-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)}
 .product-limit-note{font-size:11px;color:var(--text3);text-align:center;margin-top:6px}
 
@@ -7094,6 +7096,7 @@ async function renderProductDetail(productId) {
         ${p.price ? `<div style="font-size:18px;font-weight:600;color:var(--green-dk);flex-shrink:0;white-space:nowrap">${esc(p.price)}</div>` : ''}
       </div>
       ${p.description ? `<div style="font-size:13px;color:var(--text2);line-height:1.5;margin-top:8px">${esc(p.description)}</div>` : ''}
+      ${p.shopify_url ? `<div style="margin-top:14px"><a href="${esc(p.shopify_url)}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;padding:10px 18px;background:var(--green);color:#fff;border-radius:var(--r-md);font-size:13px;font-weight:600;font-family:var(--font-sans);text-decoration:none">🛍 Buy from ${esc(v.name)} ↗</a></div>` : ''}
     </div>
 
     ${whereHtml}
@@ -17678,7 +17681,10 @@ async function loadVendorProductsDisplay(vendorId) {
       +'<div style="flex:1"><div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:2px">'+p.name+(outOfStock?' <span style="font-size:10px;color:var(--terra);font-weight:500">· '+t('vd_out_of_stock')+'</span>':'')+'</div>'
       +(p.description?'<div style="font-size:11px;color:var(--text2)">'+p.description+'</div>':'')
       +'</div>'
-      +(p.price?'<div style="font-size:13px;font-weight:600;color:var(--green-dk);flex-shrink:0">'+p.price+'</div>':'')
+      +'<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">'
+      +(p.price?'<div style="font-size:13px;font-weight:600;color:var(--green-dk)">'+p.price+'</div>':'')
+      +(p.shopify_url?'<a href="'+esc(p.shopify_url)+'" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="font-size:11px;font-weight:500;color:var(--green-dk);text-decoration:none;background:var(--green-lt);border-radius:var(--r-pill);padding:2px 8px;white-space:nowrap">Buy ↗</a>':'')
+      +'</div>'
       +'</div>';
   });
   html += '</div>';
@@ -17731,7 +17737,18 @@ async function deleteProduct(productId) {
 }
 
 function openProductModalById(productId, vendorId, isTrial) {
-  var product = (ST._dashProductsById || {})[productId] || null;
+  var product = (ST._dashProductsById || {})[String(productId)] || null;
+  if(!product) {
+    // Cache miss — re-fetch from Supabase and open
+    if(supabaseClient) {
+      supabaseClient.from('products').select('*').eq('id', productId).single()
+        .then(function(res) {
+          if(res.data) openProductModal(res.data, vendorId, isTrial);
+          else alert('Could not load product — please refresh and try again.');
+        });
+    }
+    return;
+  }
   openProductModal(product, vendorId, isTrial);
 }
 
@@ -17751,6 +17768,7 @@ function openProductModal(product, vendorId, isTrial) {
   var descVal = product && product.description ? product.description : '';
   var inStockVal = product ? (product.in_stock !== false) : true;
   var imageUrlVal = product && product.image_url ? product.image_url : '';
+  var shopifyUrlVal = product && product.shopify_url ? product.shopify_url : '';
   var productId = product && product.id ? product.id : '';
 
   var categoryOptions = '<option value="">'+t('vd_category_ph')+'</option>'+categories.map(function(cat){
@@ -17765,12 +17783,15 @@ function openProductModal(product, vendorId, isTrial) {
     return '<img src="'+url+'" data-url="'+url+'" onclick="selectProductPhoto(this)" style="width:56px;height:56px;object-fit:cover;border-radius:var(--r-sm);cursor:pointer;border:2px solid '+border+'">';
   }).join('');
 
-  modal.innerHTML = '<div style="background:var(--surface);border-radius:var(--r-lg) var(--r-lg) 0 0;width:100%;max-width:520px;padding:20px 20px 32px;max-height:90vh;overflow-y:auto">'
-    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">'
+  // Sheet wrapper: flex column so the sticky header/footer don't scroll away
+  modal.innerHTML = '<div style="background:var(--surface);border-radius:var(--r-lg) var(--r-lg) 0 0;width:100%;max-width:520px;max-height:90vh;display:flex;flex-direction:column">'
+    // Sticky header — always visible even when modal content is tall
+    +'<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:0.5px solid var(--border);flex-shrink:0">'
     +'<div style="font-size:16px;font-weight:600;font-family:var(--font-serif)">'+(isEdit?t('vd_edit_product'):t('vd_add_product_title'))+'</div>'
-    +'<button onclick="document.getElementById(\'productModal\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text2)">x</button>'
+    +'<button onclick="document.getElementById(\'productModal\').remove()" style="background:none;border:none;font-size:22px;line-height:1;cursor:pointer;color:var(--text2);padding:4px 6px">✕</button>'
     +'</div>'
-    +'<div style="display:flex;flex-direction:column;gap:12px">'
+    // Scrollable body
+    +'<div style="overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:12px;flex:1">'
     +'<div><label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:4px">'+t('vd_product_name')+'</label>'
     +'<input id="pName" value="'+esc(nameVal)+'" placeholder="'+t('vd_name_ph')+'" class="form-input" style="width:100%"></div>'
     +'<div><label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:4px">'+t('vd_category')+'</label>'
@@ -17794,12 +17815,99 @@ function openProductModal(product, vendorId, isTrial) {
     +'<button type="button" onclick="document.getElementById(\'pPhotoFile\').click()" style="width:100%;padding:9px;background:var(--surface2);color:var(--text2);border:0.5px dashed var(--border-med);border-radius:var(--r-md);font-size:12px;cursor:pointer;font-family:var(--font-sans)">'+t('vd_upload_new_photo')+'</button>'
     +'<input type="file" id="pPhotoFile" accept="image/jpeg,image/png,image/webp,image/heic" style="display:none" onchange="handleProductPhotoUpload(this,\''+vendorId+'\')">'
     +'</div>'
-    +'<div style="display:flex;gap:10px;margin-top:4px">'
+    // Online store link field (Tier 1 + 2)
+    +'<div style="border-top:0.5px solid var(--border);padding-top:12px">'
+    +'<label style="font-size:11px;color:var(--text3);font-weight:500;display:block;margin-bottom:4px">Online store link <span style="font-weight:400;font-style:italic">(optional)</span></label>'
+    +'<input id="pShopifyUrl" value="'+esc(shopifyUrlVal)+'" placeholder="https://yourstore.com/products/..." class="form-input" style="width:100%" oninput="handleStoreUrlInput(this)">'
+    +'<div id="pShopifyStatus" style="font-size:11px;color:var(--text3);margin-top:4px;min-height:16px"></div>'
+    +'<div style="font-size:10px;color:var(--text3);margin-top:4px;line-height:1.4">Shopify stores: paste a product URL and we\'ll try to auto-fill the details above. Any store URL works — we\'ll show a "Buy" link on your profile.</div>'
+    +'</div>'
+    +'</div>'
+    // Sticky footer — always visible
+    +'<div style="padding:12px 20px 28px;border-top:0.5px solid var(--border);flex-shrink:0;display:flex;gap:8px">'
     +'<button onclick="submitProductModal(\''+vendorId+'\',\''+productId+'\','+isTrial+','+maxProducts+')" style="flex:1;padding:11px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:500;font-family:var(--font-sans)">'+(isEdit?t('vd_save_changes'):t('vd_add_product_btn'))+'</button>'
-    +(isEdit?'<button onclick="confirmDeleteProduct(\''+productId+'\',\''+vendorId+'\','+isTrial+')" style="padding:11px 16px;background:var(--terra-lt);color:var(--terra);border:0.5px solid #ECC4B0;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans)">'+t('vd_delete')+'</button>':'')
-    +'</div></div></div>';
+    +(isEdit?'<button onclick="confirmDeleteProduct(\''+productId+'\',\''+vendorId+'\','+isTrial+')" style="padding:11px 14px;background:var(--terra-lt);color:var(--terra);border:0.5px solid #ECC4B0;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans)">'+t('vd_delete')+'</button>':'')
+    +'<button onclick="document.getElementById(\'productModal\').remove()" style="padding:11px 14px;background:var(--surface2);color:var(--text2);border:0.5px solid var(--border-med);border-radius:var(--r-md);font-size:13px;cursor:pointer;font-family:var(--font-sans)">Cancel</button>'
+    +'</div>'
+    +'</div>';
   document.body.appendChild(modal);
   modal.addEventListener('click',function(e){if(e.target===modal)modal.remove();});
+}
+
+// Tier 2: detect Shopify product URLs and attempt a .json auto-fill
+function isShopifyProductUrl(url) {
+  try {
+    var u = new URL(url);
+    // myshopify.com domains or any path containing /products/ (common Shopify custom domains)
+    return u.hostname.endsWith('.myshopify.com') || u.pathname.includes('/products/');
+  } catch(e) { return false; }
+}
+
+var _shopifyFetchTimer = null;
+function handleStoreUrlInput(input) {
+  var url = input.value.trim();
+  var status = document.getElementById('pShopifyStatus');
+  if(_shopifyFetchTimer) { clearTimeout(_shopifyFetchTimer); _shopifyFetchTimer = null; }
+  if(!url) { if(status) status.textContent = ''; return; }
+  if(!isShopifyProductUrl(url)) {
+    if(status) { status.style.color = 'var(--text3)'; status.textContent = ''; }
+    return;
+  }
+  if(status) { status.style.color = 'var(--text3)'; status.textContent = 'Shopify link detected — fetching details…'; }
+  // Debounce 800ms so we don't fire on every keystroke
+  _shopifyFetchTimer = setTimeout(function(){ fetchShopifyProduct(url); }, 800);
+}
+
+async function fetchShopifyProduct(url) {
+  var status = document.getElementById('pShopifyStatus');
+  try {
+    var jsonUrl = url.split('?')[0].replace(/\/$/, '') + '.json';
+    var resp = await fetch(jsonUrl);
+    if(!resp.ok) throw new Error('HTTP ' + resp.status);
+    var data = await resp.json();
+    var prod = data && data.product;
+    if(!prod) throw new Error('No product data');
+
+    var variant = (prod.variants && prod.variants[0]) || {};
+    var image = (prod.images && prod.images[0] && prod.images[0].src) || '';
+    var title = prod.title || '';
+    var desc = prod.body_html ? prod.body_html.replace(/<[^>]+>/g,'').trim().slice(0,300) : '';
+    var price = variant.price ? parseFloat(variant.price) : null;
+    var inStock = variant.available !== false;
+
+    // Only fill fields that are currently empty so we don't overwrite vendor's own work
+    var nameEl = document.getElementById('pName');
+    var descEl = document.getElementById('pDesc');
+    var priceEl = document.getElementById('pPrice');
+    var inStockEl = document.getElementById('pInStock');
+    var imageHidden = document.getElementById('pImageUrl');
+    var preview = document.getElementById('pPhotoPreview');
+
+    var filled = [];
+    if(nameEl && !nameEl.value.trim() && title) { nameEl.value = title; filled.push('name'); }
+    if(descEl && !descEl.value.trim() && desc) { descEl.value = desc; filled.push('description'); }
+    if(priceEl && !priceEl.value && price !== null) { priceEl.value = price.toFixed(2); filled.push('price'); }
+    if(inStockEl) { inStockEl.checked = inStock; }
+    if(imageHidden && !imageHidden.value && image) {
+      imageHidden.value = image;
+      if(preview) preview.innerHTML = '<img src="'+image+'" style="width:100%;height:100%;object-fit:cover">';
+      filled.push('photo');
+    }
+
+    if(status) {
+      if(filled.length) {
+        status.style.color = 'var(--green-dk)';
+        status.textContent = '✓ Auto-filled from Shopify: ' + filled.join(', ') + '. Review and save.';
+      } else {
+        status.style.color = 'var(--text3)';
+        status.textContent = 'Shopify data fetched — fields already filled, no changes made.';
+      }
+    }
+  } catch(e) {
+    // Silent fail — vendor just fills manually
+    if(status) { status.style.color = 'var(--text3)'; status.textContent = 'Could not auto-fill from this URL. Fill details manually.'; }
+    console.warn('Shopify auto-fill failed:', e);
+  }
 }
 
 function selectProductPhoto(imgEl) {
@@ -17852,6 +17960,7 @@ async function submitProductModal(vendorId, existingId, isTrial, maxProducts) {
   var desc = (document.getElementById('pDesc')||{}).value||'';
   var inStock = !!(document.getElementById('pInStock')||{}).checked;
   var imageUrl = (document.getElementById('pImageUrl')||{}).value||'';
+  var shopifyUrl = ((document.getElementById('pShopifyUrl')||{}).value||'').trim();
   name = name.trim(); priceAmount = priceAmount.trim(); priceUnit = priceUnit.trim(); desc = desc.trim(); imageUrl = imageUrl.trim();
   if(!name) { alert(t('vd_err_product_name')); return; }
   if(!existingId) {
@@ -17874,7 +17983,8 @@ async function submitProductModal(vendorId, existingId, isTrial, maxProducts) {
     price_numeric: priceNumeric,
     price_unit: priceUnit || null,
     in_stock: inStock,
-    image_url: imageUrl || null
+    image_url: imageUrl || null,
+    shopify_url: shopifyUrl || null
   };
   if(existingId) product.id = existingId;
   var saved = await saveProduct(product);
@@ -18054,17 +18164,18 @@ async function renderVendorProducts() {
         // attribute (that approach broke the attribute on quotes/apostrophes —
         // see v1.74.20 notes). Safer and avoids all attribute-escaping issues.
         ST._dashProductsById = {};
-        products.forEach(function(p){ ST._dashProductsById[p.id] = p; });
+        products.forEach(function(p){ ST._dashProductsById[String(p.id)] = p; });
         var html = '<div class="product-grid">';
         products.forEach(function(p){
           html += '<div class="product-card">'
-            +'<button class="product-edit-btn" onclick="openProductModalById(\''+p.id+'\',\''+vendorId+'\','+isTrial+')">'+t('vd_edit')+'</button>'
             +(p.in_stock===false?'<div style="position:absolute;top:5px;left:5px;background:var(--terra);color:#fff;font-size:9px;padding:2px 6px;border-radius:var(--r-sm);font-weight:500;z-index:1">'+t('vd_out_of_stock')+'</div>':'')
             +'<div class="product-img">'+(p.image_url?'<img loading="lazy" src="'+p.image_url+'" style="width:100%;height:100%;object-fit:cover'+(p.in_stock===false?';opacity:.5':'')+'">':'📦')+'</div>'
             +'<div class="product-body"><div class="product-name">'+p.name+'</div>'
             +(p.description?'<div class="product-desc">'+p.description+'</div>':'')
             +(p.price?'<div class="product-price">'+p.price+'</div>':'')
-            +'</div></div>';
+            +'</div>'
+            +'<button class="product-edit-bar" onclick="openProductModalById(\''+p.id+'\',\''+vendorId+'\','+isTrial+')">'+t('vd_edit')+'</button>'
+            +'</div>';
         });
         html += '</div><p class="product-limit-note">'+products.length+' / '+maxProducts+' '+t('vd_products_used')+'</p>';
         grid.innerHTML = html;
