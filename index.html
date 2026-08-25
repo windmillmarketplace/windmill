@@ -8,7 +8,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
-<!-- v1.74.94 — Product dashboard: Edit button replaced with full-width tappable bar at bottom of card (mobile-friendly); added cache-miss fallback for edit lookup; fix Edit button z-index over out-of-stock badge -->
+<!-- v1.74.98 — Health Checks: fixed false-positive red X's on shopify-sync/send-email pings. These require login (verify_jwt) and the OPTIONS preflight was failing before reaching Supabase at all. Now pinged without the Authorization header on purpose — Supabase's own gateway rejects the unauthenticated request with a 401 before the function's code runs, proving reachability with zero chance of triggering a real email send or real Shopify sync. Only the client-side health check ping changed; no Edge Function code or Supabase config touched. -->
 <!-- v1.74.93 — Shopify/external store link-out: new shopify_url column, "Online store link" field in product form with Shopify auto-fill on paste, "Buy" link on vendor product list, inline Buy button on product detail page; fixed product edit button (string/int id coercion); added Cancel button to product modal; fixed modal close button hidden by iOS browser chrome -->
 <!-- v1.74.78 — Message read-receipt fix; new-message notification improvements -->
 <!-- v1.74.77 — Trial status fix; Views tab default sort -->
@@ -8439,6 +8439,34 @@ function renderClaimStatusBanner(status, type) {
 }
 
 /* ── EMAIL NOTIFICATIONS via Supabase Edge Function ── */
+// Reports a caught failure to Sentry (if available) AND fires an immediate,
+// separate admin alert email so silent failures (claim saves, message saves,
+// notification emails) are never invisible. Never throws — this is a safety
+// net, so a failure inside the alert itself must not break the caller.
+function alertOnFailure(context, err, extra) {
+  try {
+    console.warn('[' + context + ']', err);
+    if(window.Sentry) {
+      Sentry.captureException(err instanceof Error ? err : new Error(String(err)), {
+        tags: { alertContext: context },
+        extra: extra || {}
+      });
+    }
+  } catch(e) { /* never let alerting break the caller */ }
+  try {
+    const extraLines = Object.entries(extra || {}).map(([k,v]) => '<p><strong>' + k + ':</strong> ' + String(v) + '</p>').join('');
+    fetch('https://fwzgazmewsspgtekcdhs.supabase.co/functions/v1/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY },
+      body: JSON.stringify({
+        subject: '⚠️ Windmill failure: ' + context,
+        html: '<h2>Something failed silently</h2><p><strong>Where:</strong> ' + context + '</p><p><strong>Error:</strong> ' + (err && err.message ? err.message : String(err)) + '</p>' + extraLines,
+        to: 'windmillmarketplace@gmail.com'
+      })
+    }).catch(() => {}); // if this itself fails, we've already logged to console/Sentry above
+  } catch(e) { /* never let alerting break the caller */ }
+}
+
 async function sendWindmillEmail(subject, bodyHtml, toEmail) {
   try {
     const res = await fetch('https://fwzgazmewsspgtekcdhs.supabase.co/functions/v1/send-email', {
@@ -8455,10 +8483,15 @@ async function sendWindmillEmail(subject, bodyHtml, toEmail) {
     });
     const data = await res.json();
     if(res.ok) {
+      return true;
     } else {
-      console.warn('✗ Email failed:', data);
+      alertOnFailure('Email send (' + subject + ')', new Error('send-email returned ' + res.status), { to: toEmail || '', response: JSON.stringify(data) });
+      return false;
     }
-  } catch(e) { console.warn('Email send failed:', e.message); }
+  } catch(e) {
+    alertOnFailure('Email send (' + subject + ')', e, { to: toEmail || '' });
+    return false;
+  }
 }
 
 async function submitVendorJoinRequest() {
@@ -8517,9 +8550,10 @@ async function submitVendorJoinRequest() {
   ST.adminClaims.unshift(newClaim);
 
   // Save to Supabase - don't send id, let Supabase auto-generate UUID
+  let claimSaveOk = false;
   if(supabaseClient) {
     try {
-      await supabaseClient.from('claims').insert({
+      const { error: claimInsertErr } = await supabaseClient.from('claims').insert({
         vendor_id: newClaim.vendorId,
         vendor_name: newClaim.vendorName,
         claimant_name: newClaim.claimant,
@@ -8532,7 +8566,17 @@ async function submitVendorJoinRequest() {
         email_status: emailStatus,
         listing_email_at_submission: listingEmailAtSubmission
       });
-    } catch(e) { console.warn('Claim save failed:', e); }
+      if(claimInsertErr) throw claimInsertErr;
+      claimSaveOk = true;
+    } catch(e) {
+      alertOnFailure('Vendor claim save', e, { vendor: businessName, email: email });
+    }
+  }
+
+  if(!claimSaveOk) {
+    const statusEl = document.getElementById('vendorClaimStatusBanner');
+    if(statusEl) statusEl.innerHTML = '<div style="background:#FEE2E2;border:1px solid #FECACA;border-radius:8px;padding:12px 16px;margin:12px 0;font-size:13px;color:#B91C1C"><strong>Something went wrong submitting your claim.</strong><br>Please try again, or contact us directly and we\'ll get you set up.</div>';
+    return;
   }
 
   // Send email to admin
@@ -9167,9 +9211,10 @@ async function submitMarketJoinRequest() {
   }
 
   // Save to Supabase claims table with claim_type = 'market'
+  let marketClaimSaveOk = false;
   if(supabaseClient) {
     try {
-      await supabaseClient.from('claims').insert({
+      const { error: marketClaimErr } = await supabaseClient.from('claims').insert({
         vendor_id: marketId,
         vendor_name: marketName,
         claimant_name: yourName,
@@ -9184,7 +9229,17 @@ async function submitMarketJoinRequest() {
         email_status: marketEmailStatus,
         listing_email_at_submission: marketListingEmailAtSubmission
       });
-    } catch(e) { console.warn('Market claim save failed:', e); }
+      if(marketClaimErr) throw marketClaimErr;
+      marketClaimSaveOk = true;
+    } catch(e) {
+      alertOnFailure('Market claim save', e, { market: marketName, email: email });
+    }
+  }
+
+  if(!marketClaimSaveOk) {
+    const statusEl = document.getElementById('marketClaimStatusBanner');
+    if(statusEl) statusEl.innerHTML = '<div style="background:#FEE2E2;border:1px solid #FECACA;border-radius:8px;padding:12px 16px;margin:12px 0;font-size:13px;color:#B91C1C"><strong>Something went wrong submitting your claim.</strong><br>Please try again, or contact us directly and we\'ll get you set up.</div>';
+    return;
   }
 
   // Push to local admin claims with type flag
@@ -11860,7 +11915,7 @@ function renderAdminPanel() {
   const unreadMsgs = ST.adminMessages.filter(isAdminThreadUnread).length;
   const pendingClaims = ST.adminClaims.filter(c=>c.status==='pending').length;
 
-  const tabs = ['areas','markets','vendors','claims','messages','users','follows','ads','views','activity','spotlight'];
+  const tabs = ['areas','markets','vendors','claims','messages','users','follows','ads','views','activity','spotlight','health'];
   const tabLabels = {
     vendors:`Vendors`,
     markets:`Markets`,
@@ -11872,7 +11927,8 @@ function renderAdminPanel() {
     follows:`Follows`,
     views:'Views',
     activity:'Activity',
-    spotlight:'Spotlight'
+    spotlight:'Spotlight',
+    health:'Health Checks'
   };
 
   const isDashboard = !tabs.includes(ST.adminTab);
@@ -12777,6 +12833,12 @@ function renderAdminPanel() {
     <div id="adminSpotlightBody"><div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Loading Spotlight...</div></div>`;
   }
 
+  if(ST.adminTab==='health') {
+    h += `<div style="font-size:12px;color:var(--text2);margin-bottom:14px">Read-only checks against the things that have broken before. Nothing here changes data automatically, except linking an orphaned vendor to a market below, which only happens if you pick a market and click Link.</div>
+    <button onclick="loadAdminHealthChecks()" style="padding:10px 18px;background:var(--green);color:#fff;border:none;border-radius:var(--r-md);font-size:13px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:16px">Run Health Checks</button>
+    <div id="adminHealthBody"><div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Click "Run Health Checks" to begin.</div></div>`;
+  }
+
   h += `</div>`;
   document.getElementById('scrollBody').innerHTML = h;
   if(ST.adminTab === 'views') loadAdminViews();
@@ -13375,6 +13437,173 @@ async function loadAdminViews() {
   } catch(e) {
     statsEl.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Could not load views — create the page_views table in Supabase first.</div>`;
     if(listEl) listEl.innerHTML = '';
+  }
+}
+
+/* ── ADMIN: HEALTH CHECKS (v1.74.96) ──
+   Read-only checks against the failure classes that have actually broken this
+   app before (SECURITY DEFINER stripped, RLS gaps, missing trial_start,
+   orphaned vendor/market links, dead Edge Functions, empty product feed).
+   Nothing here writes data except linkOrphanVendorToMarket(), which only runs
+   when Keith explicitly picks a market and clicks Link. Manually triggered
+   only — never runs automatically on tab open. */
+async function loadAdminHealthChecks() {
+  const body = document.getElementById('adminHealthBody');
+  if(!body) return;
+  if(!supabaseClient) { body.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Supabase not connected.</div>`; return; }
+  body.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Running checks…</div>`;
+
+  const results = [];
+
+  // ── 3. Trial start integrity ──
+  // Every claimed vendor who isn't yet Pro should have a trial_start set.
+  try {
+    const { data, error } = await supabaseClient.from('vendors').select('id,name').eq('claimed', true).eq('pro', false).is('trial_start', null);
+    if(error) throw error;
+    results.push({
+      id: 'trial_start', label: 'Trial start integrity', ok: !data || data.length === 0,
+      detail: (data && data.length) ? data.length + ' claimed vendor(s) with no trial_start set: ' + data.map(v=>v.name).join(', ') : 'All claimed, non-Pro vendors have a trial_start set.'
+    });
+  } catch(e) {
+    results.push({ id:'trial_start', label:'Trial start integrity', ok:false, detail:'Check could not run: ' + e.message });
+  }
+
+  // ── 4a. Orphaned claimed vendors (claimed but linked to no market) ──
+  try {
+    const { data: claimedVendors, error: cvErr } = await supabaseClient.from('vendors').select('id,name').eq('claimed', true);
+    if(cvErr) throw cvErr;
+    const { data: links, error: linkErr } = await supabaseClient.from('vendor_markets').select('vendor_id');
+    if(linkErr) throw linkErr;
+    const linkedIds = new Set((links||[]).map(l=>l.vendor_id));
+    const orphanVendors = (claimedVendors||[]).filter(v => !linkedIds.has(v.id));
+    results.push({
+      id: 'orphan_vendors', label: 'Orphaned claimed vendors (no market link)', ok: orphanVendors.length === 0,
+      detail: orphanVendors.length ? orphanVendors.length + ' claimed vendor(s) not linked to any market.' : 'No orphaned claimed vendors found.',
+      orphanVendors
+    });
+  } catch(e) {
+    results.push({ id:'orphan_vendors', label:'Orphaned claimed vendors (no market link)', ok:false, detail:'Check could not run: ' + e.message });
+  }
+
+  // ── 4b. Markets with no operator (informational only — not a bug) ──
+  try {
+    const { data: noOpMarkets, error: noOpErr } = await supabaseClient.from('markets').select('id,name').is('operator_id', null);
+    if(noOpErr) throw noOpErr;
+    results.push({
+      id: 'markets_no_operator', label: 'Markets with no operator', informational: true,
+      detail: (noOpMarkets && noOpMarkets.length) ? noOpMarkets.length + ' market(s) have no operator assigned yet — often expected, not necessarily a problem.' : 'Every market has an operator assigned.',
+      markets: noOpMarkets || []
+    });
+  } catch(e) {
+    results.push({ id:'markets_no_operator', label:'Markets with no operator', ok:false, informational:true, detail:'Check could not run: ' + e.message });
+  }
+
+  // ── 5. Edge Function pings ──
+  // Sent WITHOUT the Authorization header on purpose: these functions require
+  // a valid login token (verify_jwt), so an unauthenticated request gets
+  // rejected by Supabase's own gateway before the function's code ever runs.
+  // That guarantees this can never trigger a real email send or a real
+  // Shopify sync — we just want proof the function is alive and reachable.
+  // A 401 here means "reachable," not "broken."
+  const edgeBase = 'https://fwzgazmewsspgtekcdhs.supabase.co/functions/v1/';
+  const edgeFns = [
+    { name: 'product-feed', method: 'GET', auth: true },  // public endpoint, no login required
+    { name: 'shopify-sync', method: 'GET', auth: false },
+    { name: 'send-email', method: 'GET', auth: false }
+  ];
+  for(const fn of edgeFns) {
+    try {
+      const opts = fn.auth ? { method: fn.method, headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY } } : { method: fn.method };
+      const res = await fetch(edgeBase + fn.name, opts);
+      results.push({ id: 'edge_' + fn.name, label: 'Edge Function: ' + fn.name, ok: res.status < 500, detail: 'Responded with status ' + res.status + (res.status === 401 ? ' (reachable, correctly requires login).' : '.') });
+    } catch(e) {
+      results.push({ id: 'edge_' + fn.name, label: 'Edge Function: ' + fn.name, ok: false, detail: 'Unreachable: ' + e.message });
+    }
+  }
+
+  // ── 6. Product feed sanity ──
+  try {
+    const res = await fetch(edgeBase + 'product-feed');
+    const text = await res.text();
+    const looksLikeRss = /<rss/i.test(text);
+    const itemCount = (text.match(/<item>/gi) || []).length;
+    results.push({
+      id: 'product_feed_sanity', label: 'Product feed sanity', ok: res.ok && looksLikeRss,
+      detail: !res.ok ? 'Feed request failed with status ' + res.status + '.' : !looksLikeRss ? 'Response did not look like valid RSS/XML.' : itemCount + ' product item(s) currently in the feed.'
+    });
+  } catch(e) {
+    results.push({ id:'product_feed_sanity', label:'Product feed sanity', ok:false, detail:'Check could not run: ' + e.message });
+  }
+
+  // ── 1 & 2. SECURITY DEFINER integrity + RLS policy coverage ──
+  // Backed by admin_health_check_db(), a SECURITY DEFINER Postgres function
+  // restricted to admin sessions (via is_admin()). Read-only — it only
+  // reports on existing functions/policies, never modifies them.
+  try {
+    const { data: dbChecks, error: dbErr } = await supabaseClient.rpc('admin_health_check_db');
+    if(dbErr) throw dbErr;
+    (dbChecks||[]).forEach(row => {
+      if(row.check_name === 'security_definer') {
+        results.push({ id: 'security_definer', label: 'SECURITY DEFINER integrity', ok: row.check_ok, detail: row.check_detail });
+      } else if(row.check_name === 'rls_policies') {
+        results.push({ id: 'rls_policies', label: 'RLS policy coverage (vendor_markets)', ok: row.check_ok, detail: row.check_detail });
+      }
+    });
+  } catch(e) {
+    results.push({ id:'security_definer', label:'SECURITY DEFINER integrity', ok:false, detail:'Check could not run: ' + e.message });
+    results.push({ id:'rls_policies', label:'RLS policy coverage (vendor_markets)', ok:false, detail:'Check could not run: ' + e.message });
+  }
+
+  ST._lastHealthResults = results;
+  renderAdminHealthResults(results);
+}
+
+function renderAdminHealthResults(results) {
+  const body = document.getElementById('adminHealthBody');
+  if(!body) return;
+  let h = '<div style="display:flex;flex-direction:column;gap:10px">';
+  results.forEach(r => {
+    const color = r.informational ? 'var(--text2)' : (r.ok ? 'var(--green-dk)' : 'var(--terra)');
+    const bg = r.informational ? 'var(--surface2)' : (r.ok ? 'var(--green-lt)' : '#FEE2E2');
+    const icon = r.informational ? 'ℹ️' : (r.ok ? '✓' : '✗');
+    h += `<div style="border:0.5px solid var(--border-med);border-radius:var(--r-md);padding:12px 14px;background:${bg}">
+      <div style="font-size:13px;font-weight:600;color:${color}">${icon} ${esc(r.label)}</div>
+      <div style="font-size:12px;color:${color};margin-top:4px;opacity:.9">${esc(r.detail)}</div>
+    </div>`;
+
+    if(r.id === 'orphan_vendors' && r.orphanVendors && r.orphanVendors.length) {
+      r.orphanVendors.forEach(v => {
+        h += `<div style="margin-left:14px;padding:10px 14px;border:0.5px solid var(--border-med);border-radius:var(--r-md);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div style="font-size:12px;flex:1;min-width:120px">${esc(v.name)}</div>
+          <select id="healthLinkMarket_${v.id}" style="font-size:12px;padding:6px 8px;border:0.5px solid var(--border-med);border-radius:var(--r-sm);background:var(--surface);font-family:var(--font-sans)">
+            <option value="">Select a market…</option>
+            ${(DATA.markets||[]).map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join('')}
+          </select>
+          <button onclick="linkOrphanVendorToMarket('${v.id}')" style="padding:6px 12px;background:var(--green);color:#fff;border:none;border-radius:var(--r-sm);font-size:12px;cursor:pointer;font-family:var(--font-sans)">Link</button>
+        </div>`;
+      });
+    }
+
+    if(r.id === 'markets_no_operator' && r.markets && r.markets.length) {
+      h += `<div style="margin-left:14px;font-size:12px;color:var(--text2);line-height:1.7">${r.markets.map(m=>esc(m.name)).join(', ')}</div>`;
+    }
+  });
+  h += '</div>';
+  body.innerHTML = h;
+}
+
+async function linkOrphanVendorToMarket(vendorId) {
+  const sel = document.getElementById('healthLinkMarket_' + vendorId);
+  const marketId = sel ? sel.value : '';
+  if(!marketId) { alert('Please select a market first.'); return; }
+  try {
+    const { error } = await supabaseClient.from('vendor_markets').insert({ vendor_id: vendorId, market_id: marketId });
+    if(error) throw error;
+    showToast('✓ Vendor linked to market');
+    loadAdminHealthChecks(); // re-run so the list reflects the fix
+  } catch(e) {
+    alertOnFailure('Health check: link vendor to market', e, { vendorId, marketId });
+    showToast('✗ Failed to link vendor — check your inbox for details', 'var(--terra)');
   }
 }
 
@@ -14654,7 +14883,7 @@ async function dbSaveClaim(claim) {
     });
     if(error) throw error;
   } catch(err) {
-    console.warn('Failed to save claim to Supabase:', err);
+    alertOnFailure('dbSaveClaim', err, { claimId: claim.id, vendorId: claim.vendorId });
   }
 }
 
@@ -14679,7 +14908,7 @@ async function dbSaveMessage(msg) {
     if(error) throw error;
     return data;
   } catch(err) {
-    console.warn('Failed to save message to Supabase:', err);
+    alertOnFailure('dbSaveMessage', err, { subject: msg.subject || '', from: msg.from || '' });
     return null;
   }
 }
@@ -14726,7 +14955,7 @@ async function dbSaveReply(messageId, reply) {
     await vUpdate('messages', { deleted_by: [] }, q => q.eq('id', messageId));
     return true;
   } catch(err) {
-    console.warn('Failed to save reply to Supabase:', err);
+    alertOnFailure('dbSaveReply', err, { messageId: messageId, from: reply.from || '' });
     return false;
   }
 }
