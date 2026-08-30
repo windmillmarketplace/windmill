@@ -8,6 +8,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
 <title>Windmill — Discover Local Markets & Vendors</title>
+<!-- v1.75.4 — Returns & Refunds link added to all About/privacy sections (shopper, vendor, operator); fixed missing instance on shopper About page -->
+<!-- v1.75.3 — Added Returns & Refunds link to product detail page footer (alongside Privacy Policy and Terms of Service); added Returns & Refunds to main app footer -->
+<!-- v1.75.2 — Added /returns route: static return policy page explaining vendor-handled returns with contact Windmill modal link -->
+<!-- v1.75.1 — /vendors/join: reordered the Friday-night/booth photo stories to come before the differentiation line (stories now lead, differentiation line lands after as the takeaway/recap). Moved each story's headline above its photo instead of below (headline sets the frame, photo illustrates, body text closes the thought). Differentiation line restructured with a bold lead-in ("Not just another online shop.") followed by the explanation, matching the headline+body pattern of the two stories above it instead of reading as an unrelated floating box. Front-end only, no backend changes. -->
+<!-- v1.75.0 — /vendors/join redesign: new color-block hero (dark green pitch block + amber action block) matching Meta ad visual language, replacing the old white gradient hero. New headline "Be the vendor they came looking for." with cream badge, single CTA, two reassurance pills (No credit card / 3 minutes to set up), and an always-visible "Not a vendor? Explore Windmill" exit card, all fit above the fold on mobile, no scroll required. "Your products" pulled out as its own featured block explaining the storefront/checkout link-out and Facebook Marketplace discovery; remaining value props (Markets/Updates/Socials) re-skinned as a tighter 3-across strip. New differentiation line ("Not just another online shop...") plus two new photo story blocks (Friday night / meet someone at your booth) sourced from Supabase storage, fully translated EN/ES/PT. Free vs Pro table: "Product catalog" split into three specific rows (catalog, store link-out, FB Marketplace discovery) with a Founding Vendor 6-month note above it. Page re-sequenced: hero -> featured product block -> icon grid -> differentiation line -> photo stories -> trusted-by -> how it works (moved up) -> demo card -> founding vendor band -> free/pro table -> claim form -> FAQ -> footer. No content deleted, only added/reordered/re-skinned. No Supabase schema or backend changes, front-end only. -->
 <!-- v1.74.98 — Health Checks: fixed false-positive red X's on shopify-sync/send-email pings. These require login (verify_jwt) and the OPTIONS preflight was failing before reaching Supabase at all. Now pinged without the Authorization header on purpose — Supabase's own gateway rejects the unauthenticated request with a 401 before the function's code runs, proving reachability with zero chance of triggering a real email send or real Shopify sync. Only the client-side health check ping changed; no Edge Function code or Supabase config touched. -->
 <!-- v1.74.93 — Shopify/external store link-out: new shopify_url column, "Online store link" field in product form with Shopify auto-fill on paste, "Buy" link on vendor product list, inline Buy button on product detail page; fixed product edit button (string/int id coercion); added Cancel button to product modal; fixed modal close button hidden by iOS browser chrome -->
 <!-- v1.74.78 — Message read-receipt fix; new-message notification improvements -->
@@ -3807,6 +3812,7 @@ function routeFromURL() {
   }
   if(path === '/privacy') { ST.currentPage = 'privacy-policy'; return; }
   if(path === '/terms') { ST.currentPage = 'terms-of-service'; return; }
+  if(path === '/returns') { ST.currentPage = 'returns'; return; }
   const marketMatch = path.match(/^\/markets\/([^/]+)\/?$/);
   const vendorMatch = path.match(/^\/vendors\/([^/]+)\/?$/);
   const productMatch = path.match(/^\/vendors\/([^/]+)\/products\/([^/]+)\/?$/);
@@ -3904,6 +3910,7 @@ function renderCurrentPage() {
   if(p === 'area-request') { updatePageMeta('Request Your Area | Windmill','Ask us to bring Windmill to your city.','/area-request', 'area_request'); return renderAreaRequest(); }
   if(p === 'privacy-policy') { updatePageMeta('Privacy Policy | Windmill','How Windmill collects, uses, and protects your information.','/privacy', 'privacy_policy'); return renderPrivacyPolicy(); }
   if(p === 'terms-of-service') { updatePageMeta('Terms of Service | Windmill','The terms that govern use of Windmill by shoppers, vendors, and market operators.','/terms', 'terms_of_service'); return renderTermsOfService(); }
+  if(p === 'returns') { updatePageMeta('Returns & Refunds | Windmill','How returns and refunds work for purchases made through Windmill vendors.','/returns', 'returns'); return renderReturnsPolicy(); }
   if(p === 'vendors-list') { updatePageMeta('Browse Vendors | Windmill','Browse all local market vendors on Windmill.','/vendors', 'vendors_list'); return renderVendorsList(); }
   if(p === 'category-hub') { updatePageMeta('Explore by Category | Windmill','Browse farmers market vendors and markets by category.','/categories', 'category_hub'); return renderCategoryHub(); }
   if(p === 'category') { updatePageMeta('Category | Windmill','Browse vendors and markets by category.','/categories/'+ST.currentId, 'category', ST.currentId); return renderCategoryPage(ST.currentId); }
@@ -7123,6 +7130,12 @@ async function renderProductDetail(productId) {
       <div class="profile-section-title">More from ${esc(v.name)}</div>
       <div id="moreFromVendorGrid"><div style="text-align:center;padding:12px;color:var(--text2);font-size:12px">Loading...</div></div>
     </div>
+
+    <div style="display:flex;justify-content:center;gap:16px;padding:8px 16px 32px;flex-wrap:wrap">
+      <a onclick="navigate('privacy-policy')" style="font-size:10px;color:var(--text3);text-decoration:none;cursor:pointer">Privacy Policy</a>
+      <a onclick="navigate('terms-of-service')" style="font-size:10px;color:var(--text3);text-decoration:none;cursor:pointer">Terms of Service</a>
+      <a onclick="navigate('returns')" style="font-size:10px;color:var(--text3);text-decoration:none;cursor:pointer">Returns &amp; Refunds</a>
+    </div>
   </div>`;
 
   loadMoreFromVendor(p.vendor_id, p.id);
@@ -7377,20 +7390,42 @@ function renderVendorsJoin() {
   const lang = ST.lang || 'en';
   const content = {
     en: {
+      badge_new: "Calling all farmers market vendors",
+      hero_title_new: "Be the vendor they came looking for.",
+      hero_sub_new: "Shoppers are searching for you right now. Windmill helps them find you.",
+      cta_new: "Claim your free profile",
+      pill_1: "No credit card",
+      pill_2: "3 minutes to set up",
+      not_vendor: "Not a vendor?",
+      not_vendor_link: "Explore Windmill →",
+      diff_lead: "Not just another online shop.",
+      diff_body: "Windmill shows shoppers which markets you're at this weekend, so they can follow you, browse your products, and buy now or catch you in person.",
+      products_feature_title: "Your products, out in the world",
+      products_feature_body: "List your products with photos and prices. Shoppers can buy through your linked store, and your products get discovered on Facebook Marketplace too. Google and Pinterest are coming soon.",
+      friday_badge: "It's Friday night.",
+      friday_body1: "A shopper is deciding where to go this weekend. Which market, which vendors, what's worth the trip.",
+      friday_bold: "Windmill is where they're looking.",
+      friday_body2: "Show up there, and they can find you before they even leave the house.",
+      booth_badge: "Meet someone at your booth?",
+      booth_body: "Windmill is how they stay connected. They follow you on the spot and never lose track of you again.",
+      founding_note: "Founding Vendors get full Pro access free for 6 months.",
+      feature_catalog_basic: "Product catalog (photos, pricing, categories)",
+      feature_store_link: "Link products to your online store",
+      feature_fb_discovery: "Products discovered on Facebook Marketplace",
       hero_title: "Grow your farmers market business — beyond the market",
       hero_sub: "Your own professional page. Your customers. Your schedule. All in one place.",
       cta_pro: "Join Pro Free — 6 Months on Us",
       cta_free: "Start with a free profile",
       no_card: "No credit card needed. No commitment.",
       trusted: "Trusted by vendors across Lee County farmers markets",
-      vp1_title: "Be findable between markets",
-      vp1_body: "Your customers can find you, follow you, and see where you'll be next — even on days you're not selling.",
-      vp2_title: "Easier than posting to Instagram",
-      vp2_body: "Set up in minutes, update in seconds, right from your phone. No tech skills needed.",
-      vp3_title: "Your own mini-website, built for farmers markets",
-      vp3_body: "Your story, photos, products, and market schedule — all in one place. Share it like a link. Update it like a social post.",
-      vp4_title: "Get featured front and center",
-      vp4_body: "Pro vendors appear in the Spotlight — the first thing shoppers see when they open Windmill.",
+      vp1_title: "Your products",
+      vp1_body: "Show shoppers what makes you unique.",
+      vp2_title: "Your markets",
+      vp2_body: "Share where you'll be each weekend.",
+      vp3_title: "Your updates",
+      vp3_body: "Post specials and announcements to keep shoppers in the know.",
+      vp4_title: "Your socials",
+      vp4_body: "Connect your socials so shoppers can follow and stay inspired.",
       demo_label: "See what a Pro page looks like →",
       free_label: "Free",
       pro_label: "Pro",
@@ -7448,20 +7483,42 @@ function renderVendorsJoin() {
       claim_note: "We'll verify and get back to you within 24 hours.",
     },
     es: {
+      badge_new: "Llamando a todos los vendedores de mercados agrícolas",
+      hero_title_new: "Sé el vendedor que estaban buscando.",
+      hero_sub_new: "Los compradores te están buscando ahora mismo. Windmill los ayuda a encontrarte.",
+      cta_new: "Reclama tu perfil gratis",
+      pill_1: "Sin tarjeta de crédito",
+      pill_2: "3 minutos para configurar",
+      not_vendor: "¿No eres vendedor?",
+      not_vendor_link: "Explora Windmill →",
+      diff_lead: "No es solo otra tienda en línea.",
+      diff_body: "Windmill muestra a los compradores en qué mercados estarás este fin de semana, para que puedan seguirte, ver tus productos y comprar ahora o en persona.",
+      products_feature_title: "Tus productos, en el mundo",
+      products_feature_body: "Publica tus productos con fotos y precios. Los compradores pueden comprar a través de tu tienda enlazada, y tus productos también se descubren en Facebook Marketplace. Google y Pinterest llegarán pronto.",
+      friday_badge: "Es viernes por la noche.",
+      friday_body1: "Un comprador está decidiendo a dónde ir este fin de semana. Qué mercado, qué vendedores, qué vale la pena visitar.",
+      friday_bold: "Windmill es donde está buscando.",
+      friday_body2: "Aparece ahí, y te encontrarán antes de salir de casa.",
+      booth_badge: "¿Conociste a alguien en tu puesto?",
+      booth_body: "Windmill es cómo se mantienen conectados. Te siguen en el momento y nunca te pierden de vista.",
+      founding_note: "Los Vendedores Fundadores obtienen acceso Pro completo gratis por 6 meses.",
+      feature_catalog_basic: "Catálogo de productos (fotos, precios, categorías)",
+      feature_store_link: "Enlaza productos a tu tienda en línea",
+      feature_fb_discovery: "Productos descubiertos en Facebook Marketplace",
       hero_title: "Haz crecer tu negocio en el mercado — más allá del mercado",
       hero_sub: "Tu propia página profesional. Tus clientes. Tu horario. Todo en un solo lugar.",
       cta_pro: "Únete a Pro Gratis — 6 Meses de Regalo",
       cta_free: "Comienza con un perfil gratuito",
       no_card: "Sin tarjeta de crédito. Sin compromiso.",
       trusted: "Usado por vendedores en los mercados de Lee County",
-      vp1_title: "Sé encontrado entre mercados",
-      vp1_body: "Tus clientes pueden encontrarte, seguirte y ver dónde estarás — incluso los días que no vendes.",
-      vp2_title: "Más fácil que publicar en Instagram",
-      vp2_body: "Configura en minutos, actualiza en segundos, desde tu teléfono. Sin conocimientos técnicos.",
-      vp3_title: "Tu propio mini-sitio web, hecho para mercados",
-      vp3_body: "Tu historia, fotos, productos y horario — todo en un solo lugar. Compártelo como un enlace.",
-      vp4_title: "Aparece al frente y al centro",
-      vp4_body: "Los vendedores Pro aparecen en el Spotlight — lo primero que ven los compradores al abrir Windmill.",
+      vp1_title: "Tus productos",
+      vp1_body: "Muestra a los compradores qué te hace único.",
+      vp2_title: "Tus mercados",
+      vp2_body: "Comparte dónde estarás cada fin de semana.",
+      vp3_title: "Tus actualizaciones",
+      vp3_body: "Publica ofertas y anuncios para mantener informados a los compradores.",
+      vp4_title: "Tus redes sociales",
+      vp4_body: "Conecta tus redes para que los compradores te sigan.",
       demo_label: "Ver cómo se ve una página Pro →",
       free_label: "Gratis",
       pro_label: "Pro",
@@ -7519,20 +7576,42 @@ function renderVendorsJoin() {
       claim_note: "Verificaremos y te responderemos en 24 horas.",
     },
     pt: {
+      badge_new: "Chamando todos os vendedores de feiras",
+      hero_title_new: "Seja o vendedor que eles vieram procurar.",
+      hero_sub_new: "Compradores estão te procurando agora. O Windmill os ajuda a te encontrar.",
+      cta_new: "Reivindique seu perfil grátis",
+      pill_1: "Sem cartão de crédito",
+      pill_2: "3 minutos para configurar",
+      not_vendor: "Não é vendedor?",
+      not_vendor_link: "Explore o Windmill →",
+      diff_lead: "Não é apenas mais uma loja online.",
+      diff_body: "O Windmill mostra aos compradores em quais mercados você está neste fim de semana, para que possam te seguir, ver seus produtos e comprar agora ou pessoalmente.",
+      products_feature_title: "Seus produtos, no mundo",
+      products_feature_body: "Publique seus produtos com fotos e preços. Os compradores podem comprar através da sua loja vinculada, e seus produtos também são descobertos no Facebook Marketplace. Google e Pinterest em breve.",
+      friday_badge: "É sexta-feira à noite.",
+      friday_body1: "Um comprador está decidindo aonde ir neste fim de semana. Qual mercado, quais vendedores, o que vale a pena visitar.",
+      friday_bold: "O Windmill é onde ele está procurando.",
+      friday_body2: "Apareça lá, e eles te encontram antes mesmo de sair de casa.",
+      booth_badge: "Conheceu alguém na sua barraca?",
+      booth_body: "O Windmill é como eles ficam conectados. Eles te seguem na hora e nunca mais te perdem de vista.",
+      founding_note: "Vendedores Fundadores recebem acesso Pro completo grátis por 6 meses.",
+      feature_catalog_basic: "Catálogo de produtos (fotos, preços, categorias)",
+      feature_store_link: "Vincule produtos à sua loja online",
+      feature_fb_discovery: "Produtos descobertos no Facebook Marketplace",
       hero_title: "Expanda seu negócio no mercado — além do mercado",
       hero_sub: "Sua própria página profissional. Seus clientes. Seu horário. Tudo em um só lugar.",
       cta_pro: "Junte-se ao Pro Grátis — 6 Meses de Presente",
       cta_free: "Comece com um perfil gratuito",
       no_card: "Sem cartão de crédito. Sem compromisso.",
       trusted: "Usado por vendedores nos mercados do Lee County",
-      vp1_title: "Seja encontrado entre os mercados",
-      vp1_body: "Seus clientes podem encontrá-lo, segui-lo e ver onde você estará — mesmo nos dias em que não está vendendo.",
-      vp2_title: "Mais fácil do que postar no Instagram",
-      vp2_body: "Configure em minutos, atualize em segundos, pelo seu celular. Sem conhecimento técnico.",
-      vp3_title: "Seu próprio mini-site, feito para feiras",
-      vp3_body: "Sua história, fotos, produtos e agenda — tudo em um lugar. Compartilhe como um link.",
-      vp4_title: "Apareça em destaque",
-      vp4_body: "Vendedores Pro aparecem no Spotlight — a primeira coisa que os compradores veem ao abrir o Windmill.",
+      vp1_title: "Seus produtos",
+      vp1_body: "Mostre aos compradores o que te torna único.",
+      vp2_title: "Seus mercados",
+      vp2_body: "Compartilhe onde você estará em cada fim de semana.",
+      vp3_title: "Suas atualizações",
+      vp3_body: "Publique ofertas e avisos para manter os compradores informados.",
+      vp4_title: "Suas redes sociais",
+      vp4_body: "Conecte suas redes para que os compradores te sigam.",
       demo_label: "Veja como é uma página Pro →",
       free_label: "Grátis",
       pro_label: "Pro",
@@ -7609,30 +7688,100 @@ function renderVendorsJoin() {
     </div>
 
     <!-- HERO -->
-    <div style="padding:32px 20px 28px;text-align:center;background:linear-gradient(160deg,var(--green-lt) 0%,var(--terra-lt) 100%);margin:12px 16px 0;border-radius:var(--r-lg);border:0.5px solid var(--border)">
-      <div style="font-size:13px;font-weight:700;letter-spacing:.08em;color:var(--green-dk);text-transform:uppercase;margin-bottom:10px">🌾 Windmill for Vendors</div>
-      <h1 style="font-family:var(--font-serif);font-size:22px;font-weight:600;color:var(--text);line-height:1.35;margin:0 0 12px">${c.hero_title}</h1>
-      <p style="font-size:14px;color:var(--text2);line-height:1.6;margin:0 0 24px">${c.hero_sub}</p>
-      <button onclick="document.getElementById('joinClaimForm').scrollIntoView({behavior:'smooth'})" style="width:100%;padding:14px;background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);font-size:15px;cursor:pointer;font-weight:600;font-family:var(--font-sans);margin-bottom:10px">${c.cta_pro}</button>
-      <button onclick="document.getElementById('joinClaimForm').scrollIntoView({behavior:'smooth'})" style="width:100%;padding:12px;background:transparent;color:var(--green-dk);border:1.5px solid var(--green);border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:500;font-family:var(--font-sans);margin-bottom:12px">${c.cta_free}</button>
-      <div style="font-size:11px;color:var(--text3)">${c.no_card}</div>
+    <div style="margin:12px 16px 0;border-radius:var(--r-lg);overflow:hidden;border:0.5px solid var(--border)">
+      <div style="background:var(--green-dk);padding:22px 20px 26px;position:relative;overflow:hidden">
+        <svg width="40" height="40" viewBox="0 0 46 46" style="position:absolute;bottom:10px;right:14px;opacity:0.9">
+          <g fill="#FAC775"><path d="M23 6 C27 6 29 10 26 15 C24 18 23 20 23 20 C23 20 22 18 20 15 C17 10 19 6 23 6 Z"/>
+          <path d="M23 40 C27 40 29 36 26 31 C24 28 23 26 23 26 C23 26 22 28 20 31 C17 36 19 40 23 40 Z"/>
+          <path d="M6 23 C6 19 10 17 15 20 C18 22 20 23 20 23 C20 23 18 24 15 26 C10 29 6 27 6 23 Z"/>
+          <path d="M40 23 C40 19 36 17 31 20 C28 22 26 23 26 23 C26 23 28 24 31 26 C36 29 40 27 40 23 Z"/></g>
+          <circle cx="23" cy="23" r="5.5" fill="#EF9F27"/>
+        </svg>
+        <div style="display:inline-block;padding:6px 14px;background:var(--bg);border-radius:var(--r-pill);font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--green-dk);text-transform:uppercase;margin-bottom:16px;position:relative;z-index:1">${c.badge_new}</div>
+        <h1 style="font-family:var(--font-serif);font-size:25px;font-weight:700;color:#fff;line-height:1.25;margin:0 0 12px;position:relative;z-index:1;max-width:260px">${c.hero_title_new}</h1>
+        <p style="font-size:13.5px;color:var(--green-lt);line-height:1.55;margin:0;position:relative;z-index:1;max-width:270px">${c.hero_sub_new}</p>
+      </div>
+      <div style="background:#FAEEDA;padding:20px 18px 22px">
+        <button onclick="document.getElementById('joinClaimForm').scrollIntoView({behavior:'smooth'})" style="width:100%;padding:16px;background:var(--terra);color:#fff;border:none;border-radius:var(--r-pill);font-size:16px;cursor:pointer;font-weight:700;font-family:var(--font-sans);margin-bottom:10px">${c.cta_new}</button>
+        <div style="display:flex;justify-content:center;gap:8px;margin-bottom:18px;flex-wrap:wrap">
+          <span style="font-size:11px;font-weight:600;color:#633806;background:#fff;border:0.5px solid #EF9F27;border-radius:var(--r-pill);padding:4px 10px">${c.pill_1}</span>
+          <span style="font-size:11px;font-weight:600;color:#633806;background:#fff;border:0.5px solid #EF9F27;border-radius:var(--r-pill);padding:4px 10px">${c.pill_2}</span>
+        </div>
+        <div onclick="navigate('home')" style="background:#fff;border-radius:var(--r-md);padding:13px 16px;display:flex;align-items:center;justify-content:space-between;border:0.5px solid #EF9F27;cursor:pointer;gap:8px;flex-wrap:wrap">
+          <div style="font-size:12.5px;color:#412402">${c.not_vendor}</div>
+          <div style="font-size:12.5px;color:var(--terra);font-weight:700">${c.not_vendor_link}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FEATURED: YOUR PRODUCTS -->
+    <div style="margin:24px 16px 0;background:var(--surface);border:1.5px solid var(--green);border-radius:var(--r-lg);padding:18px 16px">
+      <div style="font-size:26px;margin-bottom:8px">🧺</div>
+      <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px;line-height:1.3">${esc(c.products_feature_title)}</div>
+      <div style="font-size:13px;color:var(--text2);line-height:1.6">${esc(c.products_feature_body)}</div>
+    </div>
+
+    <!-- VALUE PROPS -->
+    <div style="padding:14px 16px 0;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:20px">
+      ${[
+        {icon:'📍',title:c.vp2_title,body:c.vp2_body},
+        {icon:'📣',title:c.vp3_title,body:c.vp3_body},
+        {icon:'📱',title:c.vp4_title,body:c.vp4_body}
+      ].map(vp=>`
+        <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:12px 10px">
+          <div style="font-size:18px;margin-bottom:6px">${vp.icon}</div>
+          <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px;line-height:1.3">${esc(vp.title)}</div>
+          <div style="font-size:11px;color:var(--text2);line-height:1.45">${esc(vp.body)}</div>
+        </div>`).join('')}
+    </div>
+
+    <!-- STORY: FRIDAY NIGHT -->
+    <div style="margin:0 0 4px">
+      <div style="padding:16px 16px 12px">
+        <div style="font-size:15px;font-weight:700;color:var(--green-dk)">🌿 ${esc(c.friday_badge)}</div>
+      </div>
+      <img src="https://fwzgazmewsspgtekcdhs.supabase.co/storage/v1/object/public/vendor-photos/site-assets/vendor-join-friday-night.jpg" alt="" style="width:100%;height:170px;object-fit:cover;display:block">
+      <div style="padding:16px 16px 20px">
+        <div style="font-size:13px;color:var(--text);line-height:1.6;margin-bottom:10px">${esc(c.friday_body1)}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--green-dk);margin-bottom:10px">${esc(c.friday_bold)}</div>
+        <div style="font-size:13px;color:var(--text);line-height:1.6">${esc(c.friday_body2)}</div>
+      </div>
+    </div>
+
+    <!-- STORY: BOOTH MOMENT -->
+    <div style="margin:0 0 24px">
+      <div style="padding:16px 16px 12px">
+        <div style="font-size:15px;font-weight:700;color:var(--green-dk)">🤍 ${esc(c.booth_badge)}</div>
+      </div>
+      <img src="https://fwzgazmewsspgtekcdhs.supabase.co/storage/v1/object/public/vendor-photos/site-assets/vendor-join-booth-moment.jpg" alt="" style="width:100%;height:170px;object-fit:cover;display:block">
+      <div style="padding:16px 16px 4px">
+        <div style="font-size:13px;color:var(--text);line-height:1.6">${esc(c.booth_body)}</div>
+      </div>
+    </div>
+
+    <!-- DIFFERENTIATION LINE -->
+    <div style="margin:0 16px 24px;background:var(--green-lt);border-radius:var(--r-md);padding:16px 18px">
+      <div style="font-size:14px;font-weight:700;color:var(--green-dk);margin-bottom:6px">${esc(c.diff_lead)}</div>
+      <div style="font-size:13px;color:var(--green-dk);line-height:1.6">${esc(c.diff_body)}</div>
     </div>
 
     <!-- TRUSTED BY -->
-    <div style="text-align:center;padding:16px 20px;font-size:12px;color:var(--text3)">${c.trusted}</div>
+    <div style="text-align:center;padding:0 20px 20px;font-size:12px;color:var(--text3)">${c.trusted}</div>
 
-    <!-- VALUE PROPS -->
-    <div style="padding:0 16px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
+    <!-- HOW IT WORKS -->
+    <div style="padding:0 16px;margin-bottom:28px">
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:16px;text-align:center">${c.how_title}</div>
       ${[
-        {icon:'🌱',title:c.vp1_title,body:c.vp1_body},
-        {icon:'📱',title:c.vp2_title,body:c.vp2_body},
-        {icon:'🌐',title:c.vp3_title,body:c.vp3_body},
-        {icon:'⭐',title:c.vp4_title,body:c.vp4_body}
-      ].map(vp=>`
-        <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px">
-          <div style="font-size:22px;margin-bottom:8px">${vp.icon}</div>
-          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;line-height:1.3">${esc(vp.title)}</div>
-          <div style="font-size:12px;color:var(--text2);line-height:1.5">${esc(vp.body)}</div>
+        {num:'1',title:c.step1_title,body:c.step1_body},
+        {num:'2',title:c.step2_title,body:c.step2_body},
+        {num:'3',title:c.step3_title,body:c.step3_body}
+      ].map(s=>`
+        <div style="display:flex;gap:14px;margin-bottom:16px;align-items:flex-start">
+          <div style="width:32px;height:32px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0">${s.num}</div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px">${esc(s.title)}</div>
+            <div style="font-size:12px;color:var(--text2);line-height:1.5">${esc(s.body)}</div>
+          </div>
         </div>`).join('')}
     </div>
 
@@ -7666,7 +7815,17 @@ function renderVendorsJoin() {
       <div style="text-align:center;margin-top:8px;font-size:11px;color:var(--text3)">${c.no_card}</div>
     </div>
 
+    <!-- FOUNDING MEMBER BAND -->
+    <div style="margin:0 16px 28px;background:var(--green);border-radius:var(--r-lg);padding:24px 20px;text-align:center">
+      <div style="font-size:24px;margin-bottom:10px">🌾</div>
+      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:#fff;margin-bottom:10px;line-height:1.3">${c.founding_title}</div>
+      <p style="font-size:13px;color:rgba(255,255,255,0.85);line-height:1.6;margin:0 0 20px">${c.founding_body}</p>
+      <button onclick="document.getElementById('joinClaimForm').scrollIntoView({behavior:'smooth'})" style="padding:13px 28px;background:#fff;color:var(--green-dk);border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">${c.founding_cta}</button>
+      <div style="margin-top:10px;font-size:11px;color:rgba(255,255,255,0.7)">${c.no_card}</div>
+    </div>
+
     <!-- FREE vs PRO TABLE -->
+    <div style="margin:0 16px 8px;text-align:center;font-size:12px;font-weight:600;color:var(--green-dk)">${esc(c.founding_note)}</div>
     <div style="margin:0 16px 28px;border:0.5px solid var(--border);border-radius:var(--r-md);overflow:hidden">
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;background:var(--surface2);border-bottom:0.5px solid var(--border)">
         <div style="padding:10px 12px;font-size:12px;font-weight:600;color:var(--text2)">${t('vj_feature')}</div>
@@ -7678,7 +7837,9 @@ function renderVendorsJoin() {
         [c.feature_schedule, true, true],
         [c.feature_followers, true, true],
         [c.feature_photos, true, true],
-        [c.feature_products, false, true],
+        [c.feature_catalog_basic, false, true],
+        [c.feature_store_link, false, true],
+        [c.feature_fb_discovery, false, true],
         [c.feature_updates, false, true],
         [c.feature_fb, false, true],
         [c.feature_spotlight, false, true],
@@ -7691,32 +7852,6 @@ function renderVendorsJoin() {
           <div style="padding:9px 12px;text-align:center;border-left:0.5px solid var(--border);font-size:13px">${row[2]?'✅':'—'}</div>
         </div>`).join('')}
 
-    </div>
-
-    <!-- FOUNDING MEMBER BAND -->
-    <div style="margin:0 16px 28px;background:var(--green);border-radius:var(--r-lg);padding:24px 20px;text-align:center">
-      <div style="font-size:24px;margin-bottom:10px">🌾</div>
-      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:#fff;margin-bottom:10px;line-height:1.3">${c.founding_title}</div>
-      <p style="font-size:13px;color:rgba(255,255,255,0.85);line-height:1.6;margin:0 0 20px">${c.founding_body}</p>
-      <button onclick="document.getElementById('joinClaimForm').scrollIntoView({behavior:'smooth'})" style="padding:13px 28px;background:#fff;color:var(--green-dk);border:none;border-radius:var(--r-pill);font-size:14px;cursor:pointer;font-weight:600;font-family:var(--font-sans)">${c.founding_cta}</button>
-      <div style="margin-top:10px;font-size:11px;color:rgba(255,255,255,0.7)">${c.no_card}</div>
-    </div>
-
-    <!-- HOW IT WORKS -->
-    <div style="padding:0 16px;margin-bottom:28px">
-      <div style="font-family:var(--font-serif);font-size:18px;font-weight:600;color:var(--text);margin-bottom:16px;text-align:center">${c.how_title}</div>
-      ${[
-        {num:'1',title:c.step1_title,body:c.step1_body},
-        {num:'2',title:c.step2_title,body:c.step2_body},
-        {num:'3',title:c.step3_title,body:c.step3_body}
-      ].map(s=>`
-        <div style="display:flex;gap:14px;margin-bottom:16px;align-items:flex-start">
-          <div style="width:32px;height:32px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0">${s.num}</div>
-          <div>
-            <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px">${esc(s.title)}</div>
-            <div style="font-size:12px;color:var(--text2);line-height:1.5">${esc(s.body)}</div>
-          </div>
-        </div>`).join('')}
     </div>
 
     <!-- CLAIM FORM -->
@@ -7797,7 +7932,7 @@ function renderVendorsJoin() {
       <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">${c.footer_q}</div>
       <button onclick="openContactWindmill()" style="background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);padding:8px 18px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-sans)">${t('vd_contact_btn')}</button>
       <div style="margin-top:12px;font-size:12px;color:var(--text3)">${c.footer_signin} <span style="color:var(--terra);cursor:pointer" onclick="navigate('vendors-login')">${c.footer_signin_link}</span></div>
-      <div style="margin-top:8px;font-size:11px;color:var(--text3)"><span style="color:var(--terra);cursor:pointer" onclick="navigate('privacy-policy')">${t('vd_privacy_policy')}</span> · <span style="color:var(--terra);cursor:pointer" onclick="navigate('terms-of-service')">Terms of Service</span></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--text3)"><span style="color:var(--terra);cursor:pointer" onclick="navigate('privacy-policy')">${t('vd_privacy_policy')}</span> · <span style="color:var(--terra);cursor:pointer" onclick="navigate('terms-of-service')">Terms of Service</span> · <span style="color:var(--terra);cursor:pointer" onclick="navigate('returns')">Returns &amp; Refunds</span></div>
     </div>
 
   </div>`;
@@ -9693,6 +9828,25 @@ function renderPrivacyPolicy() {
   </div>`;
 }
 
+// v1.75.2 — Returns policy page, linked from Meta Shop setup and shopwindmill.com/returns
+function renderReturnsPolicy() {
+  hideFilterUI();
+  const section = (title, body) => `<div style="margin-bottom:18px"><div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;font-family:var(--font-serif)">${title}</div><p style="font-size:12px;color:var(--text2);line-height:1.7;margin:0">${body}</p></div>`;
+  document.getElementById('scrollBody').innerHTML = `<div style="padding:0 16px 32px">
+    <div class="profile-back" onclick="goBack()" style="padding-top:14px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> ${t('back')}</div>
+    <div style="font-family:var(--font-serif);font-size:20px;font-weight:600;color:var(--text);margin:16px 0 2px">Returns &amp; Refunds</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:20px">Last updated: August 2026</div>
+    <p style="font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:18px">Windmill is a marketplace that connects shoppers with local farmers market vendors. All purchases made through vendor storefronts are transactions directly between the shopper and the individual vendor.</p>
+    ${section('Vendor return policies', 'Return and refund policies vary by vendor. Because Windmill vendors are independent sellers operating at local farmers markets, most sales are considered final. Each vendor sets their own policy — please review any return or exchange terms directly with the vendor before purchasing.')}
+    ${section('How to resolve an issue', 'If you have a problem with a purchase, contact the vendor directly through their store or Windmill profile. Most vendors are happy to work with you on any issues with their products.')}
+    ${section('Need help finding a vendor?', 'If you need help locating a vendor\'s contact information or have a question we can help with, reach out to us.')}
+    <div style="margin-top:24px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-md);padding:14px 16px">
+      <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px">💬 Questions? We're happy to help.</div>
+      <button onclick="openContactWindmill()" style="background:var(--green);color:#fff;border:none;border-radius:var(--r-pill);padding:8px 18px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-sans)">Contact us</button>
+    </div>
+  </div>`;
+}
+
 // v1.74.73 — Terms of Service. English-only for now, matching how the Privacy
 // Policy above is currently handled (not run through the es/pt translation
 // system) — keeps the one legal document that exists consistent with the
@@ -10239,6 +10393,8 @@ async function renderMeSection(section) {
         <span onclick="navigate('privacy-policy')" style="font-size:12px;color:var(--terra);cursor:pointer">${t('vd_privacy_policy')}</span>
         <span style="color:var(--text3);margin:0 4px">·</span>
         <span onclick="navigate('terms-of-service')" style="font-size:12px;color:var(--terra);cursor:pointer">Terms of Service</span>
+        <span style="color:var(--text3);margin:0 4px">·</span>
+        <span onclick="navigate('returns')" style="font-size:12px;color:var(--terra);cursor:pointer">Returns &amp; Refunds</span>
       </div>
     </div></div>`;
   }
@@ -18595,6 +18751,8 @@ function renderVendorSettingsSection(section) {
         <span onclick="navigate('privacy-policy')" style="font-size:12px;color:var(--terra);cursor:pointer">${t('vd_privacy_policy')}</span>
         <span style="color:var(--text3);margin:0 4px">·</span>
         <span onclick="navigate('terms-of-service')" style="font-size:12px;color:var(--terra);cursor:pointer">Terms of Service</span>
+        <span style="color:var(--text3);margin:0 4px">·</span>
+        <span onclick="navigate('returns')" style="font-size:12px;color:var(--terra);cursor:pointer">Returns &amp; Refunds</span>
       </div>
     </div>`;
   } else if(section === 'support') {
@@ -19840,6 +19998,8 @@ function renderOperatorSettingsSection(section) {
         <span onclick="navigate('privacy-policy')" style="font-size:12px;color:var(--terra);cursor:pointer">Privacy Policy</span>
         <span style="color:var(--text3);margin:0 4px">·</span>
         <span onclick="navigate('terms-of-service')" style="font-size:12px;color:var(--terra);cursor:pointer">Terms of Service</span>
+        <span style="color:var(--text3);margin:0 4px">·</span>
+        <span onclick="navigate('returns')" style="font-size:12px;color:var(--terra);cursor:pointer">Returns &amp; Refunds</span>
       </div>
     </div>`;
   } else if(section === 'support') {
